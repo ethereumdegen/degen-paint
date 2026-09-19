@@ -2,24 +2,24 @@
 
 The design constraint that shapes everything here: **an agent cannot see its own work.** A human
 using GIMP gets continuous visual feedback at zero cost. An agent gets a return value. So every
-capability in Atelier is paired with a machine-readable channel that answers "what did that
+capability in degen-paint is paired with a machine-readable channel that answers "what did that
 actually do?"
 
 ## 1. CLI
 
 ```bash
-atl new poster --kind raster --size 2480x3508 --dpi 300
-atl doc add logo --kind vector --size 512x512
+dpaint new poster --kind raster --size 2480x3508 --dpi 300
+dpaint doc add logo --kind vector --size 512x512
 
-atl op vector.object.add-path --doc logo --d "M12 2 L22 20 H2 Z" --fill "#fb8500" --name mark
-atl op vector.path.boolean --a "#mark" --b "#cut" --mode subtract
-atl op raster.layer.add --type linked --document logo --box 1800,3100,480,240 --name badge
-atl op raster.filter.gaussian-blur --layer "#sky" --radius 12
+dpaint op vector.object.add-path --doc logo --d "M12 2 L22 20 H2 Z" --fill "#fb8500" --name mark
+dpaint op vector.path.boolean --a "#mark" --b "#cut" --mode subtract
+dpaint op raster.layer.add --type linked --document logo --box 1800,3100,480,240 --name badge
+dpaint op raster.filter.gaussian-blur --layer "#sky" --radius 12
 
-atl render out.png --scale 2 --digest digest.json
-atl lint --json
-atl diff out.png golden/out.png --threshold 0.01
-atl undo
+dpaint render out.png --scale 2 --digest digest.json
+dpaint lint --json
+dpaint diff out.png golden/out.png --threshold 0.01
+dpaint undo
 ```
 
 Rules that make this usable by a machine:
@@ -30,7 +30,7 @@ Rules that make this usable by a machine:
   `3` selector matched nothing · `4` lint failures present · `5` provider unavailable ·
   `6` budget exceeded.
 - **`--dry-run`** validates and reports the intended effect without writing.
-- **`atl op --list`** and **`atl schema --op <id>`** let an agent discover the full surface at
+- **`dpaint op --list`** and **`dpaint schema --op <id>`** let an agent discover the full surface at
   runtime instead of relying on a memorized manual.
 - **Errors carry fixes.** `selector '#sky' matched 0 objects; did you mean '#sky-grad'?
   (layers: #bg, #sky-grad, #title)` — an error that lists the actual candidates saves a round trip.
@@ -38,21 +38,21 @@ Rules that make this usable by a machine:
 ## 2. MCP server
 
 ```bash
-atl mcp            # stdio; one MCP tool per op, schemas generated from the registry
+dpaint mcp            # stdio; one MCP tool per op, schemas generated from the registry
 ```
 
 Plus a small set of hand-written tools that are more useful than raw ops for an agent loop:
 
 | Tool | Purpose |
 |---|---|
-| `atelier_overview` | project structure, document kinds, sizes, what changed recently |
-| `atelier_render` | render and return the image **and** the digest in one call |
-| `atelier_lint` | run lint and return findings with the selector of each offender |
-| `atelier_apply` | apply a batch of ops transactionally — all succeed or none are written |
-| `atelier_history` | recent journal entries, including edits a human made in the GUI |
+| `dpaint_overview` | project structure, document kinds, sizes, what changed recently |
+| `dpaint_render` | render and return the image **and** the digest in one call |
+| `dpaint_lint` | run lint and return findings with the selector of each offender |
+| `dpaint_apply` | apply a batch of ops transactionally — all succeed or none are written |
+| `dpaint_history` | recent journal entries, including edits a human made in the GUI |
 
 Batching matters: a poster is thirty ops. Thirty MCP round trips is thirty model turns.
-`atelier_apply` takes the list, validates all of them, applies them atomically, and returns one
+`dpaint_apply` takes the list, validates all of them, applies them atomically, and returns one
 digest.
 
 ## 3. The digest
@@ -83,7 +83,7 @@ because a mask ate it? `coverage: 0.0`.
 
 ## 4. Lint
 
-`atl lint` encodes the mistakes a blind operator makes:
+`dpaint lint` encodes the mistakes a blind operator makes:
 
 | Rule | Catches |
 |---|---|
@@ -103,13 +103,13 @@ Each finding carries a selector, so the fix is directly actionable:
 
 ## 5. Annotated preview
 
-`atl render --annotate out.png` overlays each object's bounding box with a number and its id.
+`dpaint render --annotate out.png` overlays each object's bounding box with a number and its id.
 A vision-capable agent then has stable handles — "#3 is overlapping #7" maps to selectors it can
 act on, instead of pixel guesses about "the text near the top".
 
 ## 6. Perceptual diff
 
-`atl diff a.png b.png` returns SSIM, mean and max ΔE2000, the fraction of pixels changed, the
+`dpaint diff a.png b.png` returns SSIM, mean and max ΔE2000, the fraction of pixels changed, the
 bounding box of the changed region, and optionally a heatmap image. Two uses:
 
 1. **Intent checking** — "I moved the logo; did anything else change?" A changed-region bbox that

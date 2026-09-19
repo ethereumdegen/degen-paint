@@ -1,4 +1,4 @@
-# Atelier
+# degen-paint
 
 **An agent-native image and 3D asset studio.** GIMP, Inkscape, and a glTF authoring tool —
 designed from the first line to be driven by a coding agent.
@@ -20,7 +20,7 @@ subtract on a Bézier path, set a fill rule, or extrude a logo into a glTF badge
 tools for that work are GUIs with no machine surface, and the libraries that do have machine
 surfaces have no document model, no history, and no way for an agent to *see what it did*.
 
-Atelier is that missing tool.
+degen-paint is that missing tool.
 
 ## Three modes, one core
 
@@ -52,7 +52,7 @@ An agent cannot see. So every capability is paired with a machine-readable feedb
 
 ## Optional AI providers
 
-Atelier is fully functional offline. Generation is **additive and opt-in**:
+degen-paint is fully functional offline. Generation is **additive and opt-in**:
 
 - **[fal.ai](https://fal.ai)** (`FAL_KEY`) — generate, edit, inpaint, upscale, and
   background-removal directly onto the raster canvas.
@@ -70,8 +70,8 @@ See [`docs/ai-providers.md`](./docs/ai-providers.md).
 Rust engine, JSON documents, Tauri v2 shell, browser-first UI.
 
 ```
-atl              CLI          ─┐
-atelier-mcp      MCP server   ─┼─→ one Rust engine ─→ same renders everywhere
+dpaint              CLI          ─┐
+dpaint-mcp      MCP server   ─┼─→ one Rust engine ─→ same renders everywhere
 Tauri app / WASM GUI          ─┘
 ```
 
@@ -85,7 +85,7 @@ build, so the human's viewport and the agent's headless render come from identic
 |---|---|
 | [`PLAN.md`](./PLAN.md) | Master plan: thesis, locked decisions, phases, risks |
 | [`docs/architecture.md`](./docs/architecture.md) | Crate graph, data flow, rendering pipeline |
-| [`docs/document-format.md`](./docs/document-format.md) | The `.atl` project format and JSON schema |
+| [`docs/document-format.md`](./docs/document-format.md) | The `.dpaint` project format and JSON schema |
 | [`docs/op-registry.md`](./docs/op-registry.md) | The op model and the full v1 op catalog |
 | [`docs/agent-interface.md`](./docs/agent-interface.md) | CLI, MCP, digest, lint, diff, annotate |
 | [`docs/ai-providers.md`](./docs/ai-providers.md) | fal.ai and QuiverAI integration |

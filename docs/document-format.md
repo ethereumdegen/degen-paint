@@ -1,9 +1,9 @@
-# The `.atl` project format
+# The `.dpaint` project format
 
 ## Layout
 
 ```
-poster.atl/
+poster.dpaint/
   project.json      canonical document set — the single source of truth
   history.jsonl     append-only op journal with RFC-6902 patches
   assets/
@@ -20,7 +20,7 @@ stays small, human-readable, and diffable. Two agents editing the same project s
 
 ```jsonc
 {
-  "atelier": 1,
+  "degenPaint": 1,
   "id": "prj_01J8ZK…",
   "name": "poster",
   "created": "2026-09-19T21:03:00Z",
@@ -102,7 +102,7 @@ explicit (`raster.layer.rasterize`, `raster.doc.flatten`).
       "opacity": 1.0, "blend": "normal",
       "transform": [1,0,0,1,0,0]
     },
-    { "id": "obj_word", "type": "text", "text": "ATELIER",
+    { "id": "obj_word", "type": "text", "text": "DEGEN PAINT",
       "font": { "family": "Inter", "weight": 600, "size": 48 },
       "onPath": { "target": "obj_arc", "offset": 0.1, "side": "left" } },
     { "id": "grp_lockup", "type": "group", "clip": "obj_frame", "objects": [ … ] }
@@ -174,13 +174,13 @@ edits made in the GUI.
 
 ## Schema
 
-`atl schema` emits JSON Schema for the project format and for every op, generated from the Rust
+`dpaint schema` emits JSON Schema for the project format and for every op, generated from the Rust
 types with `schemars`. The schema is the contract for MCP tools, CLI argument parsing, and
 editor autocomplete, and it cannot drift from the implementation because it *is* the
 implementation.
 
 ## Versioning
 
-`"atelier": 1` is the format version. Migrations are registered functions from version N to N+1,
+`"degenPaint": 1` is the format version. Migrations are registered functions from version N to N+1,
 run on open, with the pre-migration project preserved in `assets/` so an upgrade is never
 destructive.

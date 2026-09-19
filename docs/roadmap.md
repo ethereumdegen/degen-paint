@@ -10,15 +10,15 @@ Phases are sequential because each one's proof depends on the previous one's eng
 Workspace, document model, and the machinery every later phase derives from.
 
 - cargo workspace, `rustc 1.96`, `wasm32-unknown-unknown` target added, CI on macOS + Linux
-- `atelier-core`: `Project` / `Document` / ids / selectors, serde + `schemars`
+- `dpaint-core`: `Project` / `Document` / ids / selectors, serde + `schemars`
 - geometry (`kurbo`), color (`palette`, linear f32, ΔE2000), units and DPI
 - content-addressed asset store (`blake3`), atomic project writes, `.lock`
 - op registry, `OpEffect`, JSON-patch journal, undo/redo, replay
-- `atl` skeleton: `new`, `doc`, `op --list`, `schema`, `inspect --json`, `undo`, `redo`, `doctor`
+- `dpaint` skeleton: `new`, `doc`, `op --list`, `schema`, `inspect --json`, `undo`, `redo`, `doctor`
 - golden-test harness and fixture layout
 
 **Acceptance** — create a project, apply 20 ops, undo all 20, redo all 20, and get a
-byte-identical `project.json` at every step; `atl schema` emits valid JSON Schema for every
+byte-identical `project.json` at every step; `dpaint schema` emits valid JSON Schema for every
 registered op; replaying `history.jsonl` onto an empty project reproduces the same project.
 
 ---
@@ -89,8 +89,8 @@ badge that all stay consistent when the source path is edited and everything is 
 - render digest, `inspect.*` queries, annotated previews
 - the full lint rule set
 - SSIM / ΔE2000 diff with heatmaps
-- `atl mcp`: one tool per op plus `atelier_overview`, `atelier_render`, `atelier_lint`,
-  `atelier_apply`, `atelier_history`
+- `dpaint mcp`: one tool per op plus `dpaint_overview`, `dpaint_render`, `dpaint_lint`,
+  `dpaint_apply`, `dpaint_history`
 - determinism audit: embedded fonts, explicit seeds, no clock or locale in the render path
 
 **Acceptance** — a coding agent, given only the MCP tool list and no human hints, builds the P4
@@ -102,7 +102,7 @@ byte-identically across 10 runs and on both supported platforms.
 
 ## P6 — AI providers
 
-- `atelier-ai`: provider trait, key resolution (env / keychain / config), retry and backoff
+- `dpaint-ai`: provider trait, key resolution (env / keychain / config), retry and backoff
 - fal.ai: generate, edit, inpaint (selection as mask), outpaint, upscale, remove background, PBR
   texture sets
 - QuiverAI: `svgs/generations` and `svgs/vectorizations`, SSE streaming, SVG → editable objects
@@ -124,16 +124,16 @@ identical request is served from cache with zero cost.
 - file watching so an agent's writes appear immediately
 
 **Acceptance** — a human edit in the GUI and an agent edit from the CLI land in one history, each
-can undo the other's work, and the GUI viewport matches `atl render` output pixel for pixel.
+can undo the other's work, and the GUI viewport matches `dpaint render` output pixel for pixel.
 
 ---
 
 ## P8 — Documentation and release
 
-- op reference generated from schemas (`atl schema --markdown`)
+- op reference generated from schemas (`dpaint schema --markdown`)
 - worked examples: poster, logo, badge, and the cross-mode pipeline, all reproducible from ops
 - golden suite green in CI on macOS and Linux
-- installers: `cargo install atelier-cli`, Homebrew tap, signed Tauri builds
+- installers: `cargo install dpaint-cli`, Homebrew tap, signed Tauri builds
 
 ---
 

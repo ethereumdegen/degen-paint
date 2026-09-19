@@ -6,7 +6,7 @@ node_modules/
 dist/
 .vite/
 
-*.atl/assets/
+*.dpaint/assets/
 !examples/**/assets/
 
 .DS_Store

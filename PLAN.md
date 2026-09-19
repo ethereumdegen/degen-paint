@@ -1,6 +1,6 @@
-# Atelier — master plan
+# degen-paint — master plan
 
-An agent-native image and 3D asset studio. Working name **Atelier** · CLI `atl` ·
+An agent-native image and 3D asset studio. CLI `dpaint` ·
 Rust engine · JSON documents · Tauri v2 shell · browser-first UI.
 
 > This is the design document. Detail lives in [`docs/`](./docs); this file holds the thesis,
@@ -9,7 +9,7 @@ Rust engine · JSON documents · Tauri v2 shell · browser-first UI.
 | | |
 |---|---|
 | [`docs/architecture.md`](./docs/architecture.md) | crate graph, data flow, rendering pipeline, color, assets, WASM |
-| [`docs/document-format.md`](./docs/document-format.md) | the `.atl` format, all three document kinds, the journal |
+| [`docs/document-format.md`](./docs/document-format.md) | the `.dpaint` format, all three document kinds, the journal |
 | [`docs/op-registry.md`](./docs/op-registry.md) | the op model and the complete v1 op catalog |
 | [`docs/agent-interface.md`](./docs/agent-interface.md) | CLI, MCP, digest, lint, annotate, diff, determinism |
 | [`docs/ai-providers.md`](./docs/ai-providers.md) | optional fal.ai and QuiverAI integration |
@@ -34,10 +34,10 @@ those exist. The gap is:
 3. **No vector or 3D authoring at all.** Agents can generate a raster image. They cannot do a
    boolean subtract on a Bézier path, set a fill rule, or extrude a logo into a validated glTF.
 
-Atelier closes all three. It is GIMP, Inkscape, and a glTF authoring tool, built so that the
+degen-paint closes all three. It is GIMP, Inkscape, and a glTF authoring tool, built so that the
 primary operator is a machine and the GUI is the secondary surface.
 
-| | Diffusion Studio | Atelier |
+| | Diffusion Studio | degen-paint |
 |---|---|---|
 | Unit of work | timeline composition | project of documents (canvas / artboard / scene) |
 | Time axis | frames, clips, transitions | none in raster/vector; keyframes in model mode |
@@ -54,7 +54,7 @@ expression, and a JSON canonical form is what makes GUI ↔ agent round-tripping
 honest MCP schemas possible. Procedural authoring happens through the op stream, which replays
 exactly.
 
-**Engine is Rust.** One engine serving three consumers — the `atl` CLI, the MCP server, and the
+**Engine is Rust.** One engine serving three consumers — the `dpaint` CLI, the MCP server, and the
 Tauri app linked in-process with no IPC pixel copies. The same crates compile to
 `wasm32-unknown-unknown` for the browser build.
 

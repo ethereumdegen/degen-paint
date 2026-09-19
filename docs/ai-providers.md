@@ -1,6 +1,6 @@
 # Optional AI providers
 
-Atelier is a complete editor with **no AI configured**. Generation is additive: it produces
+degen-paint is a complete editor with **no AI configured**. Generation is additive: it produces
 ordinary layers, ordinary paths, and ordinary textures that every other op can then manipulate.
 Nothing in the core depends on a network.
 
@@ -30,11 +30,11 @@ Resolution order, first hit wins:
 
 1. `--api-key` on the command (discouraged; shows up in shell history)
 2. environment: `FAL_KEY`, `QUIVERAI_API_KEY`
-3. OS keychain via the `keyring` crate — `atl auth set fal`
-4. `~/.config/atelier/config.toml`, mode `0600`
+3. OS keychain via the `keyring` crate — `dpaint auth set fal`
+4. `~/.config/degen-paint/config.toml`, mode `0600`
 
 Keys are **never** written to `project.json`, `history.jsonl`, or any asset. The journal records
-the provider, model, parameters, and request id, never the credential. `atl doctor` reports which
+the provider, model, parameters, and request id, never the credential. `dpaint doctor` reports which
 providers resolved and from which source, without printing the key.
 
 ## 3. fal.ai integration
@@ -51,7 +51,7 @@ Model ids are configuration, not hardcoded constants — the catalog moves fast,
 be able to point an op at any compatible endpoint:
 
 ```toml
-# ~/.config/atelier/config.toml
+# ~/.config/degen-paint/config.toml
 [ai.fal]
 generate   = "fal-ai/flux/dev"
 edit       = "fal-ai/flux-pro/kontext"
@@ -63,13 +63,13 @@ remove_bg  = "fal-ai/birefnet"
 Ops:
 
 ```bash
-atl op ai.image.generate --prompt "storm light over a wheat field, 35mm" \
+dpaint op ai.image.generate --prompt "storm light over a wheat field, 35mm" \
                          --size 1536x1024 --seed 7 --name sky
-atl op ai.image.edit     --layer "#sky" --prompt "make it golden hour"
-atl op ai.image.inpaint  --layer "#sky" --prompt "add a distant barn"   # uses the live selection as the mask
-atl op ai.image.remove-background --layer "#subject"                    # result becomes a layer mask
-atl op ai.image.upscale  --layer "#sky" --factor 2
-atl op ai.texture.generate --material "#mat_gold" --prompt "brushed gold, fine scratches" --maps base,normal,roughness
+dpaint op ai.image.edit     --layer "#sky" --prompt "make it golden hour"
+dpaint op ai.image.inpaint  --layer "#sky" --prompt "add a distant barn"   # uses the live selection as the mask
+dpaint op ai.image.remove-background --layer "#subject"                    # result becomes a layer mask
+dpaint op ai.image.upscale  --layer "#sky" --factor 2
+dpaint op ai.texture.generate --material "#mat_gold" --prompt "brushed gold, fine scratches" --maps base,normal,roughness
 ```
 
 Mechanics:
@@ -78,7 +78,7 @@ Mechanics:
   the editor's own selection tools drive the model, which is the whole point of having them.
 - Results are downloaded into the content-addressed asset store; the layer references the hash.
 - Long jobs stream status; `--wait false` returns the request id so an agent can do other work and
-  collect later with `atl op ai.job.collect`.
+  collect later with `dpaint op ai.job.collect`.
 
 ## 4. QuiverAI integration
 
@@ -95,15 +95,15 @@ Default model `arrow-2`; `arrow-2-telos` for detail-sensitive work. Both endpoin
 preview and the CLI shows as progress.
 
 ```bash
-atl op ai.vector.generate --doc logo \
+dpaint op ai.vector.generate --doc logo \
       --prompt "heraldic lion crest, ornate medieval detail, gold gradient accents" \
       --instructions "clean geometry, production-ready SVG structure" \
       --model arrow-2-telos --n 3
 
-atl op ai.vector.vectorize --doc logo --from "#lyr_sketch" --auto-crop
+dpaint op ai.vector.vectorize --doc logo --from "#lyr_sketch" --auto-crop
 ```
 
-After the SVG returns, Atelier runs it through the normal vector import path: parse, normalize
+After the SVG returns, degen-paint runs it through the normal vector import path: parse, normalize
 transforms, split into named objects, deduplicate gradients, and map colors onto the project
 palette where they match. What lands in the document is indistinguishable from hand-authored
 geometry.
@@ -131,7 +131,7 @@ Every generated object records where it came from:
 }
 ```
 
-This makes generated work auditable, reproducible, and separable — `atl inspect --provenance`
+This makes generated work auditable, reproducible, and separable — `dpaint inspect --provenance`
 lists everything in a project that came from a model, which matters for licensing, for disclosure,
 and for regenerating a piece at higher quality later.
 
@@ -141,9 +141,9 @@ Agents loop. A looping agent with an API key is a billing incident. Therefore:
 
 - **Cache.** Requests are keyed by `blake3(provider ‖ model ‖ canonical_params ‖ input_hashes)`.
   Replaying a journal, re-running a build, or undoing and redoing never re-bills.
-- **Budget.** `atl ai budget --set 5.00` sets a ceiling per project. Exceeding it fails with exit
+- **Budget.** `dpaint ai budget --set 5.00` sets a ceiling per project. Exceeding it fails with exit
   code `6` and a clear message rather than silently continuing.
-- **Accounting.** Every op records `costUsd`; `atl ai budget --status` shows spend by provider,
+- **Accounting.** Every op records `costUsd`; `dpaint ai budget --status` shows spend by provider,
   model, and op.
 - **Dry run.** `--dry-run` reports the request that *would* be sent, with its estimated cost.
 - **Explicit opt-in.** No op contacts a network unless its id starts with `ai.`.
