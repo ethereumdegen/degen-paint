@@ -13,6 +13,9 @@ Rust engine · JSON documents · Tauri v2 shell · browser-first UI.
 | [`docs/op-registry.md`](./docs/op-registry.md) | the op model and the complete v1 op catalog |
 | [`docs/agent-interface.md`](./docs/agent-interface.md) | CLI, MCP, digest, lint, annotate, diff, determinism |
 | [`docs/ai-providers.md`](./docs/ai-providers.md) | optional fal.ai and QuiverAI integration |
+| [`docs/selectors.md`](./docs/selectors.md) | selector grammar and resolution rules |
+| [`docs/errors.md`](./docs/errors.md) | structured errors, exit codes, transactional guarantees |
+| [`docs/testing.md`](./docs/testing.md) | golden renders, determinism, performance budgets |
 | [`docs/roadmap.md`](./docs/roadmap.md) | P0–P8 with acceptance criteria |
 
 ---
