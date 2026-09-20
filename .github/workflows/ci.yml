@@ -142,14 +142,10 @@ jobs:
             -p dpaint-inspect \
             -p dpaint-studio
 
-      # The crate the browser actually loads: the wasm-bindgen surface over the same engine,
-      # built the way the page consumes it.
-      - name: cargo build --target wasm32-unknown-unknown (browser bindings)
-        run: cargo build --release --target wasm32-unknown-unknown -p dpaint-wasm
-
       # The glue is only valid if the CLI matches the `wasm-bindgen` version the lockfile
-      # resolved; a mismatch is accepted at build time and rejected in the browser. Read the
-      # version out of the resolved graph rather than pinning a literal here.
+      # resolved; a mismatch builds fine and is rejected at instantiation in the browser.
+      # Read the version out of the resolved graph rather than pinning a literal here —
+      # `web/build.sh` checks the same thing and refuses to emit mismatched glue.
       - name: Resolve the wasm-bindgen version
         id: wasm-bindgen
         run: |
@@ -161,8 +157,14 @@ jobs:
         with:
           tool: wasm-bindgen-cli@${{ steps.wasm-bindgen.outputs.version }}
 
-      - name: Generate the browser glue
-        run: |
-          wasm-bindgen --target web --out-dir target/wasm-pkg \
-            target/wasm32-unknown-unknown/release/dpaint_wasm.wasm
-          ls -l target/wasm-pkg
+      # Builds dpaint-wasm and assembles the servable directory: boot shell, wasm-bindgen
+      # glue, and a verbatim copy of the same UI files the desktop app bundles.
+      - name: Assemble the browser bundle
+        run: ./crates/dpaint-wasm/web/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-studio
+          path: target/wasm-studio
+          if-no-files-found: error
+          retention-days: 14
