@@ -82,7 +82,9 @@ pub fn digest(
     assets: &AssetStore,
     opts: &DigestOptions,
 ) -> Result<Digest> {
-    let start = std::time::Instant::now();
+    // `web_time::Instant` is `std::time::Instant` everywhere except wasm32, where the std
+    // clock is unimplemented and panics.
+    let start = web_time::Instant::now();
     let pm = dpaint_render::render_document(project, doc_id, assets, &opts.render)?;
     let img = encode::to_rgba(&pm);
     let render_ms = start.elapsed().as_millis();

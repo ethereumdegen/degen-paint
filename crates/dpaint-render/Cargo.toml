@@ -15,7 +15,7 @@ authors.workspace = true
 
 [dependencies]
 dpaint-core.workspace = true
-dpaint-raster.workspace = true
+dpaint-raster = { path = "../dpaint-raster", version = "0.1.0", default-features = false }
 dpaint-vector.workspace = true
 dpaint-model3d.workspace = true
 serde.workspace = true
@@ -24,6 +24,11 @@ schemars.workspace = true
 image.workspace = true
 tiny-skia.workspace = true
 kurbo.workspace = true
+
+[features]
+default = ["parallel"]
+# Forwarded so a wasm consumer can turn rayon off through the whole stack.
+parallel = ["dpaint-raster/parallel"]
 
 [dev-dependencies]
 tempfile = "3"

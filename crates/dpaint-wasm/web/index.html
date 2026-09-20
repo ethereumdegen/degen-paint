@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>degen-paint studio — wasm</title>
+<!-- The studio's own stylesheet, copied verbatim from crates/dpaint-studio/ui/. -->
+<link rel="stylesheet" href="./ui/studio.css">
+<style>
+  /* Everything in this file styles the boot shell only; the UI below is untouched. */
+  html, body { margin: 0; height: 100%; }
+  #dpBoot {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: #14161a; color: #d8dce3;
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* `display:flex` above out-specifies the UA's `[hidden]` rule, so say it again. */
+  #dpBoot[hidden] { display: none; }
+  #dpBoot .mark { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  #dpBoot .mark span { color: #fb8500; }
+  #dpBoot .why { color: #8b93a1; max-width: 46ch; text-align: center; }
+  #dpBoot.failed .why { color: #ff8a80; white-space: pre-wrap; text-align: left; font-family: ui-monospace, monospace; font-size: 12px; }
+  #dpStorage {
+    position: fixed; right: 10px; bottom: 34px; z-index: 90;
+    padding: 4px 9px; border-radius: 999px;
+    font: 11px/1.4 ui-sans-serif, system-ui, sans-serif;
+    background: #1d2129; color: #98a1b0; border: 1px solid #2c323d;
+    pointer-events: none; opacity: 0.92;
+  }
+  #dpStorage.warn { background: #3a2410; color: #ffc46b; border-color: #6b4413; }
+</style>
+</head>
+<body>
+
+<div id="dpBoot">
+  <div class="mark">degen<span>-paint</span></div>
+  <div class="why" id="dpBootWhy">compiling the engine into this tab…</div>
+</div>
+
+<div id="dpStorage" hidden></div>
+
+<script type="module" src="./boot.js"></script>
+</body>
+</html>

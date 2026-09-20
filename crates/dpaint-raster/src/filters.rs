@@ -1,14 +1,31 @@
 //! Pixel filters. Everything runs on premultiplied linear light, which is what makes a blur
 //! of a hard edge stay the same average brightness instead of growing a bright rim.
 //!
-//! Parallelism is per destination row via rayon: rows are disjoint and each reads an
-//! immutable source, so results are bit-identical regardless of thread count.
+//! Parallelism is per destination row: rows are disjoint and each reads an immutable
+//! source, so results are bit-identical regardless of thread count — or of whether
+//! threads exist at all. The `parallel` feature is on natively and off for `wasm32`,
+//! where there is no thread to spawn; the only difference is how long a blur takes.
 
 use crate::blend::hash01;
 use crate::canvas::Canvas;
 use dpaint_core::color::{linear_to_srgb, srgb_to_linear};
 use dpaint_core::{Error, Result};
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
+
+/// The disjoint destination rows of a canvas, as a parallel iterator where rayon is
+/// available and a plain one where it is not.
+#[cfg(feature = "parallel")]
+#[inline]
+fn rows_mut(data: &mut [f32], stride: usize) -> rayon::slice::ChunksMut<'_, f32> {
+    data.par_chunks_mut(stride)
+}
+
+#[cfg(not(feature = "parallel"))]
+#[inline]
+fn rows_mut(data: &mut [f32], stride: usize) -> std::slice::ChunksMut<'_, f32> {
+    data.chunks_mut(stride)
+}
 
 #[inline]
 fn clamp_premul(px: &mut [f32]) {
@@ -40,8 +57,7 @@ fn pass(src: &Canvas, k: &[f32], horizontal: bool) -> Canvas {
     let r = (k.len() / 2) as i64;
     let mut out = Canvas::new(w, h);
     let stride = w as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             let y = y as i64;
@@ -101,8 +117,7 @@ pub fn motion_blur(src: &Canvas, distance: f32, angle_deg: f32) -> Canvas {
     let steps = distance.ceil().max(1.0) as i32;
     let mut out = Canvas::new(src.width, src.height);
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             for x in 0..src.width {
@@ -145,8 +160,7 @@ pub fn radial_blur(src: &Canvas, mode: RadialMode, amount: f32, center: [f32; 2]
     let steps = 12i32;
     let mut out = Canvas::new(src.width, src.height);
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             for x in 0..src.width {
@@ -240,8 +254,7 @@ pub fn convolve(
     let (rx, ry) = ((kw / 2) as i64, (kh / 2) as i64);
     let mut out = Canvas::new(src.width, src.height);
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             let y = y as i64;
@@ -309,8 +322,7 @@ pub fn noise_reduce(src: &Canvas, radius: u32, threshold: f32) -> Canvas {
     let r = radius as i64;
     let mut out = Canvas::new(src.width, src.height);
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             let y = y as i64;
@@ -405,8 +417,7 @@ pub fn morphology(src: &Canvas, op: MorphOp, radius: u32, shape: MorphShape) -> 
     let r2 = (r * r) as f32;
     let mut out = Canvas::new(src.width, src.height);
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             let y = y as i64;
@@ -440,8 +451,7 @@ pub fn displace(src: &Canvas, map: &Canvas, scale_x: f32, scale_y: f32) -> Canva
     let stride = src.width as usize * 4;
     let mx = map.width as f32 / src.width as f32;
     let my = map.height as f32 / src.height as f32;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             for x in 0..src.width {
@@ -606,8 +616,7 @@ pub fn edge_detect(src: &Canvas, kernel: EdgeKernel, amount: f32) -> Canvas {
     };
     let mut out = src.clone();
     let stride = src.width as usize * 4;
-    out.data
-        .par_chunks_mut(stride)
+    rows_mut(&mut out.data, stride)
         .enumerate()
         .for_each(|(y, row)| {
             let y = y as i64;

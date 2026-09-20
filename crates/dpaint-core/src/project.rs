@@ -6,10 +6,12 @@ use crate::doc::{Document, ModelDoc, RasterDoc, VectorDoc};
 use crate::error::{Error, Result};
 use crate::ids::DocId;
 use crate::journal::Journal;
+use crate::vfs::{FsVfs, Vfs};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub const FORMAT_VERSION: u32 = 1;
 
@@ -230,40 +232,63 @@ pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// A project on disk: the JSON, its asset store, and its journal.
-#[derive(Debug)]
+/// A project in storage: the JSON, its asset store, and its journal. Which storage is the
+/// [`Vfs`]'s business — a directory natively, an in-memory tree in the browser.
 pub struct Workspace {
     pub project: Project,
     pub assets: AssetStore,
     pub journal: Journal,
     root: PathBuf,
+    vfs: Arc<dyn Vfs>,
+}
+
+impl std::fmt::Debug for Workspace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Workspace")
+            .field("root", &self.root)
+            .field("project", &self.project.name)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Workspace {
     pub fn create(root: impl AsRef<Path>, project: Project) -> Result<Self> {
+        Self::create_with_vfs(root, project, FsVfs::shared())
+    }
+
+    pub fn create_with_vfs(
+        root: impl AsRef<Path>,
+        project: Project,
+        vfs: Arc<dyn Vfs>,
+    ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
-        std::fs::create_dir_all(root.join("assets"))?;
+        vfs.create_dir_all(&root.join("assets"))?;
         let ws = Self {
-            assets: AssetStore::new(&root),
-            journal: Journal::new(root.join("history.jsonl")),
+            assets: AssetStore::with_vfs(&root, Arc::clone(&vfs)),
+            journal: Journal::with_vfs(root.join("history.jsonl"), Arc::clone(&vfs)),
             project,
             root,
+            vfs,
         };
         ws.save()?;
         Ok(ws)
     }
 
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
+        Self::open_with_vfs(root, FsVfs::shared())
+    }
+
+    pub fn open_with_vfs(root: impl AsRef<Path>, vfs: Arc<dyn Vfs>) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let path = root.join("project.json");
-        if !path.exists() {
+        if !vfs.exists(&path) {
             return Err(Error::Invalid(format!(
                 "no degen-paint project at {} (expected project.json)",
                 root.display()
             )));
         }
-        let text = std::fs::read_to_string(&path)?;
-        let project: Project = serde_json::from_str(&text)?;
+        let bytes = vfs.read(&path)?;
+        let project: Project = serde_json::from_slice(&bytes)?;
         if project.format > FORMAT_VERSION {
             return Err(Error::MigrationRequired {
                 found: project.format,
@@ -271,55 +296,33 @@ impl Workspace {
             });
         }
         Ok(Self {
-            assets: AssetStore::new(&root),
-            journal: Journal::new(root.join("history.jsonl")),
+            assets: AssetStore::with_vfs(&root, Arc::clone(&vfs)),
+            journal: Journal::with_vfs(root.join("history.jsonl"), Arc::clone(&vfs)),
             project,
             root,
+            vfs,
         })
     }
 
-    /// Find the nearest project directory from `start` upwards.
+    /// Find the nearest project directory from `start` upwards. Native only by nature:
+    /// there is no directory to walk up from in a browser tab.
     pub fn discover(start: impl AsRef<Path>) -> Result<Self> {
-        let mut cur = std::fs::canonicalize(start.as_ref())?;
-        loop {
-            if cur.join("project.json").exists() {
-                return Self::open(&cur);
-            }
-            // A `*.dpaint` child in the current directory counts as the project.
-            if let Ok(entries) = std::fs::read_dir(&cur) {
-                let mut candidates: Vec<PathBuf> = entries
-                    .flatten()
-                    .map(|e| e.path())
-                    .filter(|p| {
-                        p.extension().and_then(|e| e.to_str()) == Some("dpaint")
-                            && p.join("project.json").exists()
-                    })
-                    .collect();
-                candidates.sort();
-                if let Some(p) = candidates.first() {
-                    return Self::open(p);
-                }
-            }
-            if !cur.pop() {
-                return Err(Error::Invalid(
-                    "no degen-paint project found in this directory or any parent".into(),
-                ));
-            }
-        }
+        Self::open(FsVfs::discover_project_root(start.as_ref())?)
     }
 
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// Atomic write: temp file then rename, so a crash can never truncate a project.
+    pub fn vfs(&self) -> &Arc<dyn Vfs> {
+        &self.vfs
+    }
+
+    /// Atomic write: the backend writes a temp file then renames, so a crash can never
+    /// truncate a project.
     pub fn save(&self) -> Result<()> {
-        let path = self.root.join("project.json");
-        let tmp = self.root.join("project.json.tmp");
         let text = serde_json::to_string_pretty(&self.project)?;
-        std::fs::write(&tmp, text.as_bytes())?;
-        std::fs::rename(&tmp, &path)?;
-        Ok(())
+        self.vfs.write(&self.root.join("project.json"), text.as_bytes())
     }
 }
 

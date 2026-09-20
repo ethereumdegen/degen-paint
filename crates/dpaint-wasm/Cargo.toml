@@ -1,0 +1,41 @@
+[package]
+name = "dpaint-wasm"
+description = "wasm-bindgen surface: the degen-paint engine compiled into a browser tab"
+keywords = ["wasm", "graphics", "image", "webassembly", "editor"]
+categories = ["graphics", "wasm", "web-programming"]
+documentation = "https://docs.rs/dpaint-wasm"
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dpaint-core.workspace = true
+# Row parallelism needs threads. There are none here, so the filters run sequentially;
+# the native build keeps rayon.
+dpaint-raster = { path = "../dpaint-raster", version = "0.1.0", default-features = false }
+dpaint-vector.workspace = true
+dpaint-model3d.workspace = true
+dpaint-render = { path = "../dpaint-render", version = "0.1.0", default-features = false }
+dpaint-inspect = { path = "../dpaint-inspect", version = "0.1.0", default-features = false }
+serde_json.workspace = true
+base64.workspace = true
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+# Kept native-only: it needs the network and an OS keychain, neither of which exists in a
+# browser tab, and it would drag `reqwest`/`tokio` into the bundle for nothing.
+# dpaint-ai is deliberately absent.
+
+[dev-dependencies]
+# Only to prove the browser engine's op catalog is exactly the desktop one. Dev-dependencies
+# are not part of the wasm build graph, so this does not pull the server into the bundle.
+dpaint-studio.workspace = true

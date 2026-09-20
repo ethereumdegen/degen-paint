@@ -8,10 +8,11 @@ use crate::error::Result;
 use crate::ids::DocId;
 use crate::op::OpEffect;
 use crate::project::Project;
+use crate::vfs::{FsVfs, Vfs};
 use json_patch::Patch;
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
@@ -41,16 +42,30 @@ pub enum Actor {
     Replay,
 }
 
-#[derive(Debug)]
 pub struct Journal {
     path: PathBuf,
+    vfs: Arc<dyn Vfs>,
     entries: Vec<Entry>,
     loaded: bool,
 }
 
+impl std::fmt::Debug for Journal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Journal")
+            .field("path", &self.path)
+            .field("entries", &self.entries.len())
+            .field("loaded", &self.loaded)
+            .finish()
+    }
+}
+
 impl Journal {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into(), entries: Vec::new(), loaded: false }
+        Self::with_vfs(path, FsVfs::shared())
+    }
+
+    pub fn with_vfs(path: impl Into<PathBuf>, vfs: Arc<dyn Vfs>) -> Self {
+        Self { path: path.into(), vfs, entries: Vec::new(), loaded: false }
     }
 
     pub fn path(&self) -> &Path {
@@ -60,13 +75,13 @@ impl Journal {
     pub fn load(&mut self) -> Result<&[Entry]> {
         if !self.loaded {
             self.entries.clear();
-            if self.path.exists() {
-                for line in BufReader::new(std::fs::File::open(&self.path)?).lines() {
-                    let line = line?;
+            if self.vfs.exists(&self.path) {
+                let bytes = self.vfs.read(&self.path)?;
+                for line in String::from_utf8_lossy(&bytes).lines() {
                     if line.trim().is_empty() {
                         continue;
                     }
-                    self.entries.push(serde_json::from_str(&line)?);
+                    self.entries.push(serde_json::from_str(line)?);
                 }
             }
             self.loaded = true;
@@ -107,28 +122,20 @@ impl Journal {
     }
 
     fn append(&self, e: &Entry) -> Result<()> {
-        if let Some(p) = self.path.parent() {
-            std::fs::create_dir_all(p)?;
-        }
-        let mut f = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
-        writeln!(f, "{}", serde_json::to_string(e)?)?;
-        Ok(())
+        let mut line = serde_json::to_string(e)?;
+        line.push('\n');
+        self.vfs.append(&self.path, line.as_bytes())
     }
 
-    /// Rewrite the file after undo/redo flips an entry's state.
+    /// Rewrite the file after undo/redo flips an entry's state. `Vfs::write` is atomic where
+    /// the backend allows, so a crash mid-flip cannot shred the history.
     fn rewrite(&self) -> Result<()> {
         let mut buf = String::new();
         for e in &self.entries {
             buf.push_str(&serde_json::to_string(e)?);
             buf.push('\n');
         }
-        let tmp = self.path.with_extension("jsonl.tmp");
-        std::fs::write(&tmp, buf)?;
-        std::fs::rename(&tmp, &self.path)?;
-        Ok(())
+        self.vfs.write(&self.path, buf.as_bytes())
     }
 
     /// Undo the newest applied entry. Returns the op id that was undone.

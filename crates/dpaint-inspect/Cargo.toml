@@ -15,16 +15,23 @@ authors.workspace = true
 
 [dependencies]
 dpaint-core.workspace = true
-dpaint-raster.workspace = true
+dpaint-raster = { path = "../dpaint-raster", version = "0.1.0", default-features = false }
 dpaint-vector.workspace = true
 dpaint-model3d.workspace = true
-dpaint-render.workspace = true
+dpaint-render = { path = "../dpaint-render", version = "0.1.0", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 image.workspace = true
 kurbo.workspace = true
 tiny-skia.workspace = true
+# `std::time::Instant` is not implemented on wasm32-unknown-unknown and panics there;
+# web-time re-exports std natively and `performance.now()` in a browser.
+web-time = "1"
+
+[features]
+default = ["parallel"]
+parallel = ["dpaint-raster/parallel", "dpaint-render/parallel"]
 
 [dev-dependencies]
 tempfile = "3"

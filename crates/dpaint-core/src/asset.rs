@@ -6,8 +6,10 @@
 //! free, and an identical AI request is served from disk instead of re-billing.
 
 use crate::error::{Error, Result};
+use crate::vfs::{FsVfs, Vfs};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// `blake3:<64 hex>.<ext>` — the hash identifies the bytes, the extension records the format.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
@@ -49,19 +51,35 @@ impl std::fmt::Display for AssetRef {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AssetStore {
     root: PathBuf,
+    vfs: Arc<dyn Vfs>,
+}
+
+impl std::fmt::Debug for AssetStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssetStore").field("root", &self.root).finish_non_exhaustive()
+    }
 }
 
 impl AssetStore {
-    /// `root` is the project directory; assets live in `root/assets`.
+    /// `root` is the project directory; assets live in `root/assets`. Backed by the host
+    /// filesystem — the browser build goes through [`AssetStore::with_vfs`] instead.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self::with_vfs(root, FsVfs::shared())
+    }
+
+    pub fn with_vfs(root: impl Into<PathBuf>, vfs: Arc<dyn Vfs>) -> Self {
+        Self { root: root.into(), vfs }
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    pub fn vfs(&self) -> &Arc<dyn Vfs> {
+        &self.vfs
     }
 
     pub fn path_of(&self, r: &AssetRef) -> PathBuf {
@@ -69,7 +87,7 @@ impl AssetStore {
     }
 
     pub fn contains(&self, r: &AssetRef) -> bool {
-        self.path_of(r).exists()
+        self.vfs.exists(&self.path_of(r))
     }
 
     /// Write bytes, returning their reference. Writing identical bytes twice is a no-op,
@@ -78,15 +96,10 @@ impl AssetStore {
         let hash = blake3::hash(bytes).to_hex().to_string();
         let r = AssetRef::new(&hash, ext);
         let path = self.path_of(&r);
-        if path.exists() {
+        if self.vfs.exists(&path) {
             return Ok(r);
         }
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let tmp = path.with_extension(format!("{ext}.tmp"));
-        std::fs::write(&tmp, bytes)?;
-        std::fs::rename(&tmp, &path)?;
+        self.vfs.write(&path, bytes)?;
         Ok(r)
     }
 
@@ -97,37 +110,34 @@ impl AssetStore {
             .and_then(|e| e.to_str())
             .unwrap_or("bin")
             .to_ascii_lowercase();
-        let bytes = std::fs::read(src)?;
+        let bytes = self.vfs.read(src)?;
         self.put(&bytes, &ext)
     }
 
     pub fn get(&self, r: &AssetRef) -> Result<Vec<u8>> {
         let path = self.path_of(r);
-        if !path.exists() {
+        if !self.vfs.exists(&path) {
             return Err(Error::AssetMissing(r.0.clone()));
         }
-        Ok(std::fs::read(path)?)
+        self.vfs.read(&path)
     }
 
     pub fn size_of(&self, r: &AssetRef) -> Result<u64> {
-        Ok(std::fs::metadata(self.path_of(r))?.len())
+        self.vfs.size(&self.path_of(r))
     }
 
-    /// Every blob currently on disk, for garbage collection and project statistics.
+    /// Every blob currently in the store, for garbage collection and project statistics.
     pub fn list(&self) -> Result<Vec<AssetRef>> {
         let dir = self.root.join("assets");
         let mut out = Vec::new();
-        if !dir.exists() {
+        if !self.vfs.exists(&dir) {
             return Ok(out);
         }
-        for shard in std::fs::read_dir(&dir)? {
-            let shard = shard?;
-            if !shard.file_type()?.is_dir() {
-                continue;
-            }
-            for f in std::fs::read_dir(shard.path())? {
-                let f = f?;
-                let name = f.file_name().to_string_lossy().to_string();
+        for shard in self.vfs.list(&dir)? {
+            // Only the two-hex shard directories hold blobs; anything else is not ours.
+            let Ok(files) = self.vfs.list(&shard) else { continue };
+            for f in files {
+                let name = f.file_name().unwrap_or_default().to_string_lossy().to_string();
                 if name.ends_with(".tmp") {
                     continue;
                 }
@@ -147,7 +157,7 @@ impl AssetStore {
         for r in self.list()? {
             if !keep.contains(&r) {
                 freed += self.size_of(&r).unwrap_or(0);
-                std::fs::remove_file(self.path_of(&r))?;
+                self.vfs.remove(&self.path_of(&r))?;
                 removed.push(r);
             }
         }
@@ -203,5 +213,44 @@ mod tests {
         let store = AssetStore::new(tmp.path());
         let err = store.get(&AssetRef::new("deadbeef", "png")).unwrap_err();
         assert_eq!(err.code(), "asset_missing");
+    }
+
+    /// The browser build runs this exact store against [`MemVfs`]. Deduplication, sharding
+    /// and gc are properties of the store, not of the filesystem, and must hold identically.
+    #[test]
+    fn the_store_deduplicates_and_collects_garbage_entirely_in_memory() {
+        let store = AssetStore::with_vfs("/mem.dpaint", crate::vfs::MemVfs::shared());
+
+        let a = store.put(b"pixels", "png").unwrap();
+        let again = store.put(b"pixels", "png").unwrap();
+        assert_eq!(a, again, "identical bytes must be one blob");
+        assert_eq!(store.list().unwrap(), vec![a.clone()]);
+
+        let b = store.put(b"other pixels", "png").unwrap();
+        let font = store.put(b"ttf bytes", "ttf").unwrap();
+        assert_ne!(a, b);
+        assert_eq!(store.get(&b).unwrap(), b"other pixels");
+        assert_eq!(store.size_of(&font).unwrap(), 9);
+        assert_eq!(store.list().unwrap().len(), 3);
+
+        // Sharding survives the backend swap: two hex chars, then the blob.
+        let shard = store.path_of(&a).parent().unwrap().to_path_buf();
+        assert!(shard.ends_with(&a.hash()[..2]));
+
+        let (removed, freed) = store.gc(&std::collections::BTreeSet::from([a.clone()])).unwrap();
+        assert_eq!(removed.len(), 2, "both unreachable blobs go");
+        assert_eq!(freed, 12 + 9);
+        assert_eq!(store.list().unwrap(), vec![a.clone()]);
+        assert!(store.contains(&a));
+        assert_eq!(store.get(&b).unwrap_err().code(), "asset_missing");
+    }
+
+    #[test]
+    fn two_stores_over_one_memory_tree_see_each_others_blobs() {
+        let vfs = crate::vfs::MemVfs::new();
+        let writer = AssetStore::with_vfs("/p", std::sync::Arc::new(vfs.clone()));
+        let reader = AssetStore::with_vfs("/p", std::sync::Arc::new(vfs));
+        let r = writer.put(b"shared", "png").unwrap();
+        assert_eq!(reader.get(&r).unwrap(), b"shared");
     }
 }
