@@ -13,8 +13,9 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-> **Status: the engine works.** 212 ops across all three modes, 415 tests green, driven by the
-> `dpaint` CLI and an MCP server. The Tauri/WASM GUI (P7) is designed but not built — see
+> **Status: engine and GUI both work.** 212 ops across all three modes, 441 tests green,
+> driven by the `dpaint` CLI, an MCP server, a Tauri desktop app, and the same UI in a browser
+> tab. The WASM build (engine compiled into the page) is still deferred — see
 > [`docs/roadmap.md`](./docs/roadmap.md) for exactly what is and is not done.
 
 ---
@@ -158,6 +159,24 @@ Plus a handful of tools shaped for an agent loop rather than for a GUI: `dpaint_
 `dpaint_render` (image **and** digest in one call), `dpaint_lint`, `dpaint_apply` (transactional
 batch), `dpaint_history`.
 
+## The Studio
+
+```bash
+dpaint serve                 # the UI in a browser tab, against the native engine
+cargo run -p dpaint-studio-app -- --project poster.dpaint   # the same UI as a desktop app
+```
+
+__omp_shell("[degen-paint studio](./docs/studio.png)")
+
+One `Studio::dispatch` API serves both shells — Tauri calls it in-process, a browser tab calls
+it over a dependency-free localhost bridge — so the desktop app and the web build cannot drift.
+The frontend is three files of plain ES modules and CSS with no bundler and no npm, which is
+what lets the identical bytes load in both.
+
+The inspector is **generated from the op schemas**: pick any of the 212 ops from the command
+palette and its form is built from the same JSON Schema the CLI parses flags from and MCP
+advertises as `inputSchema`. Nothing about the GUI is hand-maintained per op.
+
 ## Human and agent, one document
 
 The Tauri app writes through the same op registry and the same `history.jsonl`. So an agent can
@@ -224,8 +243,8 @@ Every phase ends with a rendered artifact and a passing check, never a claim.
 | P4 | Cross-mode bridges | **done** — one path drives `logo.svg` + `badge.glb` + `poster.png`; recoloring the source repaints the poster |
 | P5 | Agent surface | **done** — digest, lint, annotate, SSIM/ΔE diff, 217 MCP tools over stdio |
 | P6 | AI providers | **done** — 52 tests against recorded transports; cache, budget, provenance |
-| P7 | Studio (Tauri + browser) | not started |
-| P8 | Docs and release | in progress |
+| P7 | Studio (Tauri + browser) | **done** — schema-driven editor, verified live: agent writes appear in the open page within ~2s and either party can undo the other |
+| P8 | Docs and release | in progress — WASM build and installers remain |
 
 Full acceptance criteria: [`docs/roadmap.md`](./docs/roadmap.md).
 

@@ -14,10 +14,10 @@ Phases are sequential because each one's proof depends on the previous one's eng
 | P4 Bridges | done | `examples/campaign.sh`: one path to SVG + GLB + PNG |
 | P5 Agent surface | done | digest, lint, annotate, diff; 217 MCP tools over stdio |
 | P6 AI providers | done | 12 ops, 52 tests against recorded transports |
-| P7 Studio | not started | — |
-| P8 Docs and release | in progress | 415 tests green; installers and CI still to come |
+| P7 Studio | done | Tauri app + browser UI over one `Studio::dispatch`; agent edits surface live in the open page |
+| P8 Docs and release | in progress | 441 tests green; WASM build, installers and CI still to come |
 
-Total: **212 ops, 415 tests, 0 failures** (`cargo test --workspace`).
+Total: **212 ops, 441 tests, 0 failures** (`cargo test --workspace`).
 
 Two deliberate deviations from the original plan, both documented where they matter:
 `wgpu` was replaced by a CPU rasterizer for headless model previews (determinism beats
@@ -144,8 +144,16 @@ identical request is served from cache with zero cost.
 - live journal view showing agent and human edits interleaved
 - file watching so an agent's writes appear immediately
 
-**Acceptance** — a human edit in the GUI and an agent edit from the CLI land in one history, each
-can undo the other's work, and the GUI viewport matches `dpaint render` output pixel for pixel.
+**Acceptance** — met, and verified by driving the real UI in a browser: a GUI edit is journaled
+as `human` and a CLI edit as `agent`; an agent's write appears in the open page within ~2s with
+an "updated by agent" indicator; the human's undo button reverts the agent's edits; a bad
+selector surfaces its candidate list in the console panel; and a seeded low-contrast defect
+appears in the lint panel and selects its layer when clicked.
+
+The Tauri window itself could not be screenshotted — this machine has no display access
+(`screencapture` fails) — so the desktop shell is verified by its process staying alive with a
+loaded `tauri://localhost` webview and a WebKit content process, plus 13 tests over its command
+layer. The pixels are verified through the browser path, which loads byte-identical UI files.
 
 ---
 

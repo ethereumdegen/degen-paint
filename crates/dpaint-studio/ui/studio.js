@@ -1,744 +1,944 @@
-// degen-paint studio — the same module in a browser tab and in the Tauri webview.
+// degen-paint studio.
 //
-// One transport indirection is the whole portability story: if the Tauri shell injected
-// `window.__DPAINT_INVOKE__` we use it, otherwise we POST to the local server. Everything
-// below is transport-agnostic.
+// One document, one journal, one undo stack — shared by the human at this screen and by any
+// agent driving the same project through the CLI or MCP. Everything here is a view over
+// `Studio::dispatch`; there is no client-side model of the document to drift out of sync.
+//
+// No bundler, no framework, no npm: this file is served verbatim to a browser tab and embedded
+// verbatim in the Tauri webview. The only shell-specific seam is the transport at the top.
 
-const $ = (id) => document.getElementById(id);
+// ---------------------------------------------------------------------------- transport
 
-const state = {
-  project: null,
-  documents: [],
-  activeDoc: null,
-  catalog: [],
-  tree: [],
-  selection: null,
-  revision: -1,
-  zoom: 1,
-  fitZoom: 1,
-  pan: { x: 0, y: 0 },
-  renderSize: [0, 0],
-  currentOp: null,
-  dryRun: false,
-  log: [],
-  lint: null,
-  paletteIndex: 0,
-  paletteMatches: [],
-};
-
-// ---------------------------------------------------------------- transport
-
-/** Structured error matching the engine's shape, whichever transport produced it. */
-class ApiError extends Error {
-  constructor(detail) {
-    super(detail?.message || "request failed");
-    this.code = detail?.code || "error";
-    this.candidates = detail?.candidates || [];
-    this.suggestion = detail?.suggestion || null;
+class StudioError extends Error {
+  constructor(d) {
+    super((d && d.message) || 'request failed');
+    this.name = 'StudioError';
+    this.code = (d && d.code) || 'error';
+    this.candidates = (d && d.candidates) || [];
+    this.suggestion = (d && d.suggestion) || null;
   }
 }
 
-async function call(method, params = {}) {
-  const started = performance.now();
+function asStudioError(e) {
+  if (e instanceof StudioError) return e;
+  if (e && typeof e === 'object' && (e.code || e.candidates || e.suggestion)) {
+    return new StudioError({
+      code: e.code, message: e.message || String(e), candidates: e.candidates, suggestion: e.suggestion,
+    });
+  }
+  return new StudioError({ code: 'transport', message: (e && e.message) || String(e) });
+}
+
+/** The single door to the engine. Every panel goes through here, so every call is logged. */
+async function call(method, params = {}, opts = {}) {
+  const t0 = performance.now();
+  let result, err;
   try {
-    let result;
-    if (window.__DPAINT_INVOKE__) {
-      result = await window.__DPAINT_INVOKE__(method, params);
+    if (typeof window.__DPAINT_INVOKE__ === 'function') {
+      // Tauri shell: in-process dispatch, same Studio, same journal.
+      const r = await window.__DPAINT_INVOKE__(method, params);
+      if (r && typeof r === 'object' && typeof r.ok === 'boolean') {
+        if (!r.ok) throw new StudioError(r.error || {});
+        result = r.result;
+      } else {
+        result = r;
+      }
     } else {
-      const res = await fetch("/api", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const resp = await fetch('/api', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ method, params }),
       });
-      const body = await res.json();
-      if (!body.ok) throw new ApiError(body.error);
+      const text = await resp.text();
+      let body;
+      try { body = JSON.parse(text); }
+      catch { throw new StudioError({ code: 'bad_response', message: `HTTP ${resp.status}: ${text.slice(0, 200)}` }); }
+      if (!body.ok) throw new StudioError(body.error || {});
       result = body.result;
     }
-    logCall(method, params, result, null, performance.now() - started);
-    return result;
   } catch (e) {
-    const err = e instanceof ApiError ? e : new ApiError(normalizeError(e));
-    logCall(method, params, null, err, performance.now() - started);
-    throw err;
+    err = asStudioError(e);
   }
+  const ms = Math.round(performance.now() - t0);
+  if (err) logCall(method, params, ms, err);
+  else if (!opts.quiet) logCall(method, params, ms, null);
+  if (err) throw err;
+  return result;
 }
 
-/** Tauri rejects with a JSON string; the browser path rejects with an ApiError already. */
-function normalizeError(e) {
-  if (e && typeof e === "object" && e.code) return e;
-  if (typeof e === "string") {
-    try {
-      return JSON.parse(e);
-    } catch {
-      return { code: "error", message: e };
-    }
+/** Viewport image source. The Tauri shell hands back a data: URI instead of an HTTP route. */
+async function renderUrl(doc, { scale = 1, max = 1600 } = {}) {
+  const nonce = Date.now() + '-' + (renderSeq++);
+  if (typeof window.__DPAINT_RENDER_URL__ === 'function') {
+    return await Promise.resolve(window.__DPAINT_RENDER_URL__({ doc, scale, max, nonce }));
   }
-  return { code: "error", message: String(e?.message || e) };
-}
-
-async function renderUrl(doc, max = 1600) {
-  if (window.__DPAINT_RENDER_URL__) {
-    return await window.__DPAINT_RENDER_URL__({ doc, scale: 1, max });
-  }
-  const q = new URLSearchParams({ max: String(max), _: String(Date.now()) });
-  if (doc) q.set("doc", doc);
+  const q = new URLSearchParams({ scale: String(scale), max: String(max), _: nonce });
+  if (doc) q.set('doc', doc);
   return `/render.png?${q.toString()}`;
 }
 
-// ---------------------------------------------------------------- console log
+// ------------------------------------------------------------------------------- state
 
-function logCall(method, params, result, error, ms) {
-  state.log.unshift({ method, params, result, error, ms, at: new Date() });
-  state.log = state.log.slice(0, 200);
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+
+const S = {
+  state: null,
+  sig: '',
+  catalog: [],
+  history: [],
+  lint: null,
+  activeDoc: null,
+  sel: null,           // selected object id within activeDoc
+  op: null,            // { id, about, schema, modes, query, network }
+  maxSeqSeen: 0,
+const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0, fitted: false };
+  logErrors: 0,
+};
+
+let renderSeq = 0;
+let renderToken = 0;
+let refreshing = null;
+
+const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0 };
+
+const activeDocument = () =>
+  (S.state && S.state.documents.find((d) => d.id === S.activeDoc)) || null;
+
+// ------------------------------------------------------------------------------ console
+
+function summarize(v) {
+  const s = JSON.stringify(v);
+  if (s === undefined) return '';
+  return s.length > 160 ? s.slice(0, 157) + '…' : s;
+}
+
+function logCall(method, params, ms, err) {
+  S.logs.push({ t: new Date(), method, params, ms, err });
+  if (S.logs.length > 400) S.logs.splice(0, S.logs.length - 400);
+  if (err) S.logErrors++;
   renderConsole();
 }
 
 function renderConsole() {
-  const errors = state.log.filter((r) => r.error).length;
-  const pill = $("conCount");
-  pill.hidden = errors === 0;
-  pill.textContent = String(errors);
-  pill.classList.toggle("err", errors > 0);
-
-  $("tab-console").innerHTML = state.log
-    .map((r) => {
-      const head = `<span class="op-id">${esc(r.method)}</span> <span class="read">${r.ms.toFixed(0)}ms</span>`;
-      if (r.error) {
-        const cand = r.error.candidates?.length
-          ? `<div class="cerr">available: ${r.error.candidates.slice(0, 12).map(esc).join(", ")}</div>`
-          : "";
-        const sug = r.error.suggestion
-          ? `<div class="cerr">did you mean <b>${esc(r.error.suggestion)}</b></div>`
-          : "";
-        return `<div class="crow err">${head}
-          <div class="cerr"><b>${esc(r.error.code)}</b> ${esc(r.error.message)}</div>${cand}${sug}</div>`;
+  const pane = $('tab-console');
+  const stick = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 24;
+  pane.textContent = '';
+  if (!S.logs.length) {
+    pane.append(el('div', 'empty-note', 'No calls yet. Every request to the engine lands here.'));
+    return;
+  }
+  for (const l of S.logs) {
+    const row = el('div', 'crow' + (l.err ? ' err' : ''));
+    row.append(
+      el('span', 't', l.t.toTimeString().slice(0, 8)),
+      el('span', 'm', (l.err ? '✖ ' : '') + l.method),
+      el('span', 'p', summarize(l.params)),
+      el('span', 'ms', l.ms + 'ms'),
+    );
+    pane.append(row);
+    if (l.err) {
+      const d = el('div', 'cerr');
+      d.append(el('span', 'code', l.err.code), document.createTextNode('  '), el('span', 'msg', l.err.message));
+      if (l.err.suggestion) {
+        d.append(el('br'), el('span', 'lbl', 'suggestion: '), el('span', 'sug', l.err.suggestion));
       }
-      const summary = summarize(r.method, r.params, r.result);
-      return `<div class="crow">${head}${summary ? `<div class="cerr">${esc(summary)}</div>` : ""}</div>`;
-    })
-    .join("");
-}
-
-function summarize(method, params, result) {
-  if (method === "op") {
-    const bits = [];
-    if (result?.changed?.length) bits.push(`changed ${result.changed.join(", ")}`);
-    if (result?.created?.length) bits.push(`created ${result.created.join(", ")}`);
-    if (result?.removed?.length) bits.push(`removed ${result.removed.join(", ")}`);
-    return `${params.op}${bits.length ? " — " + bits.join("; ") : ""}`;
+      if (l.err.candidates && l.err.candidates.length) {
+        d.append(el('br'), el('span', 'lbl', `candidates (${l.err.candidates.length}): `));
+        for (const c of l.err.candidates) {
+          const b = el('span', 'cand', c);
+          b.title = 'use this selector in the inspector';
+          b.onclick = () => useCandidate(c);
+          d.append(b);
+        }
+      }
+      pane.append(d);
+    }
   }
-  if (method === "undo" || method === "redo") return result?.op || "nothing to do";
-  return "";
+  const pill = $('conCount');
+  pill.hidden = S.logErrors === 0;
+  pill.textContent = String(S.logErrors);
+  pill.className = 'pill err';
+  if (stick) pane.scrollTop = pane.scrollHeight;
 }
 
-// ---------------------------------------------------------------- state sync
-
-async function refresh({ viewport = true } = {}) {
-  const st = await call("state");
-  state.project = st.project;
-  state.documents = st.documents;
-  if (!state.activeDoc || !state.documents.some((d) => d.id === state.activeDoc)) {
-    state.activeDoc = st.project.active;
+function useCandidate(sel) {
+  const input = document.querySelector('.opform [data-path="target"]');
+  if (input) {
+    input.value = sel;
+    delete input.dataset.auto;
+    input.focus();
   }
-  state.revision = st.revision;
-
-  $("projectName").textContent = st.project.name;
-  $("projectName").title = st.project.root;
-  $("revBadge").textContent = `rev ${st.revision}`;
-  $("btnUndo").disabled = !st.canUndo;
-  $("btnRedo").disabled = !st.canRedo;
-
-  renderDocs();
-  renderTree();
-  await renderHistory();
-  if (viewport) await refreshViewport();
+  const bare = sel.replace(/^[#@]/, '');
+  const doc = activeDocument();
+  if (doc && doc.objects.some((o) => o.id === bare)) selectObject(bare);
 }
 
-function activeDocument() {
-  return state.documents.find((d) => d.id === state.activeDoc) || null;
-}
+// ------------------------------------------------------------------------------- panels
 
 function renderDocs() {
-  $("docList").innerHTML = state.documents
-    .map((d) => {
-      const size = d.size ? `${Math.round(d.size[0])}×${Math.round(d.size[1])}` : "scene";
-      const deps = d.dependsOn?.length ? `<div class="empty-note">links ${d.dependsOn.map(esc).join(", ")}</div>` : "";
-      return `<div class="doc ${d.id === state.activeDoc ? "active" : ""}" data-doc="${esc(d.id)}">
-        <span class="badge ${esc(d.kind)}">${esc(d.kind)}</span>
-        <b>${esc(d.name)}</b>
-        <span class="read">${size}</span>${deps}
-      </div>`;
-    })
-    .join("");
-  for (const el of $("docList").querySelectorAll(".doc")) {
-    el.onclick = async () => {
-      state.activeDoc = el.dataset.doc;
-      state.selection = null;
-      renderDocs();
-      renderTree();
-      await refreshViewport({ fit: true });
-    };
+  const box = $('docList');
+  box.textContent = '';
+  if (!S.state) return;
+  for (const d of S.state.documents) {
+    const row = el('div', 'doc' + (d.id === S.activeDoc ? ' active' : ''));
+    row.append(el('span', 'badge ' + d.kind, d.kind.slice(0, 3)));
+    const nm = el('span', 'nm', d.name);
+    nm.title = `${d.id}${d.dependsOn.length ? '\ndepends on: ' + d.dependsOn.join(', ') : ''}`;
+    row.append(nm, el('span', 'sz', d.size ? `${d.size[0]}×${d.size[1]}` : '—'));
+    row.onclick = () => setActiveDoc(d.id);
+    box.append(row);
   }
 }
 
 function renderTree() {
+  const box = $('treeList');
+  box.textContent = '';
   const doc = activeDocument();
-  state.tree = doc?.objects || [];
-  $("treeCount").textContent = state.tree.length ? `${state.tree.length}` : "";
-  $("docRead").textContent = doc ? `${doc.name} · ${doc.kind}` : "—";
-
-  if (!state.tree.length) {
-    $("treeList").innerHTML = `<div class="hint">No objects yet. Run an op to add one.</div>`;
+  $('treeCount').textContent = doc ? `${doc.objects.length} objects` : '';
+  if (!doc) return;
+  if (!doc.objects.length) {
+    box.append(el('div', 'empty-note', 'Empty document.'));
     return;
   }
-  // Bottom of the stack is the end of the list, matching how a layers panel reads.
-  $("treeList").innerHTML = state.tree
-    .slice()
-    .reverse()
-    .map((n) => {
-      const hidden = n.visible === false;
-      const sel = state.selection === n.id;
-      const opacity = n.opacity < 1 ? `<span class="read">${Math.round(n.opacity * 100)}%</span>` : "";
-      const blend = n.blend && n.blend !== "normal" ? `<span class="tagx">${esc(n.blend)}</span>` : "";
-      return `<div class="node ${hidden ? "hidden" : ""} ${sel ? "sel" : ""} ${n.depth ? "nested" : ""}"
-                   data-id="${esc(n.id)}" style="--depth:${n.depth}">
-        <button class="tb sm eye" data-eye="${esc(n.id)}" title="Toggle visibility">${hidden ? "○" : "●"}</button>
-        <b>${esc(n.name || n.id)}</b>
-        <span class="tagx">${esc(n.type)}</span>${blend}${opacity}
-      </div>`;
-    })
-    .join("");
+  // Engine order is bottom-up; an editor shows the top of the stack first.
+  for (const o of [...doc.objects].reverse()) {
+    const row = el('div', 'node' + (o.id === S.sel ? ' sel' : '') + (o.visible ? '' : ' hidden'));
+    row.dataset.id = o.id;
+    row.style.paddingLeft = 8 + o.depth * 13 + 'px';
 
-  for (const el of $("treeList").querySelectorAll(".node")) {
-    el.onclick = (ev) => {
-      if (ev.target.dataset.eye) return;
-      selectObject(el.dataset.id);
-    };
+    const eye = el('button', 'eye' + (o.visible ? '' : ' off'), o.visible ? '●' : '○');
+    const setter = visibilityOp(doc.kind);
+    eye.disabled = !setter;
+    eye.title = setter ? `toggle visibility (${setter})` : `no visibility op for ${doc.kind} documents`;
+    eye.onclick = (ev) => { ev.stopPropagation(); toggleVisible(doc, o); };
+
+    const nm = el('span', 'nm', o.name || o.id);
+    nm.title = `${o.id} · ${o.category}`;
+    row.append(eye, nm, el('span', 'ty', o.type));
+    if (o.opacity < 0.999) row.append(el('span', 'meta', Math.round(o.opacity * 100) + '%'));
+    if (o.blend && o.blend !== 'normal') row.append(el('span', 'blend', o.blend));
+    row.onclick = () => selectObject(o.id);
+    box.append(row);
   }
-  for (const btn of $("treeList").querySelectorAll("[data-eye]")) {
-    btn.onclick = async (ev) => {
-      ev.stopPropagation();
-      const id = btn.dataset.eye;
-      const node = state.tree.find((n) => n.id === id);
-      const doc = activeDocument();
-      const op = doc.kind === "raster" ? "raster.layer.set" : "vector.style.opacity";
-      const args =
-        doc.kind === "raster"
-          ? { target: `#${id}`, visible: node.visible === false }
-          : { target: `#${id}`, opacity: node.visible === false ? 1 : 0 };
-      try {
-        await call("op", { op, args, doc: state.activeDoc });
-        await refresh();
-      } catch (e) {
-        showError(e);
-      }
-    };
+}
+
+const visibilityOp = (kind) =>
+  kind === 'raster' ? 'raster.layer.set' : kind === 'vector' ? 'vector.style.opacity' : null;
+
+async function toggleVisible(doc, o) {
+  const op = visibilityOp(doc.kind);
+  if (!op) return;
+  try {
+    await call('op', { op, doc: doc.id, args: { target: '#' + o.id, visible: !o.visible } });
+    await refreshAll();
+  } catch { /* already surfaced in the console panel */ }
+}
+
+function renderHistory() {
+  const pane = $('tab-history');
+  pane.textContent = '';
+  if (!S.history.length) {
+    pane.append(el('div', 'empty-note', 'No journal entries yet.'));
+    return;
   }
+  for (const e of S.history) {
+    const row = el('div', 'hrow' + (e.undone ? ' undone' : '') + (e.seq > S.maxSeqSeen ? ' fresh' : ''));
+    row.append(
+      el('span', 'seq', '#' + e.seq),
+      el('span', 'actor ' + e.actor, e.actor),
+      el('span', 'op', e.op),
+    );
+    if (e.undone) row.append(el('span', 'tagx', 'undone'));
+    row.append(el('span', 'chg', e.changed.join(', ')), el('span', 'ts', (e.ts || '').replace('T', ' ').replace('Z', '')));
+    pane.append(row);
+  }
+  S.maxSeqSeen = Math.max(S.maxSeqSeen, ...S.history.map((e) => e.seq));
+}
+
+function renderLint() {
+  const pane = $('tab-lint');
+  pane.textContent = '';
+  const rep = S.lint;
+  const pill = $('lintCount');
+  if (!rep) { pill.hidden = true; return; }
+  const n = rep.findings.length;
+  pill.hidden = n === 0;
+  pill.textContent = String(n);
+  pill.className = 'pill' + (rep.errors ? ' err' : '');
+  if (!n) {
+    pane.append(el('div', 'empty-note', 'No findings. Contrast, size and coverage checks all pass.'));
+    return;
+  }
+  for (const f of rep.findings) {
+    const row = el('div', 'lrow');
+    row.append(el('span', 'sev ' + f.severity, f.severity), el('span', 'rule', f.rule), el('span', 'det', f.detail));
+    if (f.value != null) {
+      row.append(el('span', 'num', f.required != null ? `${round2(f.value)} / ${round2(f.required)}` : round2(f.value)));
+    }
+    row.append(el('span', 'tgt', f.target));
+    row.title = `${f.document} ${f.target} — click to select`;
+    row.onclick = () => revealFinding(f);
+    pane.append(row);
+  }
+}
+
+const round2 = (v) => (Math.round(v * 100) / 100).toString();
+
+/** Resolve a finding's selector through the engine so one click lands on the offending object. */
+async function revealFinding(f) {
+  try {
+    const matches = await call('select', { doc: f.document, selector: f.target });
+    if (!matches.length) return;
+    const m = matches[0];
+    if (m.document && m.document !== S.activeDoc) await setActiveDoc(m.document);
+    selectObject(m.id);
+  } catch { /* surfaced in console */ }
 }
 
 function selectObject(id) {
-  state.selection = id;
+  S.sel = id;
   renderTree();
-  const field = document.querySelector('[data-field="target"]');
-  if (field) field.value = `#${id}`;
-  $("inspectTarget").textContent = `#${id}`;
+  const row = $('treeList').querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+  $('inspectTarget').textContent = id ? '#' + id : '';
+  for (const input of document.querySelectorAll('.opform [data-auto="1"]')) input.value = '#' + id;
 }
 
-async function renderHistory() {
-  const h = await call("history", { limit: 60 });
-  const newest = h.entries[0]?.seq;
-  $("tab-history").innerHTML = h.entries.length
-    ? h.entries
-        .map(
-          (e) => `<div class="hrow ${e.undone ? "undone" : ""} ${e.seq === newest ? "fresh" : ""}">
-            <span class="read">${e.seq}</span>
-            <span class="actor ${esc(e.actor)}">${esc(e.actor)}</span>
-            <span class="op-id">${esc(e.op)}</span>
-            <span class="read">${esc((e.changed || []).join(", "))}</span>
-            ${e.undone ? '<span class="tagx">undone</span>' : ""}
-          </div>`
-        )
-        .join("")
-    : `<div class="hint">Nothing yet. Every edit — yours or an agent's — lands here.</div>`;
+// ------------------------------------------------------------------------------ refresh
+
+function stateSignature(st) {
+  // Covers undo (which flips `undone` without advancing the sequence) as well as new ops.
+  return JSON.stringify([st.revision, st.canUndo, st.canRedo, st.project.modified, st.documents, st.palette]);
 }
 
-// ---------------------------------------------------------------- viewport
+function applyState(st) {
+  S.state = st;
+  if (!S.activeDoc || !st.documents.some((d) => d.id === S.activeDoc)) {
+    S.activeDoc = st.project.active || (st.documents[0] && st.documents[0].id) || null;
+  }
+  const doc = activeDocument();
+  if (S.sel && (!doc || !doc.objects.some((o) => o.id === S.sel))) S.sel = null;
+  $('projectName').textContent = st.project.name;
+  $('projectName').title = st.project.root;
+  $('revBadge').textContent = 'rev ' + st.revision;
+  $('btnUndo').disabled = !st.canUndo;
+  $('btnRedo').disabled = !st.canRedo;
+  $('docRead').textContent = doc ? `${doc.name} · ${doc.kind}` : '—';
+  $('inspectTarget').textContent = S.sel ? '#' + S.sel : '';
+  renderDocs();
+  renderTree();
+}
 
-async function refreshViewport({ fit = false } = {}) {
-  const img = $("canvasImg");
-  $("busy").hidden = false;
+/** Pull everything the panels show. Serialised so a poll cannot interleave with a click. */
+function refreshAll(opts = {}) {
+  const run = async () => {
+    const st = await call('state', {}, { quiet: true });
+    S.sig = stateSignature(st);
+    applyState(st);
+    const [hist, lint] = await Promise.all([
+      call('history', { limit: 200 }, { quiet: true }).catch(() => ({ entries: [] })),
+      call('lint', {}, { quiet: true }).catch(() => null),
+    ]);
+    S.history = hist.entries || [];
+    S.lint = lint;
+    renderHistory();
+    renderLint();
+    if (!opts.noRender) await refreshRender();
+  };
+  refreshing = (refreshing || Promise.resolve()).then(run, run);
+  return refreshing;
+}
+
+async function setActiveDoc(id) {
+  S.activeDoc = id;
+  S.sel = null;
+  renderDocs();
+  renderTree();
+  const doc = activeDocument();
+  $('docRead').textContent = doc ? `${doc.name} · ${doc.kind}` : '—';
+  view.zoom = 1; view.x = 0; view.y = 0;
+  await refreshRender({ fit: true });
+}
+
+// ----------------------------------------------------------------------------- viewport
+
+async function refreshRender({ fit = false } = {}) {
+  const img = $('canvasImg');
+  if (!S.activeDoc) { img.removeAttribute('src'); return; }
+  const token = ++renderToken;
+  $('busy').hidden = false;
   try {
-    const url = await renderUrl(state.activeDoc, 1600);
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = () => reject(new ApiError({ code: "render_failed", message: "render failed" }));
+    const url = await renderUrl(S.activeDoc, { scale: 1, max: 1600 });
+    await new Promise((resolve) => {
+      const done = (ok) => { if (token === renderToken) { $('canvasEmpty').hidden = ok; } resolve(); };
+      img.onload = () => done(true);
+      img.onerror = () => done(false);
       img.src = url;
     });
-    state.renderSize = [img.naturalWidth, img.naturalHeight];
-    $("sizeRead").textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
-    $("canvasEmpty").hidden = true;
-    if (fit || state.zoom === null) fitView();
-    else applyView();
-  } catch (e) {
-    $("canvasEmpty").hidden = false;
-    showError(e);
+    if (token !== renderToken) return;
+    view.rw = img.naturalWidth; view.rh = img.naturalHeight;
+    if (fit || !view.fitted) { fitView(); view.fitted = true; } else { layoutView(); }
   } finally {
-    $("busy").hidden = true;
+    if (token === renderToken) $('busy').hidden = true;
   }
 }
 
+/** Screen pixels per rendered pixel. `zoom` is document pixels, which is what a user means. */
+function screenScale() {
+  const doc = activeDocument();
+  const dw = (doc && doc.size && doc.size[0]) || view.rw || 1;
+  return view.zoom * (dw / (view.rw || 1));
+}
+
+function layoutView() {
+  const img = $('canvasImg');
+  const s = screenScale();
+  img.style.width = Math.max(1, Math.round(view.rw * s)) + 'px';
+  img.style.height = Math.max(1, Math.round(view.rh * s)) + 'px';
+  img.classList.toggle('pixelated', s >= 2);
+  $('canvasPan').style.transform = `translate(-50%, -50%) translate(${Math.round(view.x)}px, ${Math.round(view.y)}px)`;
+  $('zoomRead').textContent = Math.round(view.zoom * 100) + '%';
+  $('sizeRead').textContent = view.rw ? `${view.rw} × ${view.rh} px` : '— × —';
+}
+
 function fitView() {
-  const area = $("canvasArea").getBoundingClientRect();
-  const [w, h] = state.renderSize;
-  if (!w || !h) return;
-  state.fitZoom = Math.min((area.width - 48) / w, (area.height - 48) / h, 1);
-  state.zoom = state.fitZoom;
-  state.pan = { x: 0, y: 0 };
-  applyView();
+  const area = $('canvasArea').getBoundingClientRect();
+  if (!view.rw) return layoutView();
+  const s = Math.min((area.width - 40) / view.rw, (area.height - 40) / view.rh);
+  const doc = activeDocument();
+  const dw = (doc && doc.size && doc.size[0]) || view.rw;
+  view.zoom = Math.max(0.02, s * (view.rw / dw));
+  view.x = 0; view.y = 0;
+  layoutView();
 }
 
-function applyView() {
-  const pan = $("canvasPan");
-  const [w, h] = state.renderSize;
-  // #canvasPan is anchored at the centre of the area, so offset by half the *scaled*
-  // size to put the middle of the document under the middle of the viewport.
-  const cx = (w * state.zoom) / 2;
-  const cy = (h * state.zoom) / 2;
-  pan.style.transformOrigin = "0 0";
-  pan.style.transform =
-    `translate(${state.pan.x - cx}px, ${state.pan.y - cy}px) scale(${state.zoom})`;
-  $("canvasImg").classList.toggle("pixelated", state.zoom >= 2);
-  $("zoomRead").textContent = `${Math.round(state.zoom * 100)}%`;
+function zoomTo(zoom, cx, cy) {
+  const s0 = screenScale();
+  const z0 = view.zoom;
+  view.zoom = Math.min(32, Math.max(0.02, zoom));
+  const s1 = screenScale();
+  if (cx !== undefined && s0 > 0) {
+    // Keep the pixel under the cursor put.
+    const u = (cx - view.x) / s0, v = (cy - view.y) / s0;
+    view.x = cx - u * s1; view.y = cy - v * s1;
+  }
+  if (z0 === view.zoom) return;
+  layoutView();
 }
 
-function installViewportControls() {
-  const area = $("canvasArea");
-  let dragging = false;
-  let last = null;
+function initViewport() {
+  const area = $('canvasArea');
+  area.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = area.getBoundingClientRect();
+    const cx = e.clientX - r.left - r.width / 2;
+    const cy = e.clientY - r.top - r.height / 2;
+    const k = Math.exp(-e.deltaY * 0.0022);
+    zoomTo(view.zoom * k, cx, cy);
+  }, { passive: false });
 
-  area.addEventListener("mousedown", (e) => {
-    dragging = true;
-    last = { x: e.clientX, y: e.clientY };
-    area.classList.add("panning");
+  let drag = null;
+  area.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    drag = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
+    area.setPointerCapture(e.pointerId);
+    area.classList.add('panning');
   });
-  window.addEventListener("mouseup", () => {
-    dragging = false;
-    area.classList.remove("panning");
+  area.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    view.x = drag.ox + (e.clientX - drag.x);
+    view.y = drag.oy + (e.clientY - drag.y);
+    layoutView();
   });
-  window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    state.pan.x += e.clientX - last.x;
-    state.pan.y += e.clientY - last.y;
-    last = { x: e.clientX, y: e.clientY };
-    applyView();
-  });
-  area.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      const k = Math.exp(-e.deltaY / 400);
-      state.zoom = Math.min(16, Math.max(0.05, state.zoom * k));
-      applyView();
-    },
-    { passive: false }
-  );
+  const end = () => { drag = null; area.classList.remove('panning'); };
+  area.addEventListener('pointerup', end);
+  area.addEventListener('pointercancel', end);
+  window.addEventListener('resize', () => layoutView());
 
-  $("btnFit").onclick = fitView;
-  $("btnOneToOne").onclick = () => {
-    state.zoom = 1;
-    state.pan = { x: 0, y: 0 };
-    applyView();
-  };
+  $('btnFit').onclick = () => fitView();
+  $('btnOneToOne').onclick = () => { view.x = 0; view.y = 0; zoomTo(1); layoutView(); };
 }
 
-// ---------------------------------------------------------------- command palette
+// ------------------------------------------------------------------------------ palette
 
-async function loadCatalog() {
-  state.catalog = await call("catalog");
-}
+let pal = { items: [], idx: 0, open: false };
 
 function openPalette() {
-  $("paletteWrap").hidden = false;
-  const input = $("paletteInput");
-  input.value = "";
+  pal.open = true;
+  $('paletteWrap').hidden = false;
+  const input = $('paletteInput');
+  input.value = '';
+  filterPalette('');
   input.focus();
-  filterPalette("");
+  input.select();
 }
 
 function closePalette() {
-  $("paletteWrap").hidden = true;
+  pal.open = false;
+  $('paletteWrap').hidden = true;
 }
 
 function filterPalette(q) {
   const needle = q.trim().toLowerCase();
   const doc = activeDocument();
-  const matches = state.catalog
-    .filter((op) => {
-      if (needle && !(op.id.toLowerCase().includes(needle) || op.about.toLowerCase().includes(needle)))
-        return false;
-      // Ops declare the document kinds they apply to; hide the ones that cannot run.
-      if (doc && op.modes?.length && !op.modes.includes(doc.kind)) return false;
-      return true;
-    })
-    .slice(0, 120);
-  state.paletteMatches = matches;
-  state.paletteIndex = 0;
-  drawPalette();
-}
-
-function drawPalette() {
-  $("paletteList").innerHTML = state.paletteMatches
-    .map(
-      (op, i) => `<div class="pitem ${i === state.paletteIndex ? "on" : ""}" data-i="${i}">
-        <div class="op-head">
-          <span class="op-id">${esc(op.id)}</span>
-          <span class="op-flags">
-            ${op.query ? '<span class="flag query">read-only</span>' : ""}
-            ${op.network ? '<span class="flag net">network</span>' : ""}
-          </span>
-        </div>
-        <div class="op-about">${esc(op.about)}</div>
-      </div>`
-    )
-    .join("");
-  for (const el of $("paletteList").querySelectorAll(".pitem")) {
-    el.onclick = () => choosePalette(Number(el.dataset.i));
+  const kind = doc ? doc.kind : null;
+  let items = S.catalog;
+  if (needle) {
+    const terms = needle.split(/\s+/);
+    items = items
+      .map((o) => {
+        const id = o.id.toLowerCase(), ab = (o.about || '').toLowerCase();
+        let score = 0;
+        for (const t of terms) {
+          const i = id.indexOf(t);
+          if (i >= 0) score += 100 - Math.min(i, 40);
+          else if (ab.includes(t)) score += 20;
+          else return null;
+        }
+        return { o, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score || a.o.id.localeCompare(b.o.id))
+      .map((x) => x.o);
+  } else if (kind) {
+    // With no query, ops that apply to the open document come first.
+    items = [...items].sort((a, b) => (b.modes.includes(kind) ? 1 : 0) - (a.modes.includes(kind) ? 1 : 0));
   }
-  const on = $("paletteList").querySelector(".pitem.on");
-  if (on) on.scrollIntoView({ block: "nearest" });
+  pal.items = items;
+  pal.idx = 0;
+  drawPalette(needle);
 }
 
-async function choosePalette(i) {
-  const op = state.paletteMatches[i];
-  if (!op) return;
+function drawPalette(needle) {
+  const list = $('paletteList');
+  list.textContent = '';
+  if (!pal.items.length) {
+    list.append(el('div', 'empty-note', 'No op matches.'));
+    return;
+  }
+  pal.items.slice(0, 120).forEach((o, i) => {
+    const row = el('div', 'pitem' + (i === pal.idx ? ' on' : ''));
+    row.append(highlight(o.id, needle, 'pid'), el('span', 'pab', o.about || ''));
+    const flags = [o.modes.join('/')];
+    if (o.query) flags.push('query');
+    if (o.network) flags.push('net');
+    row.append(el('span', 'pmode', flags.join(' · ')));
+    row.onmouseenter = () => { pal.idx = i; [...list.children].forEach((c, j) => c.classList.toggle('on', j === i)); };
+    row.onclick = () => chooseOp(o.id);
+    list.append(row);
+  });
+}
+
+function highlight(text, needle, cls) {
+  const span = el('span', cls);
+  const i = needle ? text.toLowerCase().indexOf(needle.split(/\s+/)[0]) : -1;
+  if (i < 0) { span.textContent = text; return span; }
+  const n = needle.split(/\s+/)[0].length;
+  span.append(document.createTextNode(text.slice(0, i)), el('mark', null, text.slice(i, i + n)), document.createTextNode(text.slice(i + n)));
+  return span;
+}
+
+function movePalette(d) {
+  const max = Math.min(pal.items.length, 120);
+  if (!max) return;
+  pal.idx = (pal.idx + d + max) % max;
+  const list = $('paletteList');
+  [...list.children].forEach((c, j) => c.classList.toggle('on', j === pal.idx));
+  const on = list.children[pal.idx];
+  if (on) on.scrollIntoView({ block: 'nearest' });
+}
+
+async function chooseOp(id) {
   closePalette();
-  await openInspector(op.id);
+  try {
+    const meta = S.catalog.find((o) => o.id === id) || {};
+    const spec = await call('schema', { op: id });
+    S.op = { id: spec.id, about: spec.about, schema: spec.schema, modes: meta.modes || [], query: !!meta.query, network: !!meta.network };
+    buildForm();
+  } catch { /* surfaced in console */ }
 }
 
-// ---------------------------------------------------------------- schema-driven inspector
-
-async function openInspector(opId) {
-  const spec = await call("schema", { op: opId });
-  state.currentOp = spec;
-  const schema = spec.schema || {};
-  const props = schema.properties || {};
-  const required = schema.required || [];
-
-  const fields = Object.entries(props)
-    .map(([name, raw]) => field(name, resolveSchema(schema, raw), required.includes(name)))
-    .join("");
-
-  $("inspectTarget").textContent = state.selection ? `#${state.selection}` : "";
-  $("inspector").innerHTML = `
-    <div class="op-head"><span class="op-id">${esc(spec.id)}</span></div>
-    <div class="op-about">${esc(spec.about)}</div>
-    <form id="opForm">${fields || '<div class="hint">This op takes no arguments.</div>'}
-      <div class="form-actions">
-        <label class="dry"><input type="checkbox" id="dryRun" ${state.dryRun ? "checked" : ""}> dry run</label>
-        <button type="submit" class="tb accent">Apply</button>
-      </div>
-      <div id="opResult"></div>
-    </form>`;
-
-  if (state.selection) {
-    const t = document.querySelector('[data-field="target"]');
-    if (t && !t.value) t.value = `#${state.selection}`;
-  }
-  $("opForm").onsubmit = submitOp;
+function initPalette() {
+  $('btnPalette').onclick = openPalette;
+  $('paletteBackdrop').onclick = closePalette;
+  $('paletteInput').addEventListener('input', (e) => filterPalette(e.target.value));
+  $('paletteInput').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); movePalette(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const o = pal.items[pal.idx]; if (o) chooseOp(o.id); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+  });
 }
 
-/** Follow $ref / anyOf so optional and referenced types show the right control. */
-function resolveSchema(root, spec) {
-  if (!spec) return {};
-  if (spec.$ref) {
-    const name = spec.$ref.replace("#/$defs/", "");
-    return resolveSchema(root, (root.$defs || {})[name] || {});
-  }
-  for (const key of ["anyOf", "oneOf", "allOf"]) {
-    if (Array.isArray(spec[key])) {
-      const hit = spec[key].map((s) => resolveSchema(root, s)).find((s) => s.type !== "null");
-      if (hit) return { ...hit, description: spec.description || hit.description };
+// ------------------------------------------------------------------- schema-driven form
+
+const COLOR_PATTERN = /\[0-9a-fA-F\]\{3,4\}/;
+
+/** Follow `$ref` and strip the `| null` that optional Rust fields serialise as. */
+function resolve(schema, defs, seen = 0) {
+  if (!schema || typeof schema !== 'object' || seen > 8) return { s: schema || {}, nullable: false };
+  if (schema.$ref) {
+    const name = schema.$ref.split('/').pop();
+    const target = defs[name];
+    if (target) {
+      const r = resolve(target, defs, seen + 1);
+      return { s: { ...r.s, description: schema.description || r.s.description }, nullable: r.nullable, def: name };
     }
   }
-  return spec;
+  const branches = schema.anyOf || schema.oneOf;
+  if (Array.isArray(branches)) {
+    const live = branches.filter((b) => !(b && b.type === 'null'));
+    const nullable = live.length !== branches.length;
+    if (live.length === 1) {
+      const r = resolve(live[0], defs, seen + 1);
+      return { s: { ...r.s, description: schema.description || r.s.description, default: schema.default }, nullable: nullable || r.nullable, def: r.def };
+    }
+    if (live.length > 1) {
+      // A union such as Paint (solid colour or gradient): offer the simple branch, and let the
+      // JSON escape hatch cover the rest.
+      const resolved = live.map((b) => resolve(b, defs, seen + 1));
+      const simple = resolved.find((r) => r.def === 'Color') || resolved.find((r) => r.s.type === 'string');
+      return {
+        s: { ...(simple ? simple.s : {}), description: schema.description, union: resolved.map((r) => r.def || r.s.title || r.s.type) },
+        nullable, def: simple && simple.def,
+      };
+    }
+  }
+  if (Array.isArray(schema.type)) {
+    const live = schema.type.filter((t) => t !== 'null');
+    return { s: { ...schema, type: live[0] }, nullable: live.length !== schema.type.length };
+  }
+  return { s: schema, nullable: false };
 }
 
-function typeOf(spec) {
-  const t = spec.type;
-  if (Array.isArray(t)) return t.find((x) => x !== "null") || "string";
-  return t || (spec.enum ? "string" : "string");
+function widgetKind(s, def) {
+  if (s.enum) return 'enum';
+  if (def === 'Color' || (typeof s.pattern === 'string' && COLOR_PATTERN.test(s.pattern))) return 'color';
+  if (s.type === 'boolean') return 'bool';
+  if (s.type === 'integer' || s.type === 'number') return 'number';
+  if (s.type === 'array') return 'json';
+  if (s.type === 'object' && s.properties) return 'object';
+  if (s.type === 'object' || !s.type) return 'json';
+  return 'text';
 }
 
-function field(name, spec, isRequired) {
-  const label = `${name.replace(/_/g, " ")}${isRequired ? " *" : ""}`;
-  const desc = spec.description ? `<div class="hint">${esc(spec.description)}</div>` : "";
-  const ty = typeOf(spec);
-  let control;
+function typeLabel(s, def, nullable) {
+  const base = def || (s.enum ? 'enum' : s.type === 'array' ? `${(s.items && s.items.type) || 'any'}[]` : s.type) || 'json';
+  return base + (nullable ? '?' : '');
+}
 
-  if (spec.enum) {
-    control = `<select data-field="${esc(name)}" data-type="string">
-      ${!isRequired ? '<option value=""></option>' : ""}
-      ${spec.enum.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}</select>`;
-  } else if (isColor(spec)) {
-    control = `<input type="text" data-field="${esc(name)}" data-type="string" placeholder="#rrggbb">`;
-  } else if (ty === "boolean") {
-    control = `<input type="checkbox" data-field="${esc(name)}" data-type="boolean">`;
-  } else if (ty === "number" || ty === "integer") {
-    control = `<input type="number" step="any" data-field="${esc(name)}" data-type="${ty}">`;
-  } else if (ty === "array") {
-    control = `<input type="text" data-field="${esc(name)}" data-type="array" placeholder="1, 2, 3">`;
-  } else if (ty === "object") {
-    const sub = Object.keys(spec.properties || {}).join(", ");
-    control = `<input type="text" data-field="${esc(name)}" data-type="object"
-      placeholder='${esc(sub ? `{ "${Object.keys(spec.properties)[0]}": … }` : "{ }")}'>`;
+function buildForm() {
+  const box = $('inspector');
+  box.textContent = '';
+  const op = S.op;
+  if (!op) return;
+
+  const head = el('div', 'op-head');
+  head.append(el('div', 'op-id', op.id), el('div', 'op-about', op.about || ''));
+  const flags = el('div', 'op-flags');
+  flags.append(el('span', 'flag', (op.modes || []).join(' · ') || 'any'));
+  if (op.query) flags.append(el('span', 'flag query', 'read-only'));
+  if (op.network) flags.append(el('span', 'flag net', 'network'));
+  head.append(flags);
+  box.append(head);
+
+  const form = el('form', 'opform');
+  const defs = op.schema.$defs || {};
+  const props = op.schema.properties || {};
+  const required = new Set(op.schema.required || []);
+  const order = Object.keys(props).sort((a, b) => (required.has(b) ? 1 : 0) - (required.has(a) ? 1 : 0));
+  for (const name of order) form.append(buildField(name, props[name], defs, required.has(name), name));
+
+  const actions = el('div', 'form-actions');
+  const run = el('button', 'tb accent', 'Run op');
+  run.type = 'submit';
+  const dryWrap = el('label', 'dry');
+  const dry = el('input');
+  dry.type = 'checkbox';
+  dry.id = 'dryRun';
+  dryWrap.append(dry, el('span', null, 'dry run'));
+  const clear = el('button', 'tb sm', 'Close');
+  clear.type = 'button';
+  clear.onclick = () => { S.op = null; box.textContent = ''; box.append(hintNode()); };
+  actions.append(run, dryWrap, el('span', 'grow'), clear);
+  form.append(actions);
+
+  form.onsubmit = (e) => { e.preventDefault(); submitOp(form, dry.checked); };
+  box.append(form);
+  const first = form.querySelector('input, select, textarea');
+  if (first) first.focus();
+}
+
+function hintNode() {
+  const d = el('div', 'hint');
+  d.innerHTML = 'Pick an op with <kbd>/</kbd> or <kbd>Ctrl-K</kbd> to build its form from the engine schema.';
+  return d;
+}
+
+function buildField(name, raw, defs, isRequired, path, depth = 0) {
+  const { s, nullable, def } = resolve(raw, defs);
+  const kind = widgetKind(s, def);
+
+  if (kind === 'object' && depth < 2) {
+    const box = el('div', 'nested');
+    const head = el('div', 'nested-head');
+    head.append(el('span', null, name), el('span', 'ftype', typeLabel(s, def, nullable)));
+    box.append(head);
+    if (s.description) box.append(el('p', 'desc', s.description));
+    const req = new Set(s.required || []);
+    for (const [k, v] of Object.entries(s.properties)) {
+      box.append(buildField(k, v, defs, req.has(k), `${path}.${k}`, depth + 1));
+    }
+    return box;
+  }
+
+  const field = el('div', 'field');
+  const label = el('label');
+  label.append(el('span', 'fname', name));
+  if (isRequired) label.append(el('span', 'req', '*'));
+  label.append(el('span', 'ftype', typeLabel(s, def, nullable)));
+  field.append(label);
+  if (s.description) field.append(el('p', 'desc', s.description));
+
+  let input;
+  if (kind === 'enum') {
+    input = el('select');
+    if (!isRequired) input.append(new Option('—', ''));
+    for (const v of s.enum) input.append(new Option(String(v), String(v)));
+    if (isRequired && s.default != null) input.value = String(s.default);
+  } else if (kind === 'bool') {
+    if (isRequired) {
+      input = el('input');
+      input.type = 'checkbox';
+      if (s.default === true) input.checked = true;
+    } else {
+      input = el('select');
+      input.append(new Option('—', ''), new Option('true', 'true'), new Option('false', 'false'));
+    }
+  } else if (kind === 'number') {
+    input = el('input');
+    input.type = 'number';
+    input.step = s.type === 'integer' ? '1' : 'any';
+    if (s.minimum != null) input.min = String(s.minimum);
+    if (s.maximum != null) input.max = String(s.maximum);
+    if (s.default != null) input.placeholder = String(s.default);
+  } else if (kind === 'json') {
+    input = el('textarea');
+    input.placeholder = s.union ? `JSON — one of ${s.union.join(' | ')}` : 'JSON value';
+    input.spellcheck = false;
   } else {
-    control = `<input type="text" data-field="${esc(name)}" data-type="string">`;
+    input = el('input');
+    input.type = 'text';
+    input.spellcheck = false;
+    if (s.default != null && s.default !== '') input.placeholder = String(s.default);
+    if (kind === 'color') input.placeholder = '#rrggbb';
   }
-  return `<label class="field"><span>${esc(label)}</span>${control}${desc}</label>`;
+  input.dataset.path = path;
+  input.dataset.kind = kind;
+  if (isRequired) input.dataset.required = '1';
+
+  if (kind === 'color') {
+    const row = el('div', 'row');
+    const swatch = el('input');
+    swatch.type = 'color';
+    swatch.value = '#f4a261';
+    swatch.oninput = () => { input.value = swatch.value; };
+    row.append(input, swatch);
+    field.append(row);
+  } else {
+    field.append(input);
+  }
+
+  // Prefill selector fields from the tree selection, until the human types something else.
+  if ((path === 'target' || path === 'parent') && input.tagName === 'INPUT' && S.sel && path === 'target') {
+    input.value = '#' + S.sel;
+    input.dataset.auto = '1';
+  }
+  input.addEventListener('input', () => { delete input.dataset.auto; });
+  return field;
 }
 
-function isColor(spec) {
-  return typeof spec.pattern === "string" && spec.pattern.includes("0-9a-fA-F");
+function setPath(obj, path, value) {
+  const parts = path.split('.');
+  let cur = obj;
+  for (const p of parts.slice(0, -1)) cur = cur[p] || (cur[p] = {});
+  cur[parts[parts.length - 1]] = value;
 }
 
-function collectArgs(schema) {
+/** Empty means "not supplied", so the engine's own defaults stay in charge. */
+function collect(form) {
   const args = {};
-  for (const el of document.querySelectorAll("#opForm [data-field]")) {
-    const name = el.dataset.field;
-    const ty = el.dataset.type;
-    if (ty === "boolean") {
-      if (el.checked) args[name] = true;
-      continue;
+  for (const input of form.querySelectorAll('[data-path]')) {
+    const { path, kind } = input.dataset;
+    let v;
+    if (kind === 'bool' && input.type === 'checkbox') v = input.checked;
+    else {
+      const raw = input.value.trim();
+      if (raw === '') continue;
+      if (kind === 'bool') v = raw === 'true';
+      else if (kind === 'number') { v = Number(raw); if (Number.isNaN(v)) throw new StudioError({ code: 'invalid', message: `${path}: '${raw}' is not a number` }); }
+      else if (kind === 'json') { try { v = JSON.parse(raw); } catch (e) { throw new StudioError({ code: 'invalid', message: `${path}: ${e.message}` }); } }
+      else if (raw[0] === '{' || raw[0] === '[') { try { v = JSON.parse(raw); } catch { v = raw; } }
+      else v = raw;
     }
-    const raw = el.value.trim();
-    if (raw === "") continue;
-    if (ty === "number") args[name] = Number(raw);
-    else if (ty === "integer") args[name] = parseInt(raw, 10);
-    else if (ty === "array")
-      args[name] = raw.startsWith("[") ? JSON.parse(raw) : raw.split(",").map((s) => coerce(s.trim()));
-    else if (ty === "object")
-      args[name] = raw.startsWith("{") ? JSON.parse(raw) : singleRequired(schema, name, raw);
-    else args[name] = raw;
+    setPath(args, path, v);
   }
   return args;
 }
 
-/** `--text "HELLO"` ergonomics, mirrored from the CLI: one required field takes a scalar. */
-function singleRequired(schema, name, raw) {
-  const spec = resolveSchema(schema, (schema.properties || {})[name] || {});
-  const req = spec.required || [];
-  if (req.length === 1) return { [req[0]]: coerce(raw) };
-  return raw;
-}
+async function submitOp(form, dryRun) {
+  const box = $('inspector');
+  for (const old of box.querySelectorAll('.result')) old.remove();
+  const show = (cls, text) => { const r = el('div', 'result ' + cls, text); box.append(r); r.scrollIntoView({ block: 'nearest' }); };
 
-function coerce(s) {
-  if (s === "true") return true;
-  if (s === "false") return false;
-  const n = Number(s);
-  return Number.isNaN(n) || s === "" ? s : n;
-}
+  let args;
+  try { args = collect(form); }
+  catch (e) { const err = asStudioError(e); logCall('op(form)', { op: S.op.id }, 0, err); show('err', `${err.code}: ${err.message}`); return; }
 
-async function submitOp(ev) {
-  ev.preventDefault();
-  const spec = state.currentOp;
-  if (!spec) return;
-  state.dryRun = $("dryRun").checked;
-  const out = $("opResult");
+  const params = { op: S.op.id, args, doc: S.activeDoc };
+  if (dryRun) params.dryRun = true;
   try {
-    const args = collectArgs(spec.schema || {});
-    const res = await call("op", {
-      op: spec.id,
-      args,
-      doc: state.activeDoc,
-      dryRun: state.dryRun,
-    });
+    const r = await call('op', params);
     const bits = [];
-    if (res.changed?.length) bits.push(`changed ${res.changed.join(", ")}`);
-    if (res.created?.length) bits.push(`created ${res.created.join(", ")}`);
-    if (res.removed?.length) bits.push(`removed ${res.removed.join(", ")}`);
-    for (const w of res.warnings || []) bits.push(`⚠ ${w.code} ${w.target}: ${w.detail}`);
-    out.className = `result ${state.dryRun ? "dry" : "ok"}`;
-    out.textContent = state.dryRun
-      ? `would ${bits.join("; ") || "do nothing"} (nothing written)`
-      : bits.join("; ") || "applied";
-    if (res.data) out.textContent += `\n${JSON.stringify(res.data, null, 1).slice(0, 2000)}`;
-    if (!state.dryRun) await refresh();
+    if (r.seq != null) bits.push(`seq #${r.seq}`);
+    if (r.changed && r.changed.length) bits.push(`changed: ${r.changed.join(', ')}`);
+    if (r.created && r.created.length) bits.push(`created: ${r.created.join(', ')}`);
+    if (r.removed && r.removed.length) bits.push(`removed: ${r.removed.join(', ')}`);
+    if (r.warnings && r.warnings.length) bits.push(`warnings: ${r.warnings.join('; ')}`);
+    if (r.data !== undefined && r.data !== null) {
+      const d = JSON.stringify(r.data, null, 1);
+      bits.push('data: ' + (d.length > 2000 ? d.slice(0, 2000) + '\n…' : d));
+    }
+    if (dryRun) {
+      show('dry', `dry run — nothing written\n${r.op}\n${bits.join('\n') || 'no effect reported'}`);
+    } else {
+      show('ok', `${r.op}\n${bits.join('\n') || 'applied'}`);
+      if (r.created && r.created.length) S.sel = r.created[0];
+      await refreshAll();
+    }
   } catch (e) {
-    out.className = "result err";
-    out.textContent = `${e.code}: ${e.message}${e.suggestion ? `\ndid you mean ${e.suggestion}` : ""}`;
-    showError(e);
+    const err = asStudioError(e);
+    const extra = [
+      err.suggestion ? `suggestion: ${err.suggestion}` : null,
+      err.candidates.length ? `candidates: ${err.candidates.join(', ')}` : null,
+    ].filter(Boolean).join('\n');
+    show('err', `${err.code}: ${err.message}${extra ? '\n' + extra : ''}`);
   }
 }
 
-function showError(e) {
-  selectTab("console");
-}
+// ------------------------------------------------------------------------------ actions
 
-// ---------------------------------------------------------------- lint
-
-async function runLint() {
+async function doUndo() {
   try {
-    const report = await call("lint", { doc: state.activeDoc });
-    state.lint = report;
-    const pill = $("lintCount");
-    pill.hidden = report.findings.length === 0;
-    pill.textContent = String(report.findings.length);
-    pill.classList.toggle("err", report.errors > 0);
-
-    $("tab-lint").innerHTML = report.findings.length
-      ? report.findings
-          .map(
-            (f) => `<div class="lrow" data-target="${esc(f.target)}">
-              <span class="sev ${esc(f.severity)}">${esc(f.severity)}</span>
-              <span class="op-id">${esc(f.rule)}</span>
-              <span class="tagx">${esc(f.target)}</span>
-              <span class="read">${esc(f.detail)}</span>
-              ${f.value != null ? `<span class="read">${fmt(f.value)}${f.required != null ? ` / need ${fmt(f.required)}` : ""}</span>` : ""}
-            </div>`
-          )
-          .join("")
-      : `<div class="hint">No findings. Lint checks contrast, overflow, off-canvas content and broken geometry.</div>`;
-
-    for (const row of $("tab-lint").querySelectorAll(".lrow")) {
-      row.onclick = async () => {
-        const target = row.dataset.target;
-        try {
-          const matches = await call("select", { doc: state.activeDoc, selector: target });
-          if (matches[0]) {
-            selectObject(matches[0].id);
-            selectTab("history");
-            selectTab("lint");
-          }
-        } catch (e) {
-          showError(e);
-        }
-      };
-    }
-  } catch (e) {
-    showError(e);
-  }
+    const r = await call('undo');
+    await refreshAll();
+    flash(r.op ? `undid ${r.op}` : 'nothing to undo', 'human');
+  } catch { /* surfaced in console */ }
 }
 
-function fmt(v) {
-  return typeof v === "number" ? (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2)) : String(v);
+async function doRedo() {
+  try {
+    const r = await call('redo');
+    await refreshAll();
+    flash(r.op ? `redid ${r.op}` : 'nothing to redo', 'human');
+  } catch { /* surfaced in console */ }
 }
 
-// ---------------------------------------------------------------- tabs, keys, polling
-
-function selectTab(name) {
-  for (const t of document.querySelectorAll(".tab")) t.classList.toggle("active", t.dataset.tab === name);
-  for (const p of document.querySelectorAll(".tabpane"))
-    p.classList.toggle("active", p.id === `tab-${name}`);
+let flashTimer = null;
+function flash(text, cls) {
+  const f = $('agentFlash');
+  f.textContent = text;
+  f.className = 'flash ' + (cls || '');
+  f.hidden = false;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { f.hidden = true; }, 3200);
 }
 
-function installChrome() {
-  for (const t of document.querySelectorAll(".tab")) t.onclick = () => selectTab(t.dataset.tab);
-  $("btnClearConsole").onclick = () => {
-    state.log = [];
-    renderConsole();
-  };
-  $("btnLint").onclick = runLint;
-  $("btnPalette").onclick = openPalette;
-  $("btnUndo").onclick = async () => {
-    await call("undo");
-    await refresh();
-  };
-  $("btnRedo").onclick = async () => {
-    await call("redo");
-    await refresh();
-  };
-  $("paletteBackdrop").onclick = closePalette;
-  $("paletteInput").oninput = (e) => filterPalette(e.target.value);
-  $("paletteInput").onkeydown = (e) => {
-    if (e.key === "ArrowDown") {
-      state.paletteIndex = Math.min(state.paletteMatches.length - 1, state.paletteIndex + 1);
-      drawPalette();
-      e.preventDefault();
-    } else if (e.key === "ArrowUp") {
-      state.paletteIndex = Math.max(0, state.paletteIndex - 1);
-      drawPalette();
-      e.preventDefault();
-    } else if (e.key === "Enter") {
-      choosePalette(state.paletteIndex);
-      e.preventDefault();
-    } else if (e.key === "Escape") {
-      closePalette();
-    }
-  };
+function showTab(name) {
+  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.tab === name);
+  for (const p of document.querySelectorAll('.tabpane')) p.classList.toggle('active', p.id === 'tab-' + name);
+}
 
-  window.addEventListener("keydown", (e) => {
-    const typing = /input|textarea|select/i.test(document.activeElement?.tagName || "");
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+// -------------------------------------------------------------------------- live sync
+
+/** The shared-journal claim, made visible: an agent's write shows up here on its own. */
+async function poll() {
+  try {
+    const st = await call('state', {}, { quiet: true });
+    const sig = stateSignature(st);
+    if (sig === S.sig) return;
+    const before = S.state ? S.state.revision : 0;
+    await refreshAll();
+    const top = S.history[0];
+    const actor = top && top.actor === 'human' ? 'human' : 'agent';
+    const what = st.revision > before ? (top ? top.op : 'change') : 'undo/redo';
+    flash(`updated by ${actor} · ${what}`, actor);
+  } catch { /* transport hiccup; the next tick retries */ }
+}
+
+// ------------------------------------------------------------------------------- keys
+
+function initKeys() {
+  window.addEventListener('keydown', (e) => {
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault();
-      (e.shiftKey ? $("btnRedo") : $("btnUndo")).click();
+      if (e.shiftKey) doRedo(); else doUndo();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openPalette();
-      return;
-    }
-    if (typing) return;
-    if (e.key === "/") {
-      e.preventDefault();
-      openPalette();
-    } else if (e.key === "f") fitView();
-    else if (e.key === "1") $("btnOneToOne").click();
+    if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.open ? closePalette() : openPalette(); return; }
+    if (e.key === 'Escape' && pal.open) { e.preventDefault(); closePalette(); return; }
+    if (typing || pal.open) return;
+
+    if (e.key === '/') { e.preventDefault(); openPalette(); }
+    else if (e.key === 'f') { e.preventDefault(); fitView(); }
+    else if (e.key === '1') { e.preventDefault(); view.x = 0; view.y = 0; zoomTo(1); layoutView(); }
   });
-
-  window.addEventListener("resize", () => applyView());
 }
 
-/** Poll for writes from an agent, so the shared journal is visible on screen. */
-function installSync() {
-  setInterval(async () => {
-    if (!$("paletteWrap").hidden) return;
-    try {
-      const st = await callQuiet("state");
-      if (st && st.revision !== state.revision) {
-        const flash = $("agentFlash");
-        flash.hidden = false;
-        flash.classList.remove("human");
-        setTimeout(() => (flash.hidden = true), 2200);
-        await refresh();
-        await runLint();
-      }
-    } catch {
-      /* the server may be restarting; the next tick retries */
-    }
-  }, 1000);
-}
+// -------------------------------------------------------------------------------- boot
 
-/** Polling must not fill the console with a line every second. */
-async function callQuiet(method, params = {}) {
-  if (window.__DPAINT_INVOKE__) return await window.__DPAINT_INVOKE__(method, params);
-  const res = await fetch("/api", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ method, params }),
-  });
-  const body = await res.json();
-  if (!body.ok) throw new ApiError(body.error);
-  return body.result;
-}
+async function boot() {
+  initViewport();
+  initPalette();
+  initKeys();
+  $('btnUndo').onclick = doUndo;
+  $('btnRedo').onclick = doRedo;
+  $('btnClearConsole').onclick = () => { S.logs = []; S.logErrors = 0; renderConsole(); };
+  $('btnLint').onclick = async () => {
+    showTab('lint');
+    try { S.lint = await call('lint', { doc: S.activeDoc }); renderLint(); } catch { /* logged */ }
+  };
+  for (const t of document.querySelectorAll('.tab')) t.onclick = () => showTab(t.dataset.tab);
 
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-// ---------------------------------------------------------------- boot
-
-(async function main() {
-  installChrome();
-  installViewportControls();
+  renderConsole();
   try {
-    await loadCatalog();
-    await refresh();
-    fitView();
-    await runLint();
-    installSync();
-  } catch (e) {
-    $("inspector").innerHTML = `<div class="result err">${esc(e.code)}: ${esc(e.message)}</div>`;
-    showError(e);
+    S.catalog = await call('catalog', {}, { quiet: true });
+  } catch { S.catalog = []; }
+
+  await refreshAll({ noRender: true });
+  await refreshRender({ fit: true });
+  S.maxSeqSeen = Math.max(0, ...S.history.map((e) => e.seq));
+  renderHistory();
+
+  setInterval(poll, 1000);
+
+  // The Tauri shell drives native menu items through these; the poll is the backstop.
+  window.__DPAINT_ON_CHANGE__ = () => { refreshAll().then(() => flash('updated', 'human')); };
+  window.addEventListener('dpaint:changed', () => window.__DPAINT_ON_CHANGE__());
+  const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
+  if (tauriEvent && typeof tauriEvent.listen === 'function') {
+    tauriEvent.listen('dpaint:changed', () => window.__DPAINT_ON_CHANGE__());
   }
-})();
+}
+
+boot();

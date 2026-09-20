@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Window/event plumbing the Studio UI needs, plus the directory picker used to open a project.",
+  "windows": ["main", "welcome"],
+  "permissions": ["core:default", "dialog:default"]
+}
