@@ -3,9 +3,9 @@
 //! Gradients interpolate in linear light, so a black-to-white ramp is a ramp in *light*
 //! and a red-to-green ramp does not dip through mud in the middle.
 
+use crate::adjust::Curve;
 use crate::blend::{composite, hash01, Coverage};
 use crate::canvas::Canvas;
-use crate::adjust::Curve;
 use crate::geom;
 use dpaint_core::color::Color;
 use dpaint_core::doc::common::{GradientStop, Paint};
@@ -41,7 +41,11 @@ fn sample_stops(stops: &[GradientStop], t: f32) -> [f32; 4] {
         let (a, b) = (&pair[0], &pair[1]);
         if t >= a.offset && t <= b.offset {
             let span = b.offset - a.offset;
-            let f = if span.abs() < 1e-12 { 0.0 } else { (t - a.offset) / span } as f32;
+            let f = if span.abs() < 1e-12 {
+                0.0
+            } else {
+                (t - a.offset) / span
+            } as f32;
             let (ca, cb) = (a.color.to_linear(), b.color.to_linear());
             let mut out = [0.0f32; 4];
             for c in 0..4 {
@@ -65,7 +69,11 @@ pub fn gradient_canvas(
     scale: f64,
 ) -> Canvas {
     let mut sorted: Vec<GradientStop> = stops.to_vec();
-    sorted.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| {
+        a.offset
+            .partial_cmp(&b.offset)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let p0 = (from[0] * scale, from[1] * scale);
     let p1 = (to[0] * scale, to[1] * scale);
     let (dx, dy) = (p1.0 - p0.0, p1.1 - p0.1);
@@ -137,7 +145,12 @@ pub fn paint_canvas(
         Paint::Linear { stops, from, to } => {
             gradient_canvas(w, h, GradientKind::Linear, *from, *to, stops, scale)
         }
-        Paint::Radial { stops, center, radius, focal } => {
+        Paint::Radial {
+            stops,
+            center,
+            radius,
+            focal,
+        } => {
             // A focal point offsets where offset 0 sits; the radius still sets the span, so
             // the ramp runs from the focal point outward over `radius` pixels.
             let origin = focal.unwrap_or(*center);
@@ -190,7 +203,14 @@ pub struct Brush {
 
 impl Default for Brush {
     fn default() -> Self {
-        Self { size: 12.0, hardness: 0.8, spacing: 0.25, flow: 1.0, jitter: 0.0, seed: 0 }
+        Self {
+            size: 12.0,
+            hardness: 0.8,
+            spacing: 0.25,
+            flow: 1.0,
+            jitter: 0.0,
+            seed: 0,
+        }
     }
 }
 
@@ -220,7 +240,11 @@ pub fn stroke_coverage(
     for seg in path.segments() {
         let len = match seg {
             PathSeg::Line(l) => (l.p1 - l.p0).hypot(),
-            _ => seg.to_path(0.05).segments().map(|s| s.as_line().map(|l| (l.p1 - l.p0).hypot()).unwrap_or(0.0)).sum(),
+            _ => seg
+                .to_path(0.05)
+                .segments()
+                .map(|s| s.as_line().map(|l| (l.p1 - l.p0).hypot()).unwrap_or(0.0))
+                .sum(),
         };
         let len = len * scale;
         if len <= 0.0 {
@@ -301,7 +325,14 @@ pub fn pattern_cov(dst: &mut Canvas, cov: &[f32], tile: &Canvas, offset: (i64, i
             src.set(x, y, tile.get(tx, ty));
         }
     }
-    composite(dst, &src, BlendMode::Normal, opacity, &Coverage::Buffer(cov), 0);
+    composite(
+        dst,
+        &src,
+        BlendMode::Normal,
+        opacity,
+        &Coverage::Buffer(cov),
+        0,
+    );
 }
 
 /// Coverage of a filled shape, used by bucket fill with an explicit region and by
@@ -326,12 +357,29 @@ mod tests {
     #[test]
     fn linear_gradient_interpolates_in_light_not_in_bytes() {
         let stops = vec![
-            GradientStop { offset: 0.0, color: Color::BLACK },
-            GradientStop { offset: 1.0, color: Color::WHITE },
+            GradientStop {
+                offset: 0.0,
+                color: Color::BLACK,
+            },
+            GradientStop {
+                offset: 1.0,
+                color: Color::WHITE,
+            },
         ];
-        let g = gradient_canvas(101, 1, GradientKind::Linear, [0.0, 0.0], [101.0, 0.0], &stops, 1.0);
+        let g = gradient_canvas(
+            101,
+            1,
+            GradientKind::Linear,
+            [0.0, 0.0],
+            [101.0, 0.0],
+            &stops,
+            1.0,
+        );
         let mid = g.get(50, 0);
-        assert!((mid[0] - 0.5).abs() < 0.02, "midpoint should be half the light: {mid:?}");
+        assert!(
+            (mid[0] - 0.5).abs() < 0.02,
+            "midpoint should be half the light: {mid:?}"
+        );
         // Which shows up as ~0.735 once encoded for display.
         assert!((linear_to_srgb(mid[0]) - 0.735).abs() < 0.02);
     }
@@ -341,7 +389,12 @@ mod tests {
         let mut path = BezPath::new();
         path.move_to((5.0, 10.0));
         path.line_to((35.0, 10.0));
-        let brush = Brush { size: 8.0, hardness: 0.5, spacing: 0.2, ..Default::default() };
+        let brush = Brush {
+            size: 8.0,
+            hardness: 0.5,
+            spacing: 0.2,
+            ..Default::default()
+        };
         let cov = stroke_coverage(40, 20, &path, &brush, 1.0, None).unwrap();
         let at = |x: usize, y: usize| cov[y * 40 + x];
         assert!(at(20, 10) > 0.99, "center of the stroke must be solid");

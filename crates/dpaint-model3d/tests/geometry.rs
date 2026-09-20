@@ -15,7 +15,11 @@ fn primitive_mesh(shape: Primitive, size: [f32; 3], segments: u32) -> MeshData {
     project.model_mut(&doc).unwrap().meshes.push(Mesh {
         id: MeshId::from("msh_p"),
         name: "p".into(),
-        source: MeshSource::Primitive { shape, size, segments },
+        source: MeshSource::Primitive {
+            shape,
+            size,
+            segments,
+        },
     });
     build_mesh(&project, &doc, &MeshId::from("msh_p"), &assets).unwrap()
 }
@@ -26,7 +30,10 @@ fn box_primitive_has_24_vertices_12_triangles_unit_normals_and_uvs_in_range() {
     assert_eq!(m.vertex_count(), 24, "one vertex per face corner");
     assert_eq!(m.triangle_count(), 12);
     for n in &m.normals {
-        assert!((length(*n) - 1.0).abs() < 1e-5, "normal {n:?} is not unit length");
+        assert!(
+            (length(*n) - 1.0).abs() < 1e-5,
+            "normal {n:?} is not unit length"
+        );
     }
     for uv in &m.uvs {
         assert!(
@@ -39,7 +46,11 @@ fn box_primitive_has_24_vertices_12_triangles_unit_normals_and_uvs_in_range() {
     assert!((hi[1] - lo[1] - 3.0).abs() < 1e-5);
     assert!((hi[2] - lo[2] - 4.0).abs() < 1e-5);
     // Closed, outward-wound: the divergence theorem returns the box volume, positive.
-    assert!((m.volume() - 24.0).abs() < 1e-3, "volume was {}", m.volume());
+    assert!(
+        (m.volume() - 24.0).abs() < 1e-3,
+        "volume was {}",
+        m.volume()
+    );
 }
 
 #[test]
@@ -86,7 +97,10 @@ fn sphere_volume_and_radius_match_its_size() {
         "volume {v} is not within 1% of {exact}"
     );
     for p in &m.positions {
-        assert!((length(*p) - 1.0).abs() < 1e-4, "point {p:?} is off the unit sphere");
+        assert!(
+            (length(*p) - 1.0).abs() < 1e-4,
+            "point {p:?} is off the unit sphere"
+        );
     }
 }
 
@@ -118,9 +132,21 @@ fn extruding_a_square_yields_a_closed_solid_of_the_right_size() {
     let m = build_mesh(&project, &doc, &mesh, &assets).unwrap();
 
     let (lo, hi) = m.bounds().unwrap();
-    assert!((hi[0] - lo[0] - s).abs() < 1e-4, "x extent {}", hi[0] - lo[0]);
-    assert!((hi[1] - lo[1] - s).abs() < 1e-4, "y extent {}", hi[1] - lo[1]);
-    assert!((hi[2] - lo[2] - d).abs() < 1e-4, "z extent {}", hi[2] - lo[2]);
+    assert!(
+        (hi[0] - lo[0] - s).abs() < 1e-4,
+        "x extent {}",
+        hi[0] - lo[0]
+    );
+    assert!(
+        (hi[1] - lo[1] - s).abs() < 1e-4,
+        "y extent {}",
+        hi[1] - lo[1]
+    );
+    assert!(
+        (hi[2] - lo[2] - d).abs() < 1e-4,
+        "z extent {}",
+        hi[2] - lo[2]
+    );
     assert_eq!(m.triangle_count(), 12, "4 cap + 8 wall triangles");
 
     let volume = m.volume();
@@ -186,8 +212,14 @@ fn extruding_a_ring_keeps_the_hole_in_the_caps() {
 fn a_bevel_adds_surface_area_and_only_grows_the_depth_axis() {
     let (_tmp, assets) = store();
     let (s, d, b) = (6.0f32, 4.0f32, 0.5f32);
-    let (project, doc, plain) =
-        extruded(&assets, &square_path(s as f64), FillRule::Nonzero, d, None, Caps::Both);
+    let (project, doc, plain) = extruded(
+        &assets,
+        &square_path(s as f64),
+        FillRule::Nonzero,
+        d,
+        None,
+        Caps::Both,
+    );
     let flat = build_mesh(&project, &doc, &plain, &assets).unwrap();
 
     let (project, doc, beveled_id) = extruded(
@@ -195,7 +227,10 @@ fn a_bevel_adds_surface_area_and_only_grows_the_depth_axis() {
         &square_path(s as f64),
         FillRule::Nonzero,
         d,
-        Some(Bevel { size: b, segments: 4 }),
+        Some(Bevel {
+            size: b,
+            segments: 4,
+        }),
         Caps::Both,
     );
     let beveled = build_mesh(&project, &doc, &beveled_id, &assets).unwrap();
@@ -234,9 +269,19 @@ fn a_bevel_adds_surface_area_and_only_grows_the_depth_axis() {
 #[test]
 fn caps_none_leaves_an_open_tube_and_caps_front_leaves_one_opening() {
     let (_tmp, assets) = store();
-    for (caps, closed) in [(Caps::None, false), (Caps::Front, false), (Caps::Both, true)] {
-        let (project, doc, mesh) =
-            extruded(&assets, &square_path(2.0), FillRule::Nonzero, 1.0, None, caps);
+    for (caps, closed) in [
+        (Caps::None, false),
+        (Caps::Front, false),
+        (Caps::Both, true),
+    ] {
+        let (project, doc, mesh) = extruded(
+            &assets,
+            &square_path(2.0),
+            FillRule::Nonzero,
+            1.0,
+            None,
+            caps,
+        );
         let m = build_mesh(&project, &doc, &mesh, &assets).unwrap();
         let topo = dpaint_model3d::validate::topology(&m);
         assert_eq!(
@@ -383,18 +428,26 @@ fn welding_a_split_mesh_rejoins_it_and_leaves_the_shape_alone() {
 fn planar_and_box_uv_projection_stay_inside_the_unit_square() {
     let mut m = primitive_mesh(Primitive::Box, [2.0, 1.0, 3.0], 1);
     dpaint_model3d::uv::planar(&mut m, dpaint_model3d::uv::Axis::Y);
-    assert!(m.uvs.iter().all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
+    assert!(m
+        .uvs
+        .iter()
+        .all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
     let mut m = primitive_mesh(Primitive::Box, [2.0, 1.0, 3.0], 1);
     dpaint_model3d::uv::box_project(&mut m);
     assert_eq!(m.uvs.len(), m.positions.len());
-    assert!(m.uvs.iter().all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
-    // Box projection gives each face the full square, so opposite faces do not share UVs
-    // with the stretched single-axis projection.
-    let spread = m
+    assert!(m
         .uvs
         .iter()
-        .fold((1.0f32, 0.0f32), |(lo, hi), uv| (lo.min(uv[0]), hi.max(uv[0])));
-    assert!(spread.1 - spread.0 > 0.9, "box projection should span the square");
+        .all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
+    // Box projection gives each face the full square, so opposite faces do not share UVs
+    // with the stretched single-axis projection.
+    let spread = m.uvs.iter().fold((1.0f32, 0.0f32), |(lo, hi), uv| {
+        (lo.min(uv[0]), hi.max(uv[0]))
+    });
+    assert!(
+        spread.1 - spread.0 > 0.9,
+        "box projection should span the square"
+    );
 }
 
 #[test]
@@ -402,16 +455,26 @@ fn unwrap_packs_charts_without_leaving_the_unit_square() {
     let mut m = primitive_mesh(Primitive::Box, [2.0, 2.0, 2.0], 1);
     dpaint_model3d::uv::unwrap(&mut m, 60.0);
     assert_eq!(m.uvs.len(), m.positions.len());
-    assert!(m.uvs.iter().all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
+    assert!(m
+        .uvs
+        .iter()
+        .all(|uv| (0.0..=1.0).contains(&uv[0]) && (0.0..=1.0).contains(&uv[1])));
     // Six faces at 90 degrees to each other become six charts, so the packed UV area is at
     // most the unit square and each face keeps a non-degenerate footprint.
     let mut total = 0.0f32;
     for t in m.indices.chunks_exact(3) {
-        let (a, b, c) = (m.uvs[t[0] as usize], m.uvs[t[1] as usize], m.uvs[t[2] as usize]);
+        let (a, b, c) = (
+            m.uvs[t[0] as usize],
+            m.uvs[t[1] as usize],
+            m.uvs[t[2] as usize],
+        );
         total += ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])).abs() * 0.5;
     }
     assert!(total > 0.05, "charts collapsed: packed area {total}");
-    assert!(total <= 1.0, "charts overlap the atlas: packed area {total}");
+    assert!(
+        total <= 1.0,
+        "charts overlap the atlas: packed area {total}"
+    );
 }
 
 #[test]
@@ -421,9 +484,19 @@ fn mikktspace_tangents_are_unit_length_and_perpendicular_to_their_normals() {
     assert_eq!(tangents.len(), m.positions.len());
     for (t, n) in tangents.iter().zip(m.normals.iter()) {
         let tv = [t[0], t[1], t[2]];
-        assert!((length(tv) - 1.0).abs() < 1e-3, "tangent {t:?} is not unit length");
-        assert!(dot(tv, *n).abs() < 1e-3, "tangent {t:?} is not perpendicular to {n:?}");
-        assert!(t[3] == 1.0 || t[3] == -1.0, "handedness must be +-1, got {}", t[3]);
+        assert!(
+            (length(tv) - 1.0).abs() < 1e-3,
+            "tangent {t:?} is not unit length"
+        );
+        assert!(
+            dot(tv, *n).abs() < 1e-3,
+            "tangent {t:?} is not perpendicular to {n:?}"
+        );
+        assert!(
+            t[3] == 1.0 || t[3] == -1.0,
+            "handedness must be +-1, got {}",
+            t[3]
+        );
     }
 }
 
@@ -487,7 +560,10 @@ fn a_broken_recipe_reports_an_error_instead_of_an_empty_mesh() {
         },
     });
     let err = build_mesh(&project, &doc, &MeshId::from("msh_bad"), &assets).unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::DegenerateGeometry(_)), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::DegenerateGeometry(_)),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -498,7 +574,10 @@ fn an_oversized_bevel_is_rejected_rather_than_turning_the_solid_inside_out() {
         &square_path(2.0),
         FillRule::Nonzero,
         1.0,
-        Some(Bevel { size: 5.0, segments: 3 }),
+        Some(Bevel {
+            size: 5.0,
+            segments: 3,
+        }),
         Caps::Both,
     );
     let err = build_mesh(&project, &doc, &mesh, &assets).unwrap_err();

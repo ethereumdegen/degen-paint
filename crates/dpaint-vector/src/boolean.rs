@@ -120,7 +120,12 @@ pub fn boolean(paths: &[BezPath], op: BoolOp, rule: DocFillRule, tol: f64) -> Re
 
 /// `divide` yields several results: the overlap, then the remainder of the subject.
 /// Empty pieces are dropped, so cutting with a shape that misses returns one piece.
-pub fn divide(subject: &BezPath, cutter: &BezPath, rule: DocFillRule, tol: f64) -> Result<Vec<BezPath>> {
+pub fn divide(
+    subject: &BezPath,
+    cutter: &BezPath,
+    rule: DocFillRule,
+    tol: f64,
+) -> Result<Vec<BezPath>> {
     let fr = fill_rule(rule);
     let subj = contours(subject, tol);
     let clip = contours(cutter, tol);
@@ -191,7 +196,13 @@ mod tests {
     fn subtracting_a_circle_from_a_square_removes_the_circle_area() {
         let square = sq(0.0, 0.0, 100.0);
         let circle = Circle::new((50.0, 50.0), 20.0).to_path(1e-4);
-        let out = boolean(&[square, circle], BoolOp::Subtract, DocFillRule::Nonzero, 0.01).unwrap();
+        let out = boolean(
+            &[square, circle],
+            BoolOp::Subtract,
+            DocFillRule::Nonzero,
+            0.01,
+        )
+        .unwrap();
         let expect = 10_000.0 - std::f64::consts::PI * 400.0;
         assert!(
             (area(&out) - expect).abs() < 2.0,
@@ -215,7 +226,13 @@ mod tests {
     fn intersect_keeps_only_the_overlap_and_exclude_keeps_only_the_rest() {
         let a = sq(0.0, 0.0, 10.0);
         let b = sq(5.0, 0.0, 10.0);
-        let i = boolean(&[a.clone(), b.clone()], BoolOp::Intersect, DocFillRule::Nonzero, 0.01).unwrap();
+        let i = boolean(
+            &[a.clone(), b.clone()],
+            BoolOp::Intersect,
+            DocFillRule::Nonzero,
+            0.01,
+        )
+        .unwrap();
         assert!((area(&i) - 50.0).abs() < 0.01, "overlap area {}", area(&i));
         let x = boolean(&[a, b], BoolOp::Exclude, DocFillRule::Nonzero, 0.01).unwrap();
         assert!((area(&x) - 100.0).abs() < 0.01, "xor area {}", area(&x));
@@ -228,7 +245,10 @@ mod tests {
         let pieces = divide(&a, &b, DocFillRule::Nonzero, 0.01).unwrap();
         assert_eq!(pieces.len(), 2, "one piece inside the cutter, one outside");
         let total: f64 = pieces.iter().map(area).sum();
-        assert!((total - 100.0).abs() < 0.05, "pieces reassemble the square: {total}");
+        assert!(
+            (total - 100.0).abs() < 0.05,
+            "pieces reassemble the square: {total}"
+        );
     }
 
     #[test]
@@ -240,7 +260,11 @@ mod tests {
         bow.line_to((0.0, 10.0));
         bow.close_path();
         let clean = simplify_self(&bow, DocFillRule::Nonzero, 0.01);
-        assert!((area(&clean) - 50.0).abs() < 0.1, "two triangles of 25: {}", area(&clean));
+        assert!(
+            (area(&clean) - 50.0).abs() < 0.1,
+            "two triangles of 25: {}",
+            area(&clean)
+        );
     }
 
     #[test]

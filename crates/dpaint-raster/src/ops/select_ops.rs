@@ -81,7 +81,11 @@ fn commit_mask(
     let mut effect = OpEffect::changed(doc)
         .with_data(serde_json::json!({ "area_px": area, "bounds": merged.bounds().0 }));
     if empty {
-        effect = effect.warn("empty-selection", doc.to_string(), "the result selects no pixels");
+        effect = effect.warn(
+            "empty-selection",
+            doc.to_string(),
+            "the result selects no pixels",
+        );
     }
     Ok(effect)
 }
@@ -139,7 +143,10 @@ pub struct RectArgs {
 fn rect(project: &mut Project, a: RectArgs, cx: &mut OpCx) -> Result<OpEffect> {
     let doc = support::doc_id(project, cx)?;
     if a.rect[2] <= 0.0 || a.rect[3] <= 0.0 {
-        return Err(Error::Invalid(format!("selection rect {:?} has no area", a.rect)));
+        return Err(Error::Invalid(format!(
+            "selection rect {:?} has no area",
+            a.rect
+        )));
     }
     let path = if a.radius > 0.0 {
         let r = a.radius.min(a.rect[2] / 2.0).min(a.rect[3] / 2.0);
@@ -300,12 +307,17 @@ fn text(project: &mut Project, a: TextArgs, cx: &mut OpCx) -> Result<OpEffect> {
     let rd = project.raster(&doc)?;
     let layer = support::layer_of(rd, &id)?;
     let LayerKind::Text { spec, .. } = &layer.kind else {
-        return Err(Error::Invalid(format!("'{}' is not a text layer", layer.name)));
+        return Err(Error::Invalid(format!(
+            "'{}' is not a text layer",
+            layer.name
+        )));
     };
     let fonts = crate::text::FontSet::new(project, cx.assets);
     let l = crate::text::layout(spec, &fonts)?;
     if l.outline.elements().is_empty() {
-        return Err(Error::DegenerateGeometry("that text has no glyph outlines".into()));
+        return Err(Error::DegenerateGeometry(
+            "that text has no glyph outlines".into(),
+        ));
     }
     // Text sits in the layer's own space, so bring it into document space first.
     let placed = dpaint_core::kurbo::Affine::new(layer.transform.0) * l.outline.clone();
@@ -366,8 +378,7 @@ pub struct AmountArgs {
 
 fn existing(project: &Project, doc: &DocId, cx: &OpCx) -> Result<SelMask> {
     let rd = project.raster(doc)?;
-    current(rd, cx.assets)?
-        .ok_or_else(|| Error::Invalid("there is no selection to modify".into()))
+    current(rd, cx.assets)?.ok_or_else(|| Error::Invalid("there is no selection to modify".into()))
 }
 
 fn grow(project: &mut Project, a: AmountArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -429,7 +440,9 @@ fn to_path(project: &mut Project, _a: NoArgs, cx: &mut OpCx) -> Result<OpEffect>
     let mask = existing(project, &doc, cx)?;
     let d = select::to_path_d(&mask);
     if d.is_empty() {
-        return Err(Error::DegenerateGeometry("the selection traced to an empty path".into()));
+        return Err(Error::DegenerateGeometry(
+            "the selection traced to an empty path".into(),
+        ));
     }
     let bb = geom::parse_d(&d)?.bounding_box();
     if !cx.dry_run {
@@ -444,20 +457,104 @@ fn to_path(project: &mut Project, _a: NoArgs, cx: &mut OpCx) -> Result<OpEffect>
     Ok(OpEffect::changed(&doc).with_data(serde_json::json!({ "d": d })))
 }
 
-raster_op!(SelectRect, "raster.select.rect", "Select a rectangle, optionally rounded", RectArgs, rect);
-raster_op!(SelectEllipse, "raster.select.ellipse", "Select an ellipse", EllipseArgs, ellipse);
-raster_op!(SelectPath, "raster.select.path", "Select the interior of SVG path data", PathArgs, path);
-raster_op!(SelectColorRange, "raster.select.color-range", "Select pixels near a color", ColorRangeArgs, color_range);
-raster_op!(SelectWand, "raster.select.wand", "Flood-select a region from a seed pixel", WandArgs, wand);
-raster_op!(SelectAlpha, "raster.select.alpha", "Select a layer's alpha", AlphaArgs, alpha);
-raster_op!(SelectText, "raster.select.text", "Select a text layer's glyph outlines", TextArgs, text);
-raster_op!(SelectAll, "raster.select.all", "Select the whole document", NoArgs, all);
-raster_op!(SelectNone, "raster.select.none", "Clear the selection", NoArgs, none);
-raster_op!(SelectInvert, "raster.select.invert", "Invert the selection", NoArgs, invert);
-raster_op!(SelectGrow, "raster.select.grow", "Expand the selection by a number of pixels", AmountArgs, grow);
-raster_op!(SelectShrink, "raster.select.shrink", "Contract the selection by a number of pixels", AmountArgs, shrink);
-raster_op!(SelectFeather, "raster.select.feather", "Soften the selection edge", FeatherArgs, feather);
-raster_op!(SelectToPath, "raster.select.to-path", "Trace the selection into SVG path data", NoArgs, to_path);
+raster_op!(
+    SelectRect,
+    "raster.select.rect",
+    "Select a rectangle, optionally rounded",
+    RectArgs,
+    rect
+);
+raster_op!(
+    SelectEllipse,
+    "raster.select.ellipse",
+    "Select an ellipse",
+    EllipseArgs,
+    ellipse
+);
+raster_op!(
+    SelectPath,
+    "raster.select.path",
+    "Select the interior of SVG path data",
+    PathArgs,
+    path
+);
+raster_op!(
+    SelectColorRange,
+    "raster.select.color-range",
+    "Select pixels near a color",
+    ColorRangeArgs,
+    color_range
+);
+raster_op!(
+    SelectWand,
+    "raster.select.wand",
+    "Flood-select a region from a seed pixel",
+    WandArgs,
+    wand
+);
+raster_op!(
+    SelectAlpha,
+    "raster.select.alpha",
+    "Select a layer's alpha",
+    AlphaArgs,
+    alpha
+);
+raster_op!(
+    SelectText,
+    "raster.select.text",
+    "Select a text layer's glyph outlines",
+    TextArgs,
+    text
+);
+raster_op!(
+    SelectAll,
+    "raster.select.all",
+    "Select the whole document",
+    NoArgs,
+    all
+);
+raster_op!(
+    SelectNone,
+    "raster.select.none",
+    "Clear the selection",
+    NoArgs,
+    none
+);
+raster_op!(
+    SelectInvert,
+    "raster.select.invert",
+    "Invert the selection",
+    NoArgs,
+    invert
+);
+raster_op!(
+    SelectGrow,
+    "raster.select.grow",
+    "Expand the selection by a number of pixels",
+    AmountArgs,
+    grow
+);
+raster_op!(
+    SelectShrink,
+    "raster.select.shrink",
+    "Contract the selection by a number of pixels",
+    AmountArgs,
+    shrink
+);
+raster_op!(
+    SelectFeather,
+    "raster.select.feather",
+    "Soften the selection edge",
+    FeatherArgs,
+    feather
+);
+raster_op!(
+    SelectToPath,
+    "raster.select.to-path",
+    "Trace the selection into SVG path data",
+    NoArgs,
+    to_path
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

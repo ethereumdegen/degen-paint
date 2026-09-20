@@ -34,7 +34,11 @@ fn main() {
                     let shown: Vec<&String> = detail.candidates.iter().take(12).collect();
                     eprintln!(
                         "  available: {}",
-                        shown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                        shown
+                            .iter()
+                            .map(|s| s.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     );
                 }
                 if let Some(s) = &detail.suggestion {
@@ -96,7 +100,13 @@ struct Ctx {
 }
 
 fn split_globals(argv: &[String]) -> Ctx {
-    let mut ctx = Ctx { project_dir: None, doc: None, json: false, dry_run: false, rest: Vec::new() };
+    let mut ctx = Ctx {
+        project_dir: None,
+        doc: None,
+        json: false,
+        dry_run: false,
+        rest: Vec::new(),
+    };
     let mut i = 0;
     while i < argv.len() {
         match argv[i].as_str() {
@@ -183,7 +193,9 @@ fn run(argv: &[String]) -> Result<i32> {
 }
 
 fn flag<'a>(argv: &'a [String], name: &str) -> Option<&'a String> {
-    argv.iter().position(|a| a == name).and_then(|i| argv.get(i + 1))
+    argv.iter()
+        .position(|a| a == name)
+        .and_then(|i| argv.get(i + 1))
 }
 
 fn cmd_new(ctx: &Ctx, argv: &[String]) -> Result<i32> {
@@ -191,28 +203,44 @@ fn cmd_new(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         .iter()
         .find(|a| !a.starts_with("--"))
         .cloned()
-        .ok_or_else(|| Error::Invalid("usage: dpaint new <name> [--kind raster|vector|model] [--size WxH]".into()))?;
-    let kind: DocKind = flag(argv, "--kind").map(|s| s.as_str()).unwrap_or("raster").parse()?;
+        .ok_or_else(|| {
+            Error::Invalid(
+                "usage: dpaint new <name> [--kind raster|vector|model] [--size WxH]".into(),
+            )
+        })?;
+    let kind: DocKind = flag(argv, "--kind")
+        .map(|s| s.as_str())
+        .unwrap_or("raster")
+        .parse()?;
     let (w, h) = match flag(argv, "--size") {
         Some(s) => {
             let (a, b) = s
                 .split_once(['x', 'X', ','])
                 .ok_or_else(|| Error::Invalid(format!("bad --size '{s}', expected WxH")))?;
             (
-                a.trim().parse::<f64>().map_err(|_| Error::Invalid(format!("bad width in '{s}'")))?,
-                b.trim().parse::<f64>().map_err(|_| Error::Invalid(format!("bad height in '{s}'")))?,
+                a.trim()
+                    .parse::<f64>()
+                    .map_err(|_| Error::Invalid(format!("bad width in '{s}'")))?,
+                b.trim()
+                    .parse::<f64>()
+                    .map_err(|_| Error::Invalid(format!("bad height in '{s}'")))?,
             )
         }
         None => (1024.0, 1024.0),
     };
-    let dpi: f32 = flag(argv, "--dpi").and_then(|d| d.parse().ok()).unwrap_or(72.0);
+    let dpi: f32 = flag(argv, "--dpi")
+        .and_then(|d| d.parse().ok())
+        .unwrap_or(72.0);
 
     let dir = ctx
         .project_dir
         .clone()
         .unwrap_or_else(|| PathBuf::from(format!("{name}.dpaint")));
     if dir.join("project.json").exists() {
-        return Err(Error::Invalid(format!("{} already holds a project", dir.display())));
+        return Err(Error::Invalid(format!(
+            "{} already holds a project",
+            dir.display()
+        )));
     }
 
     let doc_id = DocId::from_name(&name);
@@ -284,7 +312,13 @@ fn cmd_op(ctx: &Ctx, argv: &[String]) -> Result<i32> {
             if !applied.effect.changed.is_empty() {
                 parts.push(format!(
                     "changed {}",
-                    applied.effect.changed.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(", ")
+                    applied
+                        .effect
+                        .changed
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 ));
             }
             if !applied.effect.created.is_empty() {
@@ -315,9 +349,17 @@ fn cmd_render(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         .iter()
         .find(|a| !a.starts_with("--"))
         .cloned()
-        .ok_or_else(|| Error::Invalid("usage: dpaint render <path> [--scale N] [--width N]".into()))?;
+        .ok_or_else(|| {
+            Error::Invalid("usage: dpaint render <path> [--scale N] [--width N]".into())
+        })?;
     let mut op_args = vec!["--path".to_string(), path];
-    for name in ["--scale", "--width", "--height", "--background", "--quality"] {
+    for name in [
+        "--scale",
+        "--width",
+        "--height",
+        "--background",
+        "--quality",
+    ] {
         if let Some(v) = flag(argv, name) {
             op_args.push(name.into());
             op_args.push(v.clone());
@@ -352,7 +394,10 @@ fn cmd_inspect(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         full.push(d.clone());
     }
     // Inspection output is only useful as data.
-    let ctx = Ctx { json: true, ..clone_ctx(ctx) };
+    let ctx = Ctx {
+        json: true,
+        ..clone_ctx(ctx)
+    };
     cmd_op(&ctx, &full)
 }
 
@@ -377,9 +422,19 @@ fn cmd_lint(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         Some(d) => {
             let id = ws.project.resolve_doc(Some(d))?;
             let findings = dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
-            let errors = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Error).count();
-            let warnings = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Warn).count();
-            dpaint_inspect::Report { findings, errors, warnings }
+            let errors = findings
+                .iter()
+                .filter(|f| f.severity == dpaint_inspect::Severity::Error)
+                .count();
+            let warnings = findings
+                .iter()
+                .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
+                .count();
+            dpaint_inspect::Report {
+                findings,
+                errors,
+                warnings,
+            }
         }
         None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
     };
@@ -394,10 +449,7 @@ fn cmd_lint(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         ctx,
         || {
             for f in &report.findings {
-                println!(
-                    "{:?}\t{}\t{}\t{}",
-                    f.severity, f.rule, f.target, f.detail
-                );
+                println!("{:?}\t{}\t{}\t{}", f.severity, f.rule, f.target, f.detail);
             }
             println!(
                 "{} finding(s): {} error, {} warning",
@@ -415,7 +467,9 @@ fn cmd_lint(ctx: &Ctx, argv: &[String]) -> Result<i32> {
 fn cmd_diff(ctx: &Ctx, argv: &[String]) -> Result<i32> {
     let files: Vec<&String> = argv.iter().filter(|a| !a.starts_with("--")).collect();
     if files.len() < 2 {
-        return Err(Error::Invalid("usage: dpaint diff <a.png> <b.png> [--heatmap out.png]".into()));
+        return Err(Error::Invalid(
+            "usage: dpaint diff <a.png> <b.png> [--heatmap out.png]".into(),
+        ));
     }
     let load = |p: &str| -> Result<image::RgbaImage> {
         Ok(image::open(p)
@@ -427,10 +481,13 @@ fn cmd_diff(ctx: &Ctx, argv: &[String]) -> Result<i32> {
 
     if let Some(out) = flag(argv, "--heatmap") {
         let hm = dpaint_inspect::diff::heatmap(&a, &b)?;
-        hm.save(out).map_err(|e| Error::Invalid(format!("could not write heatmap: {e}")))?;
+        hm.save(out)
+            .map_err(|e| Error::Invalid(format!("could not write heatmap: {e}")))?;
     }
 
-    let threshold: f64 = flag(argv, "--threshold").and_then(|t| t.parse().ok()).unwrap_or(0.0);
+    let threshold: f64 = flag(argv, "--threshold")
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(0.0);
     let fail = d.changed_fraction > threshold;
     emit(
         ctx,
@@ -477,8 +534,10 @@ fn cmd_annotate(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         || {
             println!("{path}");
             for l in &legend {
-                println!("  {:>2}  {}  {}  [{:.0},{:.0} {:.0}x{:.0}]",
-                    l.index, l.selector, l.type_name, l.bbox[0], l.bbox[1], l.bbox[2], l.bbox[3]);
+                println!(
+                    "  {:>2}  {}  {}  [{:.0},{:.0} {:.0}x{:.0}]",
+                    l.index, l.selector, l.type_name, l.bbox[0], l.bbox[1], l.bbox[2], l.bbox[3]
+                );
             }
         },
         json!({ "ok": true, "path": path, "legend": legend }),
@@ -488,7 +547,11 @@ fn cmd_annotate(ctx: &Ctx, argv: &[String]) -> Result<i32> {
 
 fn cmd_undo_redo(ctx: &Ctx, which: &str) -> Result<i32> {
     let mut engine = Engine::new(registry(), open(ctx)?);
-    let done = if which == "undo" { engine.undo()? } else { engine.redo()? };
+    let done = if which == "undo" {
+        engine.undo()?
+    } else {
+        engine.redo()?
+    };
     emit(
         ctx,
         || match &done {
@@ -502,7 +565,9 @@ fn cmd_undo_redo(ctx: &Ctx, which: &str) -> Result<i32> {
 
 fn cmd_history(ctx: &Ctx, argv: &[String]) -> Result<i32> {
     let mut ws = open(ctx)?;
-    let limit: usize = flag(argv, "--limit").and_then(|l| l.parse().ok()).unwrap_or(20);
+    let limit: usize = flag(argv, "--limit")
+        .and_then(|l| l.parse().ok())
+        .unwrap_or(20);
     let entries = ws.journal.load()?;
     let shown: Vec<_> = entries.iter().rev().take(limit).collect();
     emit(
@@ -559,11 +624,13 @@ fn cmd_gc(ctx: &Ctx) -> Result<i32> {
 fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
     let reg = registry();
     let providers = dpaint_ai::providers_status();
-    let project = open(ctx).ok().map(|w| json!({
-        "root": w.root().display().to_string(),
-        "documents": w.project.documents.len(),
-        "active": w.project.active.as_str(),
-    }));
+    let project = open(ctx).ok().map(|w| {
+        json!({
+            "root": w.root().display().to_string(),
+            "documents": w.project.documents.len(),
+            "active": w.project.active.as_str(),
+        })
+    });
     let report = json!({
         "ok": true,
         "version": env!("CARGO_PKG_VERSION"),
@@ -597,7 +664,9 @@ fn cmd_serve(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         None => dpaint_studio::Studio::discover(".")?,
     };
     let config = dpaint_studio::ServerConfig {
-        addr: flag(argv, "--addr").cloned().unwrap_or_else(|| "127.0.0.1:4317".into()),
+        addr: flag(argv, "--addr")
+            .cloned()
+            .unwrap_or_else(|| "127.0.0.1:4317".into()),
         ui_dir: flag(argv, "--ui-dir").map(PathBuf::from),
     };
     dpaint_studio::serve(studio, config)?;
@@ -615,64 +684,84 @@ fn cmd_mcp(ctx: &Ctx) -> Result<i32> {
     let handlers = dpaint_mcp::Handlers::new()
         .with(
             "dpaint_render",
-            Box::new(move |args: serde_json::Value| -> Result<serde_json::Value> {
-                let ws = match &render_root {
-                    Some(p) => Workspace::open(p)?,
-                    None => Workspace::discover(".")?,
-                };
-                let assets = AssetStore::new(ws.root());
-                let doc = ws
-                    .project
-                    .resolve_doc(args.get("document").and_then(|d| d.as_str()))?;
-                let scale = args.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0);
-                let opts = dpaint_inspect::DigestOptions {
-                    per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
-                    render: dpaint_render::RenderOptions { scale, ..Default::default() },
-                    ..Default::default()
-                };
-                let (digest, findings) =
-                    dpaint_inspect::lint::digest_and_lint(&ws.project, &doc, &assets, &opts)?;
-                let path = args.get("path").and_then(|p| p.as_str());
-                let written = match path {
-                    Some(p) => Some(dpaint_render::export_document(
-                        &ws.project, &doc, &assets, p, &opts.render, 90,
-                    )?),
-                    None => None,
-                };
-                Ok(json!({ "digest": digest, "lint": findings, "written": written }))
-            }),
+            Box::new(
+                move |args: serde_json::Value| -> Result<serde_json::Value> {
+                    let ws = match &render_root {
+                        Some(p) => Workspace::open(p)?,
+                        None => Workspace::discover(".")?,
+                    };
+                    let assets = AssetStore::new(ws.root());
+                    let doc = ws
+                        .project
+                        .resolve_doc(args.get("document").and_then(|d| d.as_str()))?;
+                    let scale = args.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0);
+                    let opts = dpaint_inspect::DigestOptions {
+                        per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+                        render: dpaint_render::RenderOptions {
+                            scale,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    };
+                    let (digest, findings) =
+                        dpaint_inspect::lint::digest_and_lint(&ws.project, &doc, &assets, &opts)?;
+                    let path = args.get("path").and_then(|p| p.as_str());
+                    let written = match path {
+                        Some(p) => Some(dpaint_render::export_document(
+                            &ws.project,
+                            &doc,
+                            &assets,
+                            p,
+                            &opts.render,
+                            90,
+                        )?),
+                        None => None,
+                    };
+                    Ok(json!({ "digest": digest, "lint": findings, "written": written }))
+                },
+            ),
         )
         .with(
             "dpaint_lint",
-            Box::new(move |args: serde_json::Value| -> Result<serde_json::Value> {
-                let ws = match &lint_root {
-                    Some(p) => Workspace::open(p)?,
-                    None => Workspace::discover(".")?,
-                };
-                let assets = AssetStore::new(ws.root());
-                let opts = dpaint_inspect::DigestOptions {
-                    per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
-                    ..Default::default()
-                };
-                let report = match args.get("document").and_then(|d| d.as_str()) {
-                    Some(d) => {
-                        let id = ws.project.resolve_doc(Some(d))?;
-                        let findings =
-                            dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
-                        let errors = findings
-                            .iter()
-                            .filter(|f| f.severity == dpaint_inspect::Severity::Error)
-                            .count();
-                        let warnings = findings
-                            .iter()
-                            .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
-                            .count();
-                        dpaint_inspect::Report { findings, errors, warnings }
-                    }
-                    None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
-                };
-                Ok(serde_json::to_value(report)?)
-            }),
+            Box::new(
+                move |args: serde_json::Value| -> Result<serde_json::Value> {
+                    let ws = match &lint_root {
+                        Some(p) => Workspace::open(p)?,
+                        None => Workspace::discover(".")?,
+                    };
+                    let assets = AssetStore::new(ws.root());
+                    let opts = dpaint_inspect::DigestOptions {
+                        per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+                        ..Default::default()
+                    };
+                    let report = match args.get("document").and_then(|d| d.as_str()) {
+                        Some(d) => {
+                            let id = ws.project.resolve_doc(Some(d))?;
+                            let findings = dpaint_inspect::lint::lint_document(
+                                &ws.project,
+                                &id,
+                                &assets,
+                                &opts,
+                            )?;
+                            let errors = findings
+                                .iter()
+                                .filter(|f| f.severity == dpaint_inspect::Severity::Error)
+                                .count();
+                            let warnings = findings
+                                .iter()
+                                .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
+                                .count();
+                            dpaint_inspect::Report {
+                                findings,
+                                errors,
+                                warnings,
+                            }
+                        }
+                        None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
+                    };
+                    Ok(serde_json::to_value(report)?)
+                },
+            ),
         );
 
     dpaint_mcp::serve_stdio(reg, root, handlers)?;

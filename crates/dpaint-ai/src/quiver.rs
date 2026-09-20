@@ -27,22 +27,34 @@ pub struct QuiverRun {
     pub reported_cost: Option<f64>,
 }
 
-
 pub fn generations_url(cfg: &AiConfig) -> String {
-    format!("{}/svgs/generations", cfg.quiver.base_url.trim_end_matches('/'))
+    format!(
+        "{}/svgs/generations",
+        cfg.quiver.base_url.trim_end_matches('/')
+    )
 }
 
 pub fn vectorizations_url(cfg: &AiConfig) -> String {
-    format!("{}/svgs/vectorizations", cfg.quiver.base_url.trim_end_matches('/'))
+    format!(
+        "{}/svgs/vectorizations",
+        cfg.quiver.base_url.trim_end_matches('/')
+    )
 }
 
 impl<'a> QuiverClient<'a> {
     pub fn new(transport: &'a dyn Transport, cfg: &'a AiConfig, key: &str) -> Self {
-        Self { transport, cfg, key: key.to_string() }
+        Self {
+            transport,
+            cfg,
+            key: key.to_string(),
+        }
     }
 
     fn err(detail: impl Into<String>) -> Error {
-        Error::ProviderError { provider: "quiver".into(), detail: detail.into() }
+        Error::ProviderError {
+            provider: "quiver".into(),
+            detail: detail.into(),
+        }
     }
 
     pub fn generations_url(&self) -> String {
@@ -152,7 +164,11 @@ fn cost_of(v: &Value) -> Option<f64> {
         if let Some(n) = v.get(key).and_then(Value::as_f64) {
             return Some(n);
         }
-        if let Some(n) = v.get("usage").and_then(|u| u.get(key)).and_then(Value::as_f64) {
+        if let Some(n) = v
+            .get("usage")
+            .and_then(|u| u.get(key))
+            .and_then(Value::as_f64)
+        {
             return Some(n);
         }
     }
@@ -185,7 +201,13 @@ mod tests {
         let run = client
             .post(
                 &client.generations_url(),
-                &generation_body("arrow-2-telos", "a lion crest", Some("clean geometry"), 2, Some(3)),
+                &generation_body(
+                    "arrow-2-telos",
+                    "a lion crest",
+                    Some("clean geometry"),
+                    2,
+                    Some(3),
+                ),
             )
             .unwrap();
 
@@ -213,7 +235,10 @@ mod tests {
         );
         let client = QuiverClient::new(&t, &cfg, "k");
         let err = client
-            .post(&client.vectorizations_url(), &vectorization_body("arrow-2", "data:image/png;base64,AA", true))
+            .post(
+                &client.vectorizations_url(),
+                &vectorization_body("arrow-2", "data:image/png;base64,AA", true),
+            )
             .unwrap_err();
         assert_eq!(err.code(), "provider_error");
         assert_eq!(err.exit_code(), 5);

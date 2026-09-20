@@ -61,7 +61,12 @@ pub struct AddArgs {
     pub background: Option<String>,
 }
 
-vop!(Add, AddArgs, "vector.artboard.add", "Add an artboard to the document");
+vop!(
+    Add,
+    AddArgs,
+    "vector.artboard.add",
+    "Add an artboard to the document"
+);
 
 impl Add {
     fn run(project: &mut Project, a: AddArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -77,7 +82,9 @@ impl Add {
             None => None,
         };
         let v = project.vector_mut(&doc)?;
-        let name = a.name.unwrap_or_else(|| format!("artboard-{}", v.artboards.len() + 1));
+        let name = a
+            .name
+            .unwrap_or_else(|| format!("artboard-{}", v.artboards.len() + 1));
         let mut id = ArtboardId::from_name(&name);
         if v.artboards.iter().any(|b| b.id == id) {
             id = ArtboardId::generate();
@@ -98,7 +105,12 @@ pub struct RemoveArgs {
     pub artboard: String,
 }
 
-vop!(Remove, RemoveArgs, "vector.artboard.remove", "Remove an artboard; the last one cannot be removed");
+vop!(
+    Remove,
+    RemoveArgs,
+    "vector.artboard.remove",
+    "Remove an artboard; the last one cannot be removed"
+);
 
 impl Remove {
     fn run(project: &mut Project, a: RemoveArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -133,7 +145,12 @@ pub struct ResizeArgs {
     pub background: Option<String>,
 }
 
-vop!(Resize, ResizeArgs, "vector.artboard.resize", "Move, resize or recolour an artboard");
+vop!(
+    Resize,
+    ResizeArgs,
+    "vector.artboard.resize",
+    "Move, resize or recolour an artboard"
+);
 
 impl Resize {
     fn run(project: &mut Project, a: ResizeArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -174,7 +191,12 @@ pub struct FitArgs {
     pub padding: f64,
 }
 
-vop!(FitContent, FitArgs, "vector.artboard.fit-content", "Shrink or grow an artboard to the bounds of the document's objects");
+vop!(
+    FitContent,
+    FitArgs,
+    "vector.artboard.fit-content",
+    "Shrink or grow an artboard to the bounds of the document's objects"
+);
 
 impl FitContent {
     fn run(project: &mut Project, a: FitArgs, cx: &mut OpCx) -> Result<OpEffect> {

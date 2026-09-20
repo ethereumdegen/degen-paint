@@ -43,7 +43,9 @@ fn render_at_depth(
     // branch degenerate geometry needs. Rewriting it as `a >= b` would silently drop NaN.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(scale > 0.0) {
-        return Err(Error::Invalid(format!("render scale must be positive, got {scale}")));
+        return Err(Error::Invalid(format!(
+            "render scale must be positive, got {scale}"
+        )));
     }
     let v = project.vector(doc)?;
     let bounds = doc_bounds(v);
@@ -218,7 +220,8 @@ fn build_mask(
     let mut m = match inherited {
         Some(prev) => prev.clone(),
         None => {
-            let mut full = Mask::new(w, h).ok_or_else(|| Error::Invalid("cannot allocate mask".into()))?;
+            let mut full =
+                Mask::new(w, h).ok_or_else(|| Error::Invalid("cannot allocate mask".into()))?;
             full.fill_path(
                 &tiny_skia::PathBuilder::from_rect(
                     tiny_skia::Rect::from_xywh(0.0, 0.0, w as f32, h as f32).unwrap(),
@@ -243,7 +246,15 @@ fn build_mask(
         };
         let mut layer = Pixmap::new(w, h)
             .ok_or_else(|| Error::Invalid("cannot allocate a mask layer".into()))?;
-        paint_object(&mut layer, mobj, v, cx, parent * mobj.transform.to_kurbo(), None, 1.0)?;
+        paint_object(
+            &mut layer,
+            mobj,
+            v,
+            cx,
+            parent * mobj.transform.to_kurbo(),
+            None,
+            1.0,
+        )?;
         let lum = Mask::from_pixmap(layer.as_ref(), MaskType::Luminance);
         let dst = m.data_mut();
         for (d, s) in dst.iter_mut().zip(lum.data().iter()) {
@@ -467,7 +478,10 @@ pub fn sk_blend(b: BlendMode) -> tiny_skia::BlendMode {
         BlendMode::Lighten => B::Lighten,
         BlendMode::ColorDodge => B::ColorDodge,
         BlendMode::ColorBurn => B::ColorBurn,
-        BlendMode::HardLight | BlendMode::VividLight | BlendMode::LinearLight | BlendMode::PinLight
+        BlendMode::HardLight
+        | BlendMode::VividLight
+        | BlendMode::LinearLight
+        | BlendMode::PinLight
         | BlendMode::HardMix => B::HardLight,
         BlendMode::SoftLight => B::SoftLight,
         BlendMode::Difference | BlendMode::Subtract => B::Difference,
@@ -532,7 +546,11 @@ mod tests {
     fn a_filled_rectangle_covers_exactly_its_area() {
         let (p, id, tmp) = project_with(vec![red_square()]);
         let pm = render_doc(&p, &id, &AssetStore::new(tmp.path()), 1.0).unwrap();
-        assert!((covered(&pm, 128) as f64 - 1600.0).abs() < 100.0, "{}", covered(&pm, 128));
+        assert!(
+            (covered(&pm, 128) as f64 - 1600.0).abs() < 100.0,
+            "{}",
+            covered(&pm, 128)
+        );
         let px = pm.pixel(20, 20).unwrap();
         assert!(px.red() > 200 && px.green() < 40, "the fill is red: {px:?}");
     }
@@ -610,7 +628,10 @@ mod tests {
         let (p, id, tmp) = project_with(vec![clip, sq]);
         let pm = render_doc(&p, &id, &AssetStore::new(tmp.path()), 1.0).unwrap();
         let c = covered(&pm, 128);
-        assert!((c as i64 - 800).abs() < 60, "only the clipped half paints: {c}");
+        assert!(
+            (c as i64 - 800).abs() < 60,
+            "only the clipped half paints: {c}"
+        );
     }
 
     #[test]
@@ -638,7 +659,10 @@ mod tests {
             &render_doc(&p2, &id2, &AssetStore::new(tmp2.path()), 1.0).unwrap(),
             128,
         );
-        assert!(dash * 2 < solid * 3 && dash < solid, "dashes paint gaps: {dash} < {solid}");
+        assert!(
+            dash * 2 < solid * 3 && dash < solid,
+            "dashes paint gaps: {dash} < {solid}"
+        );
     }
 
     #[test]

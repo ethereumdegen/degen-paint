@@ -108,7 +108,10 @@ fn a_bad_selector_fails_before_anything_is_mutated() {
     );
     let before = serde_json::to_value(f.vec()).unwrap();
     let err = f
-        .run("vector.style.fill", json!({"target": "#nope", "color": "#ff0000"}))
+        .run(
+            "vector.style.fill",
+            json!({"target": "#nope", "color": "#ff0000"}),
+        )
         .unwrap_err();
     assert_eq!(err.code(), "selector_no_match");
     assert_eq!(serde_json::to_value(f.vec()).unwrap(), before);
@@ -131,14 +134,21 @@ fn adding_shapes_creates_addressable_objects_with_the_requested_geometry() {
         json!({"cx": 100, "cy": 100, "outer": 40, "inner": 16, "points": 5, "name": "star"}),
     );
     let star = f.path("obj_star");
-    assert_eq!(star.segments().count(), 10, "a five-pointed star has ten edges");
+    assert_eq!(
+        star.segments().count(),
+        10,
+        "a five-pointed star has ten edges"
+    );
 
     f.must(
         "vector.object.add-ellipse",
         json!({"cx": 50, "cy": 150, "rx": 20, "name": "dot"}),
     );
     let a = area(&f.path("obj_dot"));
-    assert!((a - std::f64::consts::PI * 400.0).abs() < 1.0, "circle area {a}");
+    assert!(
+        (a - std::f64::consts::PI * 400.0).abs() < 1.0,
+        "circle area {a}"
+    );
 }
 
 #[test]
@@ -171,7 +181,10 @@ fn subtracting_a_circle_from_a_square_removes_the_circle_from_the_render() {
         "vector.path.boolean",
         json!({"target": "#obj_sq, #obj_hole", "op": "subtract", "tolerance": 0.05}),
     );
-    assert!(f.vec().object(&ObjectId::from("obj_hole")).is_none(), "operand consumed");
+    assert!(
+        f.vec().object(&ObjectId::from("obj_hole")).is_none(),
+        "operand consumed"
+    );
     let after = f.covered(1.0);
     let circle = std::f64::consts::PI * 400.0;
     assert!(
@@ -198,7 +211,11 @@ fn union_of_two_overlapping_circles_covers_less_than_both_separately() {
     );
     let u = area(&f.path("obj_a"));
     let one = std::f64::consts::PI * 625.0;
-    assert!(u < 2.0 * one - 100.0, "union {u} is less than {}", 2.0 * one);
+    assert!(
+        u < 2.0 * one - 100.0,
+        "union {u} is less than {}",
+        2.0 * one
+    );
     assert!(u > one, "and more than a single circle {one}");
 }
 
@@ -217,13 +234,16 @@ fn divide_replaces_the_subject_with_its_pieces() {
         "vector.path.boolean",
         json!({"target": "#obj_sq, #obj_knife", "op": "divide"}),
     );
-    assert_eq!(eff.created.len(), 2, "one piece inside the cutter, one outside");
-    let total: f64 = eff
-        .created
-        .iter()
-        .map(|id| area(&f.path(id)))
-        .sum();
-    assert!((total - 1600.0).abs() < 1.0, "the pieces reassemble the square: {total}");
+    assert_eq!(
+        eff.created.len(),
+        2,
+        "one piece inside the cutter, one outside"
+    );
+    let total: f64 = eff.created.iter().map(|id| area(&f.path(id))).sum();
+    assert!(
+        (total - 1600.0).abs() < 1.0,
+        "the pieces reassemble the square: {total}"
+    );
 }
 
 // ------------------------------------------------------------------------- path edits
@@ -238,7 +258,10 @@ fn outline_stroke_turns_a_line_into_a_fillable_band() {
     f.must("vector.path.outline-stroke", json!({"target": "#obj_l"}));
     let o = f.vec().object(&ObjectId::from("obj_l")).unwrap();
     assert!(o.stroke.is_none(), "the stroke became a fill");
-    assert!(!o.fill.is_none(), "the outline is filled with the stroke paint");
+    assert!(
+        !o.fill.is_none(),
+        "the outline is filled with the stroke paint"
+    );
     let a = area(&f.path("obj_l"));
     assert!((a - 800.0).abs() < 1.0, "100 long x 8 wide = 800, got {a}");
 }
@@ -280,13 +303,20 @@ fn simplify_drops_nodes_and_keeps_the_shape_within_tolerance() {
         json!({"target": "#obj_c", "tolerance": 1.0}),
     );
     let after = f.path("obj_c");
-    assert!(after.segments().count() * 4 < before, "{} from {before}", after.segments().count());
+    assert!(
+        after.segments().count() * 4 < before,
+        "{} from {before}",
+        after.segments().count()
+    );
     let dev = dpaint_vector::geom::flatten(&dense, 0.1)
         .iter()
         .flat_map(|sp| sp.points.clone())
         .map(|p| dpaint_vector::geom::distance_to(&after, p))
         .fold(0.0, f64::max);
-    assert!(dev <= 1.0, "max deviation {dev} stays inside the stated tolerance");
+    assert!(
+        dev <= 1.0,
+        "max deviation {dev} stays inside the stated tolerance"
+    );
 }
 
 #[test]
@@ -302,7 +332,10 @@ fn node_editing_moves_one_point_and_leaves_the_others() {
         json!({"target": "#obj_q", "index": 1, "x": 30, "y": 0, "relative": true}),
     );
     let b = f.path("obj_q").bounding_box();
-    assert!((b.x1 - 80.0).abs() < 1e-6, "the moved corner extends the box: {b:?}");
+    assert!(
+        (b.x1 - 80.0).abs() < 1e-6,
+        "the moved corner extends the box: {b:?}"
+    );
     assert!((b.x0 - 10.0).abs() < 1e-6, "the others stayed");
 
     f.must(
@@ -331,7 +364,10 @@ fn round_corners_and_reverse_preserve_the_covered_region() {
         json!({"target": "#obj_r", "radius": 20}),
     );
     let rounded = f.covered(1.0);
-    assert!(rounded < square, "rounded corners cover less: {rounded} < {square}");
+    assert!(
+        rounded < square,
+        "rounded corners cover less: {rounded} < {square}"
+    );
     assert!(rounded > square - 500, "but only the corners: {rounded}");
     f.must("vector.path.reverse", json!({"target": "#obj_r"}));
     assert!(
@@ -359,8 +395,14 @@ fn gradients_dashes_and_blend_survive_into_the_render() {
                "stops": ["0:#000000", "1:#ffffff"]}),
     );
     let pm = f.render(1.0);
-    let (l, r) = (pm.pixel(12, 30).unwrap().red(), pm.pixel(88, 30).unwrap().red());
-    assert!(r > l + 150, "the gradient ramps across the shape: {l} -> {r}");
+    let (l, r) = (
+        pm.pixel(12, 30).unwrap().red(),
+        pm.pixel(88, 30).unwrap().red(),
+    );
+    assert!(
+        r > l + 150,
+        "the gradient ramps across the shape: {l} -> {r}"
+    );
 
     f.must(
         "vector.style.blend",
@@ -371,7 +413,10 @@ fn gradients_dashes_and_blend_survive_into_the_render() {
         dpaint_core::doc::common::BlendMode::Multiply
     );
     let multiplied = f.render(1.0).pixel(88, 30).unwrap().red();
-    assert!(multiplied < 200, "white over grey multiplies down to grey: {multiplied}");
+    assert!(
+        multiplied < 200,
+        "white over grey multiplies down to grey: {multiplied}"
+    );
 }
 
 #[test]
@@ -394,7 +439,10 @@ fn copying_style_moves_fill_and_stroke_but_not_geometry() {
     let dst = f.vec().object(&ObjectId::from("obj_dst")).unwrap();
     assert_eq!(dst.fill.average_color().unwrap().to_hex(), "#ff0000");
     assert_eq!(dst.stroke.as_ref().unwrap().width, 3.0);
-    assert!((area(&f.path("obj_dst")) - before).abs() < 1e-9, "geometry untouched");
+    assert!(
+        (area(&f.path("obj_dst")) - before).abs() < 1e-9,
+        "geometry untouched"
+    );
 }
 
 #[test]
@@ -409,14 +457,20 @@ fn a_locked_object_refuses_edits_until_it_is_unlocked() {
         json!({"target": "#obj_r", "locked": true}),
     );
     let err = f
-        .run("vector.style.fill", json!({"target": "#obj_r", "color": "#ff0000"}))
+        .run(
+            "vector.style.fill",
+            json!({"target": "#obj_r", "color": "#ff0000"}),
+        )
         .unwrap_err();
     assert_eq!(err.code(), "invalid");
     f.must(
         "vector.style.opacity",
         json!({"target": "#obj_r", "locked": false}),
     );
-    f.must("vector.style.fill", json!({"target": "#obj_r", "color": "#ff0000"}));
+    f.must(
+        "vector.style.fill",
+        json!({"target": "#obj_r", "color": "#ff0000"}),
+    );
 }
 
 #[test]
@@ -461,13 +515,22 @@ fn rotating_about_a_pivot_moves_the_shape_and_flatten_bakes_it() {
         json!({"target": "#obj_bar", "degrees": 90, "around": [0, 0]}),
     );
     let b = f.path("obj_bar").bounding_box();
-    assert!((b.x1 - 0.0).abs() < 1e-6 && (b.y1 - 40.0).abs() < 1e-6, "rotated to {b:?}");
+    assert!(
+        (b.x1 - 0.0).abs() < 1e-6 && (b.y1 - 40.0).abs() < 1e-6,
+        "rotated to {b:?}"
+    );
     f.must("vector.transform.flatten", json!({"target": "#obj_bar"}));
     let o = f.vec().object(&ObjectId::from("obj_bar")).unwrap();
     assert!(o.transform.is_identity(), "the matrix is spent");
-    assert!(matches!(o.kind, VKind::Path { .. }), "geometry is baked into a path");
+    assert!(
+        matches!(o.kind, VKind::Path { .. }),
+        "geometry is baked into a path"
+    );
     let after = f.path("obj_bar").bounding_box();
-    assert!((after.y1 - 40.0).abs() < 1e-6, "and it did not move: {after:?}");
+    assert!(
+        (after.y1 - 40.0).abs() < 1e-6,
+        "and it did not move: {after:?}"
+    );
 }
 
 #[test]
@@ -515,7 +578,10 @@ fn text_to_outlines_renders_identically_to_the_shaped_text() {
     assert_eq!(eff.removed, vec!["obj_t".to_string()]);
     assert_eq!(eff.created.len(), 1, "one line becomes one path");
     let after = f.render(2.0);
-    assert_eq!((before.width(), before.height()), (after.width(), after.height()));
+    assert_eq!(
+        (before.width(), before.height()),
+        (after.width(), after.height())
+    );
     // Path data is stored at three decimals, so a handful of edge pixels can shift by a
     // fraction of a coverage step. Anything more would mean the outlines differ.
     let deltas: Vec<i32> = before
@@ -552,7 +618,11 @@ fn a_multiline_text_outlines_into_a_group_of_one_path_per_line() {
     );
     let eff = f.must("vector.text.to-outlines", json!({"target": "#obj_t"}));
     assert_eq!(eff.created.len(), 4, "a group plus three line paths");
-    let group = f.vec().objects.iter().find(|o| matches!(o.kind, VKind::Group { .. }));
+    let group = f
+        .vec()
+        .objects
+        .iter()
+        .find(|o| matches!(o.kind, VKind::Group { .. }));
     let VKind::Group { objects } = &group.expect("a group was created").kind else {
         unreachable!()
     };
@@ -570,7 +640,8 @@ fn text_on_a_path_starts_at_the_path_start_and_advances_by_arc_length() {
     line.move_to((0.0, 100.0));
     line.line_to((400.0, 100.0));
     let flat = dpaint_vector::geom::flatten(&line, 0.01);
-    let (outline, sub, span) = dpaint_vector::text::outline_on_path(fonts, &spec, &flat, 0.0, false);
+    let (outline, sub, span) =
+        dpaint_vector::text::outline_on_path(fonts, &spec, &flat, 0.0, false);
     assert!(sub.is_none());
     let span = span.expect("a run was placed");
     assert!(
@@ -699,7 +770,10 @@ fn a_clip_limits_the_render_and_releasing_it_restores_the_object() {
         json!({"target": "#obj_sheet", "source": "#obj_window"}),
     );
     let clipped = f.covered(1.0);
-    assert!((clipped as i64 - 1600).abs() < 80, "clipped to the window: {clipped}");
+    assert!(
+        (clipped as i64 - 1600).abs() < 80,
+        "clipped to the window: {clipped}"
+    );
     f.must("vector.clip.release", json!({"target": "#obj_sheet"}));
     assert_eq!(f.covered(1.0), full);
 }
@@ -727,7 +801,10 @@ fn a_luminance_mask_fades_what_it_covers() {
     );
     let masked = f.render(1.0).pixel(30, 30).unwrap().alpha();
     assert_eq!(opaque, 255);
-    assert!(masked > 0 && masked < 200, "mid grey mask thins the fill: {masked}");
+    assert!(
+        masked > 0 && masked < 200,
+        "mid grey mask thins the fill: {masked}"
+    );
     f.must("vector.mask.release", json!({"target": "#obj_sheet"}));
     assert_eq!(f.render(1.0).pixel(30, 30).unwrap().alpha(), 255);
 }
@@ -754,7 +831,10 @@ fn grouping_then_ungrouping_leaves_the_render_unchanged() {
     );
     let moved = f.path("obj_a");
     use dpaint_core::kurbo::Shape;
-    assert!((moved.bounding_box().x0 - 20.0).abs() < 1e-9, "the group carried its child");
+    assert!(
+        (moved.bounding_box().x0 - 20.0).abs() < 1e-9,
+        "the group carried its child"
+    );
     f.must(
         "vector.transform.translate",
         json!({"target": "#obj_pair", "dx": -10, "dy": 0}),
@@ -802,7 +882,11 @@ fn artboards_control_the_rendered_canvas() {
     );
     f.must("vector.artboard.fit-content", json!({"padding": 5}));
     let pm = f.render(1.0);
-    assert_eq!((pm.width(), pm.height()), (20, 20), "fitted to content plus padding");
+    assert_eq!(
+        (pm.width(), pm.height()),
+        (20, 20),
+        "fitted to content plus padding"
+    );
 
     let err = f
         .run("vector.artboard.remove", json!({"artboard": "artboard"}))
@@ -819,9 +903,15 @@ fn rendering_at_scale_four_quadruples_the_dimensions_and_the_geometry() {
     );
     let one = f.render(1.0);
     let four = f.render(4.0);
-    assert_eq!((one.width() * 4, one.height() * 4), (four.width(), four.height()));
+    assert_eq!(
+        (one.width() * 4, one.height() * 4),
+        (four.width(), four.height())
+    );
     let ratio = f.covered(4.0) as f64 / f.covered(1.0) as f64;
-    assert!((ratio - 16.0).abs() < 0.2, "coverage scales with the area: {ratio}");
+    assert!(
+        (ratio - 16.0).abs() < 0.2,
+        "coverage scales with the area: {ratio}"
+    );
 }
 
 // ---------------------------------------------------------------------------- measure
@@ -839,24 +929,39 @@ fn measure_ops_return_data_and_change_nothing() {
     );
     let snapshot = serde_json::to_value(f.vec()).unwrap();
 
-    let d = f.must("vector.measure.bbox", json!({"target": "#obj_r"})).data.unwrap();
+    let d = f
+        .must("vector.measure.bbox", json!({"target": "#obj_r"}))
+        .data
+        .unwrap();
     assert_eq!(d["bbox"]["x"], 10.0);
     assert_eq!(d["bbox"]["width"], 40.0);
 
-    let d = f.must("vector.measure.area", json!({"target": "#obj_r"})).data.unwrap();
+    let d = f
+        .must("vector.measure.area", json!({"target": "#obj_r"}))
+        .data
+        .unwrap();
     assert!((d["total"].as_f64().unwrap() - 1200.0).abs() < 1e-6);
 
-    let d = f.must("vector.measure.length", json!({"target": "#obj_l"})).data.unwrap();
+    let d = f
+        .must("vector.measure.length", json!({"target": "#obj_l"}))
+        .data
+        .unwrap();
     assert!((d["total"].as_f64().unwrap() - 100.0).abs() < 1e-6);
 
     let d = f
-        .must("vector.measure.sample", json!({"target": "#obj_l", "t": 0.25}))
+        .must(
+            "vector.measure.sample",
+            json!({"target": "#obj_l", "t": 0.25}),
+        )
         .data
         .unwrap();
     assert!((d["point"][0].as_f64().unwrap() - 25.0).abs() < 1e-6);
 
     let d = f
-        .must("vector.measure.tangent", json!({"target": "#obj_l", "t": 0.5}))
+        .must(
+            "vector.measure.tangent",
+            json!({"target": "#obj_l", "t": 0.5}),
+        )
         .data
         .unwrap();
     assert!((d["tangent"][0].as_f64().unwrap() - 1.0).abs() < 1e-6);
@@ -871,7 +976,11 @@ fn measure_ops_return_data_and_change_nothing() {
         .unwrap();
     assert_eq!(d["count"], 0, "the line passes below the rectangle");
 
-    assert_eq!(serde_json::to_value(f.vec()).unwrap(), snapshot, "queries never mutate");
+    assert_eq!(
+        serde_json::to_value(f.vec()).unwrap(),
+        snapshot,
+        "queries never mutate"
+    );
 }
 
 // ------------------------------------------------------------------------------ trace
@@ -973,7 +1082,11 @@ fn an_embedded_image_renders_from_the_asset_store_at_its_placed_rectangle() {
         inside.blue() > 200 && inside.red() < 40,
         "the image paints its own pixels: {inside:?}"
     );
-    assert_eq!(pm.pixel(5, 5).unwrap().alpha(), 0, "and only inside its rectangle");
+    assert_eq!(
+        pm.pixel(5, 5).unwrap().alpha(),
+        0,
+        "and only inside its rectangle"
+    );
     assert!((f.covered(1.0) as i64 - 1600).abs() < 40);
 }
 
@@ -999,6 +1112,9 @@ fn a_document_fill_paints_another_vector_document_into_the_shape() {
         document: DocId::from("doc_swatch"),
     };
     let px = f.render(1.0).pixel(30, 30).unwrap();
-    assert!(px.green() > 200 && px.red() < 40, "the linked document paints: {px:?}");
+    assert!(
+        px.green() > 200 && px.red() < 40,
+        "the linked document paints: {px:?}"
+    );
     assert_eq!(f.render(1.0).pixel(5, 5).unwrap().alpha(), 0);
 }

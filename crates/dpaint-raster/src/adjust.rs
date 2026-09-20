@@ -40,7 +40,11 @@ impl Curve {
         m[0] = d[0];
         m[n - 1] = d[n - 2];
         for i in 1..n - 1 {
-            m[i] = if d[i - 1] * d[i] <= 0.0 { 0.0 } else { (d[i - 1] + d[i]) / 2.0 };
+            m[i] = if d[i - 1] * d[i] <= 0.0 {
+                0.0
+            } else {
+                (d[i - 1] + d[i]) / 2.0
+            };
         }
         // Fritsch–Carlson limiter: keeps the interpolant monotone between samples.
         for i in 0..n - 1 {
@@ -89,15 +93,33 @@ impl Curve {
 /// adjustment-layer path in the compositor).
 pub enum Prepared {
     /// Per-channel transfer curve on display-encoded values.
-    Transfer { lut: [Vec<f32>; 4], channel: Channel },
+    Transfer {
+        lut: [Vec<f32>; 4],
+        channel: Channel,
+    },
     /// Multiply linear light, then offset.
-    Exposure { gain: f32, offset: f32 },
+    Exposure {
+        gain: f32,
+        offset: f32,
+    },
     Matrix([[f32; 3]; 3]),
-    Hsl { hue: f32, sat: f32, light: f32 },
-    Balance { shadows: [f32; 3], midtones: [f32; 3], highlights: [f32; 3] },
+    Hsl {
+        hue: f32,
+        sat: f32,
+        light: f32,
+    },
+    Balance {
+        shadows: [f32; 3],
+        midtones: [f32; 3],
+        highlights: [f32; 3],
+    },
     Threshold(f32),
     Desaturate(DesaturateMode),
-    Cube { n: usize, data: Vec<f32>, amount: f32 },
+    Cube {
+        n: usize,
+        data: Vec<f32>,
+        amount: f32,
+    },
 }
 
 const LUT_N: usize = 1024;
@@ -116,7 +138,11 @@ fn transfer(channel: Channel, f: impl Fn(f64) -> f64) -> Prepared {
             Channel::Blue => c == 2,
             Channel::Alpha => c == 3,
         };
-        *slot = if hit { mapped.clone() } else { identity.clone() };
+        *slot = if hit {
+            mapped.clone()
+        } else {
+            identity.clone()
+        };
     }
     Prepared::Transfer { lut, channel }
 }
@@ -127,7 +153,14 @@ pub fn prepare(adj: &Adjustment, assets: &AssetStore) -> Result<Prepared> {
             let c = Curve::new(points)?;
             transfer(*channel, move |v| c.eval(v))
         }
-        Adjustment::Levels { channel, in_black, in_white, gamma, out_black, out_white } => {
+        Adjustment::Levels {
+            channel,
+            in_black,
+            in_white,
+            gamma,
+            out_black,
+            out_white,
+        } => {
             if in_white <= in_black {
                 return Err(Error::Invalid("levels needs in_white > in_black".into()));
             }
@@ -140,7 +173,10 @@ pub fn prepare(adj: &Adjustment, assets: &AssetStore) -> Result<Prepared> {
                 ob + (ow - ob) * t.powf(1.0 / g)
             })
         }
-        Adjustment::BrightnessContrast { brightness, contrast } => {
+        Adjustment::BrightnessContrast {
+            brightness,
+            contrast,
+        } => {
             let (b, k) = (*brightness, 1.0 + contrast.clamp(-1.0, 8.0));
             transfer(Channel::Rgb, move |v| (v - 0.5) * k + 0.5 + b)
         }
@@ -162,12 +198,20 @@ pub fn prepare(adj: &Adjustment, assets: &AssetStore) -> Result<Prepared> {
             }
             Prepared::Matrix(m)
         }
-        Adjustment::Hsl { hue, saturation, lightness } => Prepared::Hsl {
+        Adjustment::Hsl {
+            hue,
+            saturation,
+            lightness,
+        } => Prepared::Hsl {
             hue: *hue as f32,
             sat: saturation.clamp(-1.0, 1.0) as f32,
             light: lightness.clamp(-1.0, 1.0) as f32,
         },
-        Adjustment::ColorBalance { shadows, midtones, highlights } => Prepared::Balance {
+        Adjustment::ColorBalance {
+            shadows,
+            midtones,
+            highlights,
+        } => Prepared::Balance {
             shadows: f3(shadows),
             midtones: f3(midtones),
             highlights: f3(highlights),
@@ -177,7 +221,11 @@ pub fn prepare(adj: &Adjustment, assets: &AssetStore) -> Result<Prepared> {
         Adjustment::Lut { asset, amount } => {
             let bytes = assets.get(asset)?;
             let (n, data) = load_hald(&bytes)?;
-            Prepared::Cube { n, data, amount: amount.clamp(0.0, 1.0) as f32 }
+            Prepared::Cube {
+                n,
+                data,
+                amount: amount.clamp(0.0, 1.0) as f32,
+            }
         }
     })
 }
@@ -198,7 +246,9 @@ fn load_hald(bytes: &[u8]) -> Result<(usize, Vec<f32>)> {
         .to_rgb8();
     let (w, h) = img.dimensions();
     if w != h {
-        return Err(Error::AssetDecode(format!("a HALD LUT must be square, got {w}x{h}")));
+        return Err(Error::AssetDecode(format!(
+            "a HALD LUT must be square, got {w}x{h}"
+        )));
     }
     let total = (w as usize) * (h as usize);
     // side^2 == n^3, so n = cbrt(side^2).
@@ -236,7 +286,11 @@ fn rgb_to_hsl(c: [f32; 3]) -> [f32; 3] {
         return [0.0, 0.0, l];
     }
     let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
     let h = if max == c[0] {
         ((c[1] - c[2]) / d).rem_euclid(6.0)
     } else if max == c[1] {
@@ -248,7 +302,11 @@ fn rgb_to_hsl(c: [f32; 3]) -> [f32; 3] {
 }
 
 fn hsl_to_rgb(hsl: [f32; 3]) -> [f32; 3] {
-    let (h, s, l) = (hsl[0].rem_euclid(360.0) / 60.0, hsl[1].clamp(0.0, 1.0), hsl[2].clamp(0.0, 1.0));
+    let (h, s, l) = (
+        hsl[0].rem_euclid(360.0) / 60.0,
+        hsl[1].clamp(0.0, 1.0),
+        hsl[2].clamp(0.0, 1.0),
+    );
     if s <= 0.0 {
         return [l, l, l];
     }
@@ -278,13 +336,21 @@ fn sample_cube(n: usize, data: &[f32], c: [f32; 3]) -> [f32; 3] {
         c[1].clamp(0.0, 1.0) * scale,
         c[2].clamp(0.0, 1.0) * scale,
     ];
-    let i0 = [f[0].floor() as usize, f[1].floor() as usize, f[2].floor() as usize];
+    let i0 = [
+        f[0].floor() as usize,
+        f[1].floor() as usize,
+        f[2].floor() as usize,
+    ];
     let i1 = [
         (i0[0] + 1).min(n - 1),
         (i0[1] + 1).min(n - 1),
         (i0[2] + 1).min(n - 1),
     ];
-    let t = [f[0] - i0[0] as f32, f[1] - i0[1] as f32, f[2] - i0[2] as f32];
+    let t = [
+        f[0] - i0[0] as f32,
+        f[1] - i0[1] as f32,
+        f[2] - i0[2] as f32,
+    ];
     let mut out = [0.0f32; 3];
     for (bi, bw) in [(i0[2], 1.0 - t[2]), (i1[2], t[2])] {
         if bw <= 0.0 {
@@ -356,7 +422,11 @@ pub fn apply_pixel(p: &Prepared, mut c: [f32; 4]) -> [f32; 4] {
                 c[ch] = srgb_to_linear(rgb[ch].clamp(0.0, 1.0));
             }
         }
-        Prepared::Balance { shadows, midtones, highlights } => {
+        Prepared::Balance {
+            shadows,
+            midtones,
+            highlights,
+        } => {
             let d = [
                 linear_to_srgb(c[0].clamp(0.0, 1.0)),
                 linear_to_srgb(c[1].clamp(0.0, 1.0)),
@@ -456,7 +526,10 @@ mod tests {
         let store = AssetStore::new(std::env::temp_dir());
         let p = prepare(&adj, &store).unwrap();
         let mid = apply_pixel(&p, [srgb_to_linear(0.5); 4]);
-        assert!(linear_to_srgb(mid[0]) > 0.6, "gamma 2 must lift 0.5 toward 0.707");
+        assert!(
+            linear_to_srgb(mid[0]) > 0.6,
+            "gamma 2 must lift 0.5 toward 0.707"
+        );
         let white = apply_pixel(&p, [1.0, 1.0, 1.0, 1.0]);
         assert!((white[0] - 1.0).abs() < 1e-3);
     }

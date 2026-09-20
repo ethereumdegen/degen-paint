@@ -22,7 +22,8 @@ fn push(
     for id in &ids {
         if let Some(l) = rd.layer_mut(id) {
             if replace {
-                l.effects.retain(|e| discriminant(e) != discriminant(&effect));
+                l.effects
+                    .retain(|e| discriminant(e) != discriminant(&effect));
             }
             l.effects.push(effect.clone());
         }
@@ -79,7 +80,12 @@ fn drop_shadow(project: &mut Project, a: ShadowArgs, cx: &mut OpCx) -> Result<Op
     push(
         project,
         &a.target,
-        Effect::DropShadow { dx: a.dx, dy: a.dy, blur: a.blur, color: a.color },
+        Effect::DropShadow {
+            dx: a.dx,
+            dy: a.dy,
+            blur: a.blur,
+            color: a.color,
+        },
         a.replace,
         cx,
     )
@@ -90,7 +96,12 @@ fn inner_shadow(project: &mut Project, a: ShadowArgs, cx: &mut OpCx) -> Result<O
     push(
         project,
         &a.target,
-        Effect::InnerShadow { dx: a.dx, dy: a.dy, blur: a.blur, color: a.color },
+        Effect::InnerShadow {
+            dx: a.dx,
+            dy: a.dy,
+            blur: a.blur,
+            color: a.color,
+        },
         a.replace,
         cx,
     )
@@ -98,7 +109,9 @@ fn inner_shadow(project: &mut Project, a: ShadowArgs, cx: &mut OpCx) -> Result<O
 
 fn validate_blur(blur: f64) -> Result<()> {
     if blur < 0.0 || !blur.is_finite() {
-        return Err(Error::Invalid(format!("blur must be zero or more, got {blur}")));
+        return Err(Error::Invalid(format!(
+            "blur must be zero or more, got {blur}"
+        )));
     }
     Ok(())
 }
@@ -125,7 +138,11 @@ fn stroke(project: &mut Project, a: StrokeArgs, cx: &mut OpCx) -> Result<OpEffec
     push(
         project,
         &a.target,
-        Effect::Stroke { width: a.width, color: a.color, align: a.align },
+        Effect::Stroke {
+            width: a.width,
+            color: a.color,
+            align: a.align,
+        },
         a.replace,
         cx,
     )
@@ -146,7 +163,16 @@ pub struct GlowArgs {
 
 fn outer_glow(project: &mut Project, a: GlowArgs, cx: &mut OpCx) -> Result<OpEffect> {
     validate_blur(a.blur)?;
-    push(project, &a.target, Effect::OuterGlow { blur: a.blur, color: a.color }, a.replace, cx)
+    push(
+        project,
+        &a.target,
+        Effect::OuterGlow {
+            blur: a.blur,
+            color: a.color,
+        },
+        a.replace,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -163,7 +189,13 @@ fn blur(project: &mut Project, a: BlurArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if a.radius <= 0.0 {
         return Err(Error::Invalid("blur radius must be positive".into()));
     }
-    push(project, &a.target, Effect::Blur { radius: a.radius }, a.replace, cx)
+    push(
+        project,
+        &a.target,
+        Effect::Blur { radius: a.radius },
+        a.replace,
+        cx,
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, schemars::JsonSchema)]
@@ -195,7 +227,9 @@ fn remove(project: &mut Project, a: RemoveArgs, cx: &mut OpCx) -> Result<OpEffec
     let (doc, ids) = support::many_layers(project, cx, &a.target)?;
     let rd = project.raster(&doc)?;
     if !ids.iter().any(|id| has_effects(rd, id)) {
-        return Err(Error::Invalid("none of the matching layers have effects".into()));
+        return Err(Error::Invalid(
+            "none of the matching layers have effects".into(),
+        ));
     }
     if cx.dry_run {
         return Ok(OpEffect::changed(&doc));
@@ -224,12 +258,48 @@ fn has_effects(rd: &RasterDoc, id: &LayerId) -> bool {
     rd.layer(id).map(|l| !l.effects.is_empty()).unwrap_or(false)
 }
 
-raster_op!(DropShadow, "raster.effect.drop-shadow", "Add a drop shadow behind a layer", ShadowArgs, drop_shadow);
-raster_op!(InnerShadow, "raster.effect.inner-shadow", "Add a shadow inside a layer's edges", ShadowArgs, inner_shadow);
-raster_op!(Stroke, "raster.effect.stroke", "Outline a layer's edges", StrokeArgs, stroke);
-raster_op!(OuterGlow, "raster.effect.outer-glow", "Add a glow around a layer", GlowArgs, outer_glow);
-raster_op!(Blur, "raster.effect.blur", "Blur a layer at composite time, non-destructively", BlurArgs, blur);
-raster_op!(Remove, "raster.effect.remove", "Remove one kind of effect, or all of them", RemoveArgs, remove);
+raster_op!(
+    DropShadow,
+    "raster.effect.drop-shadow",
+    "Add a drop shadow behind a layer",
+    ShadowArgs,
+    drop_shadow
+);
+raster_op!(
+    InnerShadow,
+    "raster.effect.inner-shadow",
+    "Add a shadow inside a layer's edges",
+    ShadowArgs,
+    inner_shadow
+);
+raster_op!(
+    Stroke,
+    "raster.effect.stroke",
+    "Outline a layer's edges",
+    StrokeArgs,
+    stroke
+);
+raster_op!(
+    OuterGlow,
+    "raster.effect.outer-glow",
+    "Add a glow around a layer",
+    GlowArgs,
+    outer_glow
+);
+raster_op!(
+    Blur,
+    "raster.effect.blur",
+    "Blur a layer at composite time, non-destructively",
+    BlurArgs,
+    blur
+);
+raster_op!(
+    Remove,
+    "raster.effect.remove",
+    "Remove one kind of effect, or all of them",
+    RemoveArgs,
+    remove
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

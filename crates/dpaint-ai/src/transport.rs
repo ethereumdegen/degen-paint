@@ -6,8 +6,8 @@
 //! wire shape a provider actually sees.
 
 use dpaint_core::{Error, Result};
-use std::collections::VecDeque;
 use parking_lot::Mutex;
+use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
@@ -36,11 +36,21 @@ pub struct HttpRequest {
 
 impl HttpRequest {
     pub fn get(url: impl Into<String>) -> Self {
-        Self { method: Method::Get, url: url.into(), headers: Vec::new(), body: None }
+        Self {
+            method: Method::Get,
+            url: url.into(),
+            headers: Vec::new(),
+            body: None,
+        }
     }
 
     pub fn post(url: impl Into<String>) -> Self {
-        Self { method: Method::Post, url: url.into(), headers: Vec::new(), body: None }
+        Self {
+            method: Method::Post,
+            url: url.into(),
+            headers: Vec::new(),
+            body: None,
+        }
     }
 
     pub fn post_json(url: impl Into<String>, body: &serde_json::Value) -> Self {
@@ -83,13 +93,25 @@ impl std::fmt::Debug for HttpRequest {
         let headers: Vec<(&str, &str)> = self
             .headers
             .iter()
-            .map(|(k, v)| (k.as_str(), if is_secret_header(k) { "<redacted>" } else { v.as_str() }))
+            .map(|(k, v)| {
+                (
+                    k.as_str(),
+                    if is_secret_header(k) {
+                        "<redacted>"
+                    } else {
+                        v.as_str()
+                    },
+                )
+            })
             .collect();
         f.debug_struct("HttpRequest")
             .field("method", &self.method)
             .field("url", &self.url)
             .field("headers", &headers)
-            .field("body_bytes", &self.body.as_ref().map(|b| b.len()).unwrap_or(0))
+            .field(
+                "body_bytes",
+                &self.body.as_ref().map(|b| b.len()).unwrap_or(0),
+            )
             .finish()
     }
 }
@@ -176,7 +198,10 @@ impl Default for RecordedTransport {
 
 impl RecordedTransport {
     pub fn new() -> Self {
-        Self { routes: Mutex::new(Vec::new()), calls: Mutex::new(Vec::new()) }
+        Self {
+            routes: Mutex::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
+        }
     }
 
     pub fn on(self, method: Method, url_contains: &str, response: HttpResponse) -> Self {
@@ -237,10 +262,13 @@ impl Transport for RecordedTransport {
                 let resp = if r.responses.len() > 1 {
                     r.responses.pop_front().expect("len > 1")
                 } else {
-                    r.responses.front().cloned().ok_or_else(|| Error::ProviderError {
-                        provider: "recorded".into(),
-                        detail: format!("route '{}' has no responses left", r.contains),
-                    })?
+                    r.responses
+                        .front()
+                        .cloned()
+                        .ok_or_else(|| Error::ProviderError {
+                            provider: "recorded".into(),
+                            detail: format!("route '{}' has no responses left", r.contains),
+                        })?
                 };
                 return Ok(resp);
             }
@@ -317,7 +345,12 @@ mod net {
             let headers = resp
                 .headers()
                 .iter()
-                .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or_default().to_string()))
+                .map(|(k, v)| {
+                    (
+                        k.as_str().to_string(),
+                        v.to_str().unwrap_or_default().to_string(),
+                    )
+                })
                 .collect();
             let body = resp
                 .bytes()
@@ -326,7 +359,11 @@ mod net {
                     detail: e.to_string(),
                 })?
                 .to_vec();
-            Ok(HttpResponse { status, headers, body })
+            Ok(HttpResponse {
+                status,
+                headers,
+                body,
+            })
         }
     }
 }
@@ -343,18 +380,35 @@ mod tests {
         assert!(!printed.contains("sk-super-secret"), "{printed}");
         assert!(printed.contains("<redacted>"), "{printed}");
         // The value itself is still reachable for the transport that must send it.
-        assert_eq!(req.header_value("Authorization"), Some("Key sk-super-secret"));
+        assert_eq!(
+            req.header_value("Authorization"),
+            Some("Key sk-super-secret")
+        );
     }
 
     #[test]
     fn recorded_transport_repeats_its_last_response_and_records_calls() {
         let t = RecordedTransport::new()
-            .on_json(Method::Get, "/status", serde_json::json!({"status": "IN_PROGRESS"}))
-            .on_json(Method::Get, "/status", serde_json::json!({"status": "COMPLETED"}));
+            .on_json(
+                Method::Get,
+                "/status",
+                serde_json::json!({"status": "IN_PROGRESS"}),
+            )
+            .on_json(
+                Method::Get,
+                "/status",
+                serde_json::json!({"status": "COMPLETED"}),
+            );
 
-        let first = t.request(HttpRequest::get("https://x/requests/1/status")).unwrap();
-        let second = t.request(HttpRequest::get("https://x/requests/1/status")).unwrap();
-        let third = t.request(HttpRequest::get("https://x/requests/1/status")).unwrap();
+        let first = t
+            .request(HttpRequest::get("https://x/requests/1/status"))
+            .unwrap();
+        let second = t
+            .request(HttpRequest::get("https://x/requests/1/status"))
+            .unwrap();
+        let third = t
+            .request(HttpRequest::get("https://x/requests/1/status"))
+            .unwrap();
 
         assert_eq!(first.parse_json().unwrap()["status"], "IN_PROGRESS");
         assert_eq!(second.parse_json().unwrap()["status"], "COMPLETED");

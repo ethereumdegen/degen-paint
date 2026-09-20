@@ -78,19 +78,34 @@ pub fn fill_coverage(path: &tiny_skia::Path, w: u32, h: u32, rule: FillRule) -> 
         Some(m) => m,
         None => return vec![0.0; (w as usize) * (h as usize)],
     };
-    mask.fill_path(path, sk_fill_rule(rule), true, tiny_skia::Transform::identity());
+    mask.fill_path(
+        path,
+        sk_fill_rule(rule),
+        true,
+        tiny_skia::Transform::identity(),
+    );
     mask.data().iter().map(|v| *v as f32 / 255.0).collect()
 }
 
 /// Coverage of a path's stroke outline, for shape layers and the `stroke` layer effect.
-pub fn stroke_coverage(path: &tiny_skia::Path, stroke: &Stroke, scale: f64, w: u32, h: u32) -> Vec<f32> {
+pub fn stroke_coverage(
+    path: &tiny_skia::Path,
+    stroke: &Stroke,
+    scale: f64,
+    w: u32,
+    h: u32,
+) -> Vec<f32> {
     let Some(outline) = stroke_outline(path, stroke, scale) else {
         return vec![0.0; (w as usize) * (h as usize)];
     };
     fill_coverage(&outline, w, h, FillRule::Nonzero)
 }
 
-pub fn stroke_outline(path: &tiny_skia::Path, stroke: &Stroke, scale: f64) -> Option<tiny_skia::Path> {
+pub fn stroke_outline(
+    path: &tiny_skia::Path,
+    stroke: &Stroke,
+    scale: f64,
+) -> Option<tiny_skia::Path> {
     let mut props = tiny_skia::Stroke {
         width: (stroke.width * scale).max(1e-3) as f32,
         miter_limit: stroke.miter as f32,
@@ -107,7 +122,11 @@ pub fn stroke_outline(path: &tiny_skia::Path, stroke: &Stroke, scale: f64) -> Op
         dash: None,
     };
     if !stroke.dash.is_empty() {
-        let dashes: Vec<f32> = stroke.dash.iter().map(|d| (*d * scale).max(0.01) as f32).collect();
+        let dashes: Vec<f32> = stroke
+            .dash
+            .iter()
+            .map(|d| (*d * scale).max(0.01) as f32)
+            .collect();
         props.dash = tiny_skia::StrokeDash::new(dashes, (stroke.dash_offset * scale) as f32);
     }
     path.stroke(&props, 1.0)
@@ -117,4 +136,3 @@ pub fn stroke_outline(path: &tiny_skia::Path, stroke: &Stroke, scale: f64) -> Op
 pub fn device_matrix(layer: Transform, scale: f64) -> Affine {
     Affine::scale(scale) * layer.to_kurbo()
 }
-

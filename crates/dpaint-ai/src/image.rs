@@ -59,13 +59,8 @@ pub fn decode(bytes: &[u8]) -> Result<ts::Pixmap> {
         .ok_or_else(|| Error::AssetDecode(format!("image is {w}x{h}")))?;
     for (dst, src) in pm.pixels_mut().iter_mut().zip(img.pixels()) {
         let [r, g, b, a] = src.0;
-        *dst = ts::PremultipliedColorU8::from_rgba(
-            mul(r, a),
-            mul(g, a),
-            mul(b, a),
-            a,
-        )
-        .expect("premultiplied by construction");
+        *dst = ts::PremultipliedColorU8::from_rgba(mul(r, a), mul(g, a), mul(b, a), a)
+            .expect("premultiplied by construction");
     }
     Ok(pm)
 }
@@ -75,7 +70,8 @@ fn mul(c: u8, a: u8) -> u8 {
 }
 
 pub fn encode_png(pm: &ts::Pixmap) -> Result<Vec<u8>> {
-    pm.encode_png().map_err(|e| Error::AssetDecode(e.to_string()))
+    pm.encode_png()
+        .map_err(|e| Error::AssetDecode(e.to_string()))
 }
 
 /// An opaque greyscale PNG of the alpha channel: white where the subject is. This is what a
@@ -95,16 +91,15 @@ pub fn alpha_mask_png(pm: &ts::Pixmap) -> Result<Vec<u8>> {
 /// should regenerate. The editor's own selection tools are the inpaint mask, which is the
 /// entire point of having them.
 pub fn selection_mask_png(doc: &RasterDoc, assets: &AssetStore) -> Result<Vec<u8>> {
-    let sel = doc
-        .selection
-        .as_ref()
-        .ok_or_else(|| Error::Invalid(format!(
+    let sel = doc.selection.as_ref().ok_or_else(|| {
+        Error::Invalid(format!(
             "document '{}' has no selection; select a region first (raster.select.*)",
             doc.id
-        )))?;
+        ))
+    })?;
     let (w, h) = (doc.width().max(1), doc.height().max(1));
-    let mut pm = ts::Pixmap::new(w, h)
-        .ok_or_else(|| Error::Invalid(format!("canvas is {w}x{h}")))?;
+    let mut pm =
+        ts::Pixmap::new(w, h).ok_or_else(|| Error::Invalid(format!("canvas is {w}x{h}")))?;
     pm.fill(ts::Color::BLACK);
 
     let mut covered = false;
@@ -115,7 +110,14 @@ pub fn selection_mask_png(doc: &RasterDoc, assets: &AssetStore) -> Result<Vec<u8
         let sy = h as f32 / src.height() as f32;
         let mut paint = ts::PixmapPaint::default();
         paint.quality = ts::FilterQuality::Bilinear;
-        pm.draw_pixmap(0, 0, src.as_ref(), &paint, ts::Transform::from_scale(sx, sy), None);
+        pm.draw_pixmap(
+            0,
+            0,
+            src.as_ref(),
+            &paint,
+            ts::Transform::from_scale(sx, sy),
+            None,
+        );
         // Compositing over black already premultiplies coverage into the channels, so the
         // final `normalize_opaque` collapses both alpha- and luminance-encoded masks.
         covered = true;
@@ -166,11 +168,19 @@ pub fn selection_coverage(mask_png: &[u8]) -> Result<f64> {
 
 /// Grow a canvas by the requested margins, returning the padded image and the mask of the
 /// new area — outpainting is inpainting of the margin.
-pub fn pad(src: &ts::Pixmap, left: u32, top: u32, right: u32, bottom: u32) -> Result<(ts::Pixmap, ts::Pixmap)> {
+pub fn pad(
+    src: &ts::Pixmap,
+    left: u32,
+    top: u32,
+    right: u32,
+    bottom: u32,
+) -> Result<(ts::Pixmap, ts::Pixmap)> {
     let w = src.width() + left + right;
     let h = src.height() + top + bottom;
-    let mut out = ts::Pixmap::new(w, h).ok_or_else(|| Error::Invalid(format!("padded canvas is {w}x{h}")))?;
-    let mut mask = ts::Pixmap::new(w, h).ok_or_else(|| Error::Invalid(format!("padded canvas is {w}x{h}")))?;
+    let mut out =
+        ts::Pixmap::new(w, h).ok_or_else(|| Error::Invalid(format!("padded canvas is {w}x{h}")))?;
+    let mut mask =
+        ts::Pixmap::new(w, h).ok_or_else(|| Error::Invalid(format!("padded canvas is {w}x{h}")))?;
     mask.fill(ts::Color::WHITE);
     out.draw_pixmap(
         left as i32,
@@ -364,7 +374,10 @@ mod tests {
 
         let edge_hard = hard.pixel(16, 32).unwrap().red();
         let edge_soft = soft.pixel(16, 32).unwrap().red();
-        assert!(edge_hard == 0 || edge_hard == 255, "hard edge is binary: {edge_hard}");
+        assert!(
+            edge_hard == 0 || edge_hard == 255,
+            "hard edge is binary: {edge_hard}"
+        );
         assert!(
             (1..=254).contains(&edge_soft),
             "feathered edge is a gradient, got {edge_soft}"
@@ -386,9 +399,21 @@ mod tests {
         src.fill(ts::Color::from_rgba8(10, 20, 30, 255));
         let (padded, mask) = pad(&src, 4, 0, 4, 0).unwrap();
         assert_eq!((padded.width(), padded.height()), (16, 8));
-        assert_eq!(mask.pixel(0, 0).unwrap().red(), 255, "new margin is paintable");
-        assert_eq!(mask.pixel(8, 4).unwrap().red(), 0, "original pixels are protected");
-        assert_eq!(padded.pixel(8, 4).unwrap().red(), 10, "original pixels are kept");
+        assert_eq!(
+            mask.pixel(0, 0).unwrap().red(),
+            255,
+            "new margin is paintable"
+        );
+        assert_eq!(
+            mask.pixel(8, 4).unwrap().red(),
+            0,
+            "original pixels are protected"
+        );
+        assert_eq!(
+            padded.pixel(8, 4).unwrap().red(),
+            10,
+            "original pixels are kept"
+        );
     }
 
     #[test]

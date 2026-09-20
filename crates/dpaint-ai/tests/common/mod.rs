@@ -17,7 +17,9 @@ pub const SRC_LAYER: &str = "lyr_src";
 /// A solid PNG of the given size and colour.
 pub fn png(w: u32, h: u32, rgba: [u8; 4]) -> Vec<u8> {
     let mut pm = tiny_skia::Pixmap::new(w, h).unwrap();
-    pm.fill(tiny_skia::Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]));
+    pm.fill(tiny_skia::Color::from_rgba8(
+        rgba[0], rgba[1], rgba[2], rgba[3],
+    ));
     pm.encode_png().unwrap()
 }
 
@@ -38,7 +40,10 @@ pub fn cutout_png(w: u32, h: u32) -> Vec<u8> {
 
 pub fn config() -> AiConfig {
     // No sleeping between polls: the tests assert the poll sequence, not the clock.
-    AiConfig { poll_interval_ms: 0, ..AiConfig::default() }
+    AiConfig {
+        poll_interval_ms: 0,
+        ..AiConfig::default()
+    }
 }
 
 pub fn runtime(transport: Arc<RecordedTransport>, keys: StaticKeys) -> Runtime {
@@ -67,7 +72,10 @@ impl Fixture {
         )));
 
         let mut ws = Workspace::create(dir.path(), project).unwrap();
-        let asset = ws.assets.put(&png(32, 32, [20, 60, 120, 255]), "png").unwrap();
+        let asset = ws
+            .assets
+            .put(&png(32, 32, [20, 60, 120, 255]), "png")
+            .unwrap();
         ws.project
             .raster_mut(&DocId::from("doc_main"))
             .unwrap()
@@ -75,13 +83,20 @@ impl Fixture {
             .push(Layer::new(
                 LayerId::from(SRC_LAYER),
                 "src",
-                LayerKind::Pixel { asset, offset: [0, 0] },
+                LayerKind::Pixel {
+                    asset,
+                    offset: [0, 0],
+                },
             ));
         ws.save().unwrap();
 
         let mut registry = Registry::new();
         registry.extend(dpaint_ai::ops_with(runtime(transport.clone(), keys)));
-        Self { dir, engine: Engine::new(registry, ws), transport }
+        Self {
+            dir,
+            engine: Engine::new(registry, ws),
+            transport,
+        }
     }
 
     pub fn assets(&self) -> &AssetStore {

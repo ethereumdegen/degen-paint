@@ -20,16 +20,35 @@ pub struct ServerConfig {
 
 impl Default for ServerConfig {
     fn default() -> Self {
-        Self { addr: "127.0.0.1:4317".into(), ui_dir: None }
+        Self {
+            addr: "127.0.0.1:4317".into(),
+            ui_dir: None,
+        }
     }
 }
 
 /// Files of the bundled UI, compiled in so `dpaint serve` works from any directory.
 const UI: &[(&str, &str, &str)] = &[
-    ("/", "text/html; charset=utf-8", include_str!("../ui/index.html")),
-    ("/index.html", "text/html; charset=utf-8", include_str!("../ui/index.html")),
-    ("/studio.css", "text/css; charset=utf-8", include_str!("../ui/studio.css")),
-    ("/studio.js", "text/javascript; charset=utf-8", include_str!("../ui/studio.js")),
+    (
+        "/",
+        "text/html; charset=utf-8",
+        include_str!("../ui/index.html"),
+    ),
+    (
+        "/index.html",
+        "text/html; charset=utf-8",
+        include_str!("../ui/index.html"),
+    ),
+    (
+        "/studio.css",
+        "text/css; charset=utf-8",
+        include_str!("../ui/studio.css"),
+    ),
+    (
+        "/studio.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../ui/studio.js"),
+    ),
 ];
 
 pub fn serve(studio: Studio, config: ServerConfig) -> Result<()> {
@@ -39,7 +58,10 @@ pub fn serve(studio: Studio, config: ServerConfig) -> Result<()> {
         .local_addr()
         .map(|a| a.to_string())
         .unwrap_or_else(|_| config.addr.clone());
-    println!("degen-paint studio on http://{local}  (project: {})", studio.root().display());
+    println!(
+        "degen-paint studio on http://{local}  (project: {})",
+        studio.root().display()
+    );
 
     let studio = Arc::new(studio);
     let ui_dir = config.ui_dir.clone();
@@ -119,18 +141,30 @@ fn handle(mut stream: TcpStream, studio: &Studio, ui_dir: Option<&Path>) -> Resu
                     stream.write_all(&png)?;
                     Ok(())
                 }
-                Err(e) => reply_json(&mut stream, 500, &json!({ "ok": false, "error": e.detail() })),
+                Err(e) => reply_json(
+                    &mut stream,
+                    500,
+                    &json!({ "ok": false, "error": e.detail() }),
+                ),
             }
         }
         ("GET", _) => serve_ui(&mut stream, &path, ui_dir),
-        _ => reply_json(&mut stream, 405, &json!({ "ok": false, "error": "method not allowed" })),
+        _ => reply_json(
+            &mut stream,
+            405,
+            &json!({ "ok": false, "error": "method not allowed" }),
+        ),
     }
 }
 
 fn serve_ui(stream: &mut TcpStream, path: &str, ui_dir: Option<&Path>) -> Result<()> {
     // A --ui-dir wins, so the frontend can be edited with live reload during development.
     if let Some(dir) = ui_dir {
-        let rel = if path == "/" { "index.html" } else { path.trim_start_matches('/') };
+        let rel = if path == "/" {
+            "index.html"
+        } else {
+            path.trim_start_matches('/')
+        };
         let file = dir.join(rel);
         if file.is_file() {
             let bytes = std::fs::read(&file)?;
@@ -201,18 +235,16 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
-            b'%' if i + 2 < bytes.len() => {
-                match u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                    Ok(b) => {
-                        out.push(b);
-                        i += 3;
-                    }
-                    Err(_) => {
-                        out.push(bytes[i]);
-                        i += 1;
-                    }
+            b'%' if i + 2 < bytes.len() => match u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                Ok(b) => {
+                    out.push(b);
+                    i += 3;
                 }
-            }
+                Err(_) => {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            },
             b'+' => {
                 out.push(b' ');
                 i += 1;
@@ -235,7 +267,11 @@ mod tests {
         let q = parse_query("doc=doc_main&scale=1.5&sel=%23lyr_sky");
         assert_eq!(q.get("doc").unwrap(), "doc_main");
         assert_eq!(q.get("scale").unwrap(), "1.5");
-        assert_eq!(q.get("sel").unwrap(), "#lyr_sky", "selectors arrive percent-encoded");
+        assert_eq!(
+            q.get("sel").unwrap(),
+            "#lyr_sky",
+            "selectors arrive percent-encoded"
+        );
     }
 
     #[test]

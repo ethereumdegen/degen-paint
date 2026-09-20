@@ -3,9 +3,7 @@
 use super::{all_of_type, declare_op, target_model, unique_id};
 use crate::export::scene_bounds;
 use dpaint_core::doc::model::{Camera, Light, LightKind, Node, UpAxis};
-use dpaint_core::{
-    CameraId, Color, Error, LightId, NodeId, OpCx, OpEffect, Project, Result,
-};
+use dpaint_core::{CameraId, Color, Error, LightId, NodeId, OpCx, OpEffect, Project, Result};
 use serde::Deserialize;
 
 fn color_of(project: &Project, s: &str) -> Result<Color> {
@@ -87,10 +85,8 @@ fn light_add(project: &mut Project, args: LightAddArgs, cx: &mut OpCx) -> Result
             node.translation = t;
         }
         if let Some(at) = args.look_at {
-            node.rotation = crate::geom::look_rotation(
-                crate::geom::sub(at, node.translation),
-                [0.0, 1.0, 0.0],
-            );
+            node.rotation =
+                crate::geom::look_rotation(crate::geom::sub(at, node.translation), [0.0, 1.0, 0.0]);
         }
         model.nodes.push(node);
         effect = effect.with_created(node_id.to_string());
@@ -244,10 +240,8 @@ fn camera_add(project: &mut Project, args: CameraAddArgs, cx: &mut OpCx) -> Resu
             node.translation = t;
         }
         if let Some(at) = args.look_at {
-            node.rotation = crate::geom::look_rotation(
-                crate::geom::sub(at, node.translation),
-                [0.0, 1.0, 0.0],
-            );
+            node.rotation =
+                crate::geom::look_rotation(crate::geom::sub(at, node.translation), [0.0, 1.0, 0.0]);
         }
         model.nodes.push(node);
         effect = effect.with_created(node_id.to_string());
@@ -449,7 +443,11 @@ fn scene_scale_to_fit(
     let roots: Vec<NodeId> = model.roots().iter().map(|n| n.id.clone()).collect();
     for id in roots {
         if let Some(n) = model.node_mut(&id) {
-            n.scale = [n.scale[0] * factor, n.scale[1] * factor, n.scale[2] * factor];
+            n.scale = [
+                n.scale[0] * factor,
+                n.scale[1] * factor,
+                n.scale[2] * factor,
+            ];
             n.translation = [
                 n.translation[0] * factor,
                 n.translation[1] * factor,

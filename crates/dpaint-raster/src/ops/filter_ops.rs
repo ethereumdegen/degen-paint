@@ -33,9 +33,14 @@ pub struct BlurArgs {
 
 fn gaussian_blur(project: &mut Project, a: BlurArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if !(a.sigma.is_finite() && a.sigma > 0.0) {
-        return Err(Error::Invalid(format!("sigma must be positive, got {}", a.sigma)));
+        return Err(Error::Invalid(format!(
+            "sigma must be positive, got {}",
+            a.sigma
+        )));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::gaussian_blur(c, a.sigma)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::gaussian_blur(c, a.sigma))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -58,7 +63,9 @@ fn box_blur(project: &mut Project, a: BoxBlurArgs, cx: &mut OpCx) -> Result<OpEf
     if a.radius == 0 {
         return Err(Error::Invalid("box blur radius must be at least 1".into()));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::box_blur(c, a.radius, a.iterations)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::box_blur(c, a.radius, a.iterations))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -75,9 +82,13 @@ pub struct MotionBlurArgs {
 
 fn motion_blur(project: &mut Project, a: MotionBlurArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if a.distance <= 0.0 {
-        return Err(Error::Invalid("motion blur distance must be positive".into()));
+        return Err(Error::Invalid(
+            "motion blur distance must be positive".into(),
+        ));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::motion_blur(c, a.distance, a.angle)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::motion_blur(c, a.distance, a.angle))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -103,7 +114,9 @@ fn radial_blur(project: &mut Project, a: RadialBlurArgs, cx: &mut OpCx) -> Resul
     let center = a
         .center
         .unwrap_or([rd.width() as f32 / 2.0, rd.height() as f32 / 2.0]);
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::radial_blur(c, a.mode, a.amount, center)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::radial_blur(c, a.mode, a.amount, center))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -145,7 +158,9 @@ pub struct SharpenArgs {
 }
 
 fn sharpen(project: &mut Project, a: SharpenArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::sharpen(c, a.amount)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::sharpen(c, a.amount))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -192,9 +207,13 @@ fn quarter() -> f32 {
 
 fn noise_reduce(project: &mut Project, a: NoiseReduceArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if a.radius == 0 {
-        return Err(Error::Invalid("noise-reduce radius must be at least 1".into()));
+        return Err(Error::Invalid(
+            "noise-reduce radius must be at least 1".into(),
+        ));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::noise_reduce(c, a.radius, a.threshold)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::noise_reduce(c, a.radius, a.threshold))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -210,7 +229,9 @@ fn pixelate(project: &mut Project, a: PixelateArgs, cx: &mut OpCx) -> Result<OpE
     if a.size < 2 {
         return Err(Error::Invalid("pixelate size must be at least 2".into()));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::pixelate(c, a.size)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::pixelate(c, a.size))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -234,7 +255,14 @@ pub struct ConvolveArgs {
 
 fn convolve(project: &mut Project, a: ConvolveArgs, cx: &mut OpCx) -> Result<OpEffect> {
     // Validate the kernel once, before touching any pixels.
-    filters::convolve(&Canvas::new(1, 1), a.width, a.height, &a.kernel, a.divisor, a.bias)?;
+    filters::convolve(
+        &Canvas::new(1, 1),
+        a.width,
+        a.height,
+        &a.kernel,
+        a.divisor,
+        a.bias,
+    )?;
     each(project, &a.target, a.scope, cx, |c| {
         filters::convolve(c, a.width, a.height, &a.kernel, a.divisor, a.bias)
     })
@@ -256,9 +284,13 @@ pub struct MorphologyArgs {
 
 fn morphology(project: &mut Project, a: MorphologyArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if a.radius == 0 {
-        return Err(Error::Invalid("morphology radius must be at least 1".into()));
+        return Err(Error::Invalid(
+            "morphology radius must be at least 1".into(),
+        ));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::morphology(c, a.op, a.radius, a.shape)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::morphology(c, a.op, a.radius, a.shape))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -279,7 +311,9 @@ pub struct DisplaceArgs {
 fn displace(project: &mut Project, a: DisplaceArgs, cx: &mut OpCx) -> Result<OpEffect> {
     let map = Canvas::from_png(&cx.assets.get(&a.map)?)?;
     let sy = a.scale_y.unwrap_or(a.scale_x);
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::displace(c, &map, a.scale_x, sy)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::displace(c, &map, a.scale_x, sy))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -342,7 +376,9 @@ fn dither(project: &mut Project, a: DitherArgs, cx: &mut OpCx) -> Result<OpEffec
     if a.levels < 2 {
         return Err(Error::Invalid("dither needs at least 2 levels".into()));
     }
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::dither(c, a.levels, a.matrix)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::dither(c, a.levels, a.matrix))
+    })
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -363,24 +399,116 @@ fn sobel() -> EdgeKernel {
 }
 
 fn edge_detect(project: &mut Project, a: EdgeArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    each(project, &a.target, a.scope, cx, |c| Ok(filters::edge_detect(c, a.kernel, a.amount)))
+    each(project, &a.target, a.scope, cx, |c| {
+        Ok(filters::edge_detect(c, a.kernel, a.amount))
+    })
 }
 
-raster_op!(GaussianBlur, "raster.filter.gaussian-blur", "Separable gaussian blur in linear light", BlurArgs, gaussian_blur);
-raster_op!(BoxBlur, "raster.filter.box-blur", "Box blur, optionally iterated", BoxBlurArgs, box_blur);
-raster_op!(MotionBlur, "raster.filter.motion-blur", "Directional blur along an angle", MotionBlurArgs, motion_blur);
-raster_op!(RadialBlur, "raster.filter.radial-blur", "Zoom or spin blur about a center", RadialBlurArgs, radial_blur);
-raster_op!(Unsharp, "raster.filter.unsharp", "Unsharp mask with a threshold", UnsharpArgs, unsharp);
-raster_op!(Sharpen, "raster.filter.sharpen", "Simple sharpen convolution", SharpenArgs, sharpen);
-raster_op!(NoiseAdd, "raster.filter.noise-add", "Add seeded noise", NoiseArgs, noise_add);
-raster_op!(NoiseReduce, "raster.filter.noise-reduce", "Edge-preserving median denoise", NoiseReduceArgs, noise_reduce);
-raster_op!(Pixelate, "raster.filter.pixelate", "Average pixels into square blocks", PixelateArgs, pixelate);
-raster_op!(Convolve, "raster.filter.convolve", "Apply an arbitrary convolution kernel", ConvolveArgs, convolve);
-raster_op!(Morphology, "raster.filter.morphology", "Dilate or erode coverage", MorphologyArgs, morphology);
-raster_op!(Displace, "raster.filter.displace", "Displace pixels by a map image", DisplaceArgs, displace);
-raster_op!(ChannelOp, "raster.filter.channel-op", "Copy, swap, invert or combine channels", ChannelOpArgs, channel_op);
-raster_op!(Dither, "raster.filter.dither", "Ordered Bayer dithering", DitherArgs, dither);
-raster_op!(EdgeDetect, "raster.filter.edge-detect", "Sobel, Prewitt or Laplace edge detection", EdgeArgs, edge_detect);
+raster_op!(
+    GaussianBlur,
+    "raster.filter.gaussian-blur",
+    "Separable gaussian blur in linear light",
+    BlurArgs,
+    gaussian_blur
+);
+raster_op!(
+    BoxBlur,
+    "raster.filter.box-blur",
+    "Box blur, optionally iterated",
+    BoxBlurArgs,
+    box_blur
+);
+raster_op!(
+    MotionBlur,
+    "raster.filter.motion-blur",
+    "Directional blur along an angle",
+    MotionBlurArgs,
+    motion_blur
+);
+raster_op!(
+    RadialBlur,
+    "raster.filter.radial-blur",
+    "Zoom or spin blur about a center",
+    RadialBlurArgs,
+    radial_blur
+);
+raster_op!(
+    Unsharp,
+    "raster.filter.unsharp",
+    "Unsharp mask with a threshold",
+    UnsharpArgs,
+    unsharp
+);
+raster_op!(
+    Sharpen,
+    "raster.filter.sharpen",
+    "Simple sharpen convolution",
+    SharpenArgs,
+    sharpen
+);
+raster_op!(
+    NoiseAdd,
+    "raster.filter.noise-add",
+    "Add seeded noise",
+    NoiseArgs,
+    noise_add
+);
+raster_op!(
+    NoiseReduce,
+    "raster.filter.noise-reduce",
+    "Edge-preserving median denoise",
+    NoiseReduceArgs,
+    noise_reduce
+);
+raster_op!(
+    Pixelate,
+    "raster.filter.pixelate",
+    "Average pixels into square blocks",
+    PixelateArgs,
+    pixelate
+);
+raster_op!(
+    Convolve,
+    "raster.filter.convolve",
+    "Apply an arbitrary convolution kernel",
+    ConvolveArgs,
+    convolve
+);
+raster_op!(
+    Morphology,
+    "raster.filter.morphology",
+    "Dilate or erode coverage",
+    MorphologyArgs,
+    morphology
+);
+raster_op!(
+    Displace,
+    "raster.filter.displace",
+    "Displace pixels by a map image",
+    DisplaceArgs,
+    displace
+);
+raster_op!(
+    ChannelOp,
+    "raster.filter.channel-op",
+    "Copy, swap, invert or combine channels",
+    ChannelOpArgs,
+    channel_op
+);
+raster_op!(
+    Dither,
+    "raster.filter.dither",
+    "Ordered Bayer dithering",
+    DitherArgs,
+    dither
+);
+raster_op!(
+    EdgeDetect,
+    "raster.filter.edge-detect",
+    "Sobel, Prewitt or Laplace edge detection",
+    EdgeArgs,
+    edge_detect
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

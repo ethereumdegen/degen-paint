@@ -81,7 +81,13 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
     let fonts = crate::text::FontSet::new(project, cx.assets);
     let layout = crate::text::layout(&spec, &fonts)?;
     let name = args.name.clone().unwrap_or_else(|| {
-        spec.text.lines().next().unwrap_or("Text").chars().take(24).collect()
+        spec.text
+            .lines()
+            .next()
+            .unwrap_or("Text")
+            .chars()
+            .take(24)
+            .collect()
     });
     let rd = project.raster(&doc)?;
     let id = support::fresh_id(rd, &name);
@@ -90,7 +96,10 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
         name,
         LayerKind::Text {
             spec: spec.clone(),
-            fill: args.fill.clone().unwrap_or_else(|| Paint::solid(Color::BLACK)),
+            fill: args
+                .fill
+                .clone()
+                .unwrap_or_else(|| Paint::solid(Color::BLACK)),
             stroke: args.stroke.clone(),
         },
     );
@@ -102,7 +111,10 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
         effect = effect.warn(
             "font-fallback",
             id.to_string(),
-            format!("'{}' is not available; used '{}'", spec.family, layout.used_family),
+            format!(
+                "'{}' is not available; used '{}'",
+                spec.family, layout.used_family
+            ),
         );
     }
     if layout.overflow {
@@ -150,7 +162,10 @@ fn set(project: &mut Project, args: SetArgs, cx: &mut OpCx) -> Result<OpEffect> 
     let rd = project.raster(&doc)?;
     let layer = support::layer_of(rd, &id)?;
     let LayerKind::Text { spec, fill, stroke } = &layer.kind else {
-        return Err(Error::Invalid(format!("'{}' is not a text layer", layer.name)));
+        return Err(Error::Invalid(format!(
+            "'{}' is not a text layer",
+            layer.name
+        )));
     };
     let mut spec = spec.clone();
     if let Some(t) = args.text {
@@ -198,7 +213,10 @@ fn set(project: &mut Project, args: SetArgs, cx: &mut OpCx) -> Result<OpEffect> 
         effect = effect.warn(
             "font-fallback",
             id.to_string(),
-            format!("'{requested}' is not available; used '{}'", layout.used_family),
+            format!(
+                "'{requested}' is not available; used '{}'",
+                layout.used_family
+            ),
         );
     }
     if layout.overflow {
@@ -229,7 +247,10 @@ fn fit(project: &mut Project, args: FitArgs, cx: &mut OpCx) -> Result<OpEffect> 
     let rd = project.raster(&doc)?;
     let layer = support::layer_of(rd, &id)?;
     let LayerKind::Text { spec, .. } = &layer.kind else {
-        return Err(Error::Invalid(format!("'{}' is not a text layer", layer.name)));
+        return Err(Error::Invalid(format!(
+            "'{}' is not a text layer",
+            layer.name
+        )));
     };
     if spec.r#box.is_none() {
         return Err(Error::Invalid(
@@ -241,19 +262,24 @@ fn fit(project: &mut Project, args: FitArgs, cx: &mut OpCx) -> Result<OpEffect> 
     let hit_floor = size <= args.min_size;
     let original = spec.size;
     if !cx.dry_run {
-        if let Some(LayerKind::Text { spec, .. }) =
-            project.raster_mut(&doc)?.layer_mut(&id).map(|l| &mut l.kind)
+        if let Some(LayerKind::Text { spec, .. }) = project
+            .raster_mut(&doc)?
+            .layer_mut(&id)
+            .map(|l| &mut l.kind)
         {
             spec.size = size;
         }
     }
-    let mut effect = OpEffect::changed(&doc)
-        .with_data(serde_json::json!({ "from": original, "to": size }));
+    let mut effect =
+        OpEffect::changed(&doc).with_data(serde_json::json!({ "from": original, "to": size }));
     if hit_floor {
         effect = effect.warn(
             "text-overflow",
             id.to_string(),
-            format!("the text still overflows at the minimum size of {}", args.min_size),
+            format!(
+                "the text still overflows at the minimum size of {}",
+                args.min_size
+            ),
         );
     }
     Ok(effect)
@@ -273,7 +299,10 @@ fn to_shape(project: &mut Project, args: ToShapeArgs, cx: &mut OpCx) -> Result<O
     let rd = project.raster(&doc)?;
     let layer = support::layer_of(rd, &id)?;
     let LayerKind::Text { spec, fill, stroke } = &layer.kind else {
-        return Err(Error::Invalid(format!("'{}' is not a text layer", layer.name)));
+        return Err(Error::Invalid(format!(
+            "'{}' is not a text layer",
+            layer.name
+        )));
     };
     let fonts = crate::text::FontSet::new(project, cx.assets);
     let (d, fallback, used) = crate::text::outline_d(spec, &fonts)?;
@@ -287,7 +316,11 @@ fn to_shape(project: &mut Project, args: ToShapeArgs, cx: &mut OpCx) -> Result<O
     let name = format!("{} outlines", layer.name);
     let (path, index) = support::locate(rd, &id)
         .ok_or_else(|| Error::Invalid(format!("layer {id} is not in the stack")))?;
-    let new_id = if args.keep { support::fresh_id(rd, &name) } else { id.clone() };
+    let new_id = if args.keep {
+        support::fresh_id(rd, &name)
+    } else {
+        id.clone()
+    };
     let transform = layer.transform;
     if !cx.dry_run {
         if args.keep {
@@ -315,11 +348,40 @@ fn to_shape(project: &mut Project, args: ToShapeArgs, cx: &mut OpCx) -> Result<O
     Ok(effect)
 }
 
-raster_op!(TextAdd, "raster.text.add", "Add a live text layer", AddArgs, add);
-raster_op!(TextSet, "raster.text.set", "Change a text layer's content or typography", SetArgs, set);
-raster_op!(TextFit, "raster.text.fit", "Shrink a text layer's size until it fits its box", FitArgs, fit);
-raster_op!(TextToShape, "raster.text.to-shape", "Convert a text layer to vector outlines", ToShapeArgs, to_shape);
+raster_op!(
+    TextAdd,
+    "raster.text.add",
+    "Add a live text layer",
+    AddArgs,
+    add
+);
+raster_op!(
+    TextSet,
+    "raster.text.set",
+    "Change a text layer's content or typography",
+    SetArgs,
+    set
+);
+raster_op!(
+    TextFit,
+    "raster.text.fit",
+    "Shrink a text layer's size until it fits its box",
+    FitArgs,
+    fit
+);
+raster_op!(
+    TextToShape,
+    "raster.text.to-shape",
+    "Convert a text layer to vector outlines",
+    ToShapeArgs,
+    to_shape
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
-    vec![Box::new(TextAdd), Box::new(TextSet), Box::new(TextFit), Box::new(TextToShape)]
+    vec![
+        Box::new(TextAdd),
+        Box::new(TextSet),
+        Box::new(TextFit),
+        Box::new(TextToShape),
+    ]
 }

@@ -65,7 +65,12 @@ impl Journal {
     }
 
     pub fn with_vfs(path: impl Into<PathBuf>, vfs: Arc<dyn Vfs>) -> Self {
-        Self { path: path.into(), vfs, entries: Vec::new(), loaded: false }
+        Self {
+            path: path.into(),
+            vfs,
+            entries: Vec::new(),
+            loaded: false,
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -215,8 +220,15 @@ mod tests {
         let mut states = states;
         for dpi in [150.0f32, 300.0, 600.0] {
             let (before, after) = mutate(&mut p, dpi);
-            j.record("raster.canvas.set-dpi", serde_json::json!({ "dpi": dpi }), &before, &after, None, Actor::Agent)
-                .unwrap();
+            j.record(
+                "raster.canvas.set-dpi",
+                serde_json::json!({ "dpi": dpi }),
+                &before,
+                &after,
+                None,
+                Actor::Agent,
+            )
+            .unwrap();
             states.push(after);
         }
 
@@ -224,7 +236,10 @@ mod tests {
             j.undo(&mut p).unwrap();
             assert_eq!(&serde_json::to_value(&p).unwrap(), expect);
         }
-        assert!(j.undo(&mut p).unwrap().is_none(), "undo past the start must be a no-op");
+        assert!(
+            j.undo(&mut p).unwrap().is_none(),
+            "undo past the start must be a no-op"
+        );
 
         for expect in states.iter().skip(1) {
             j.redo(&mut p).unwrap();
@@ -241,14 +256,28 @@ mod tests {
         {
             let mut j = Journal::new(&path);
             let (b, a) = mutate(&mut p, 300.0);
-            j.record("raster.canvas.set-dpi", serde_json::json!({}), &b, &a, None, Actor::Agent).unwrap();
+            j.record(
+                "raster.canvas.set-dpi",
+                serde_json::json!({}),
+                &b,
+                &a,
+                None,
+                Actor::Agent,
+            )
+            .unwrap();
             j.undo(&mut p).unwrap();
         }
         let mut j2 = Journal::new(&path);
         let entries = j2.load().unwrap().to_vec();
         assert_eq!(entries.len(), 1);
-        assert!(entries[0].undone, "undone state must persist across processes");
-        assert_eq!(j2.redo(&mut p).unwrap().as_deref(), Some("raster.canvas.set-dpi"));
+        assert!(
+            entries[0].undone,
+            "undone state must persist across processes"
+        );
+        assert_eq!(
+            j2.redo(&mut p).unwrap().as_deref(),
+            Some("raster.canvas.set-dpi")
+        );
         assert_eq!(p.raster(&DocId::from("doc_main")).unwrap().dpi, 300.0);
     }
 }

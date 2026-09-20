@@ -153,8 +153,18 @@ pub fn heatmap(a: &RgbaImage, b: &RgbaImage) -> Result<RgbaImage> {
         for x in 0..w {
             let pa = a.get_pixel(x, y).0;
             let pb = b.get_pixel(x, y).0;
-            let ca = Color::rgba(pa[0] as f32 / 255.0, pa[1] as f32 / 255.0, pa[2] as f32 / 255.0, pa[3] as f32 / 255.0);
-            let cb = Color::rgba(pb[0] as f32 / 255.0, pb[1] as f32 / 255.0, pb[2] as f32 / 255.0, pb[3] as f32 / 255.0);
+            let ca = Color::rgba(
+                pa[0] as f32 / 255.0,
+                pa[1] as f32 / 255.0,
+                pa[2] as f32 / 255.0,
+                pa[3] as f32 / 255.0,
+            );
+            let cb = Color::rgba(
+                pb[0] as f32 / 255.0,
+                pb[1] as f32 / 255.0,
+                pb[2] as f32 / 255.0,
+                pb[3] as f32 / 255.0,
+            );
             let de = (ca.delta_e(cb) + (ca.a - cb.a).abs() * 100.0).min(50.0) / 50.0;
             // Black -> red -> yellow, so magnitude is readable at a glance.
             let r = (de * 2.0).min(1.0);
@@ -199,9 +209,17 @@ mod tests {
         }
         let d = compare(&a, &b).unwrap();
         assert!(!d.identical);
-        assert_eq!(d.changed_bbox, Some([10, 4, 4, 4]), "the bbox must bound exactly the edit");
+        assert_eq!(
+            d.changed_bbox,
+            Some([10, 4, 4, 4]),
+            "the bbox must bound exactly the edit"
+        );
         assert!((d.changed_fraction - 16.0 / 1024.0).abs() < 1e-9);
-        assert!(d.ssim < 1.0 && d.ssim > 0.8, "a small edit should dent ssim slightly: {}", d.ssim);
+        assert!(
+            d.ssim < 1.0 && d.ssim > 0.8,
+            "a small edit should dent ssim slightly: {}",
+            d.ssim
+        );
     }
 
     #[test]
@@ -219,7 +237,10 @@ mod tests {
         let a = solid(16, 16, [255, 0, 0, 255]);
         let b = solid(16, 16, [255, 0, 0, 0]);
         let d = compare(&a, &b).unwrap();
-        assert!(!d.identical, "a fully transparent copy is not the same image");
+        assert!(
+            !d.identical,
+            "a fully transparent copy is not the same image"
+        );
     }
 
     #[test]

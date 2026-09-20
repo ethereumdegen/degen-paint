@@ -151,9 +151,8 @@ fn sample_at(
     let id = one(project, target, &doc)?;
     let v = project.vector(&doc)?;
     let p = geom::path_in_doc(v, &id)?;
-    let (pt, tan) = geom::sample(&p, t).ok_or_else(|| {
-        Error::DegenerateGeometry(format!("'{id}' has no segments to sample"))
-    })?;
+    let (pt, tan) = geom::sample(&p, t)
+        .ok_or_else(|| Error::DegenerateGeometry(format!("'{id}' has no segments to sample")))?;
     Ok((pt, tan, geom::length(&p)))
 }
 

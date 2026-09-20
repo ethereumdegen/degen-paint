@@ -79,15 +79,24 @@ pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
         let spec = props.and_then(|p| p.get(&key).or_else(|| p.get(root_name)));
 
         if spec.is_none() {
-            let known: Vec<&str> = props.map(|p| p.keys().map(|s| s.as_str()).collect()).unwrap_or_default();
+            let known: Vec<&str> = props
+                .map(|p| p.keys().map(|s| s.as_str()).collect())
+                .unwrap_or_default();
             return Err(Error::SchemaViolation {
                 op: op.into(),
-                detail: format!("unknown argument '--{name}'; this op takes: {}", known.join(", ")),
+                detail: format!(
+                    "unknown argument '--{name}'; this op takes: {}",
+                    known.join(", ")
+                ),
             });
         }
 
         let resolved = effective(schema, spec.expect("checked above"));
-        let ty = if sub.is_some() { sub_type(schema, resolved, sub.as_deref().unwrap_or("")) } else { type_of(resolved) };
+        let ty = if sub.is_some() {
+            sub_type(schema, resolved, sub.as_deref().unwrap_or(""))
+        } else {
+            type_of(resolved)
+        };
         if ty == "boolean" && inline.is_none() {
             // Bare `--invert` means true, but `--invert false` still works.
             let next_is_value = argv
@@ -114,7 +123,11 @@ pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
                     detail: format!("'--{name}' needs a value"),
                 })?,
         };
-        let consumed = if spec.is_some() && argv.get(i + 1).map(|v| v == &raw).unwrap_or(false) { 2 } else { 1 };
+        let consumed = if spec.is_some() && argv.get(i + 1).map(|v| v == &raw).unwrap_or(false) {
+            2
+        } else {
+            1
+        };
         match sub {
             Some(field) => {
                 let slot = out.entry(key).or_insert_with(|| Value::Object(Map::new()));
@@ -243,7 +256,11 @@ pub fn usage(id: &str, about: &str, schema: &Value) -> String {
             let flag = name.replace('_', "-");
             let resolved = effective(schema, spec);
             let ty = type_of(resolved);
-            let req = if required.contains(&name.as_str()) { " (required)" } else { "" };
+            let req = if required.contains(&name.as_str()) {
+                " (required)"
+            } else {
+                ""
+            };
             let desc = spec
                 .get("description")
                 .and_then(|d| d.as_str())
@@ -291,23 +308,41 @@ mod tests {
 
     #[test]
     fn scalars_are_coerced_to_their_schema_types() {
-        let v = parse("t", &schema(), &args(&["--radius", "12", "--layer", "#sky"])).unwrap();
+        let v = parse(
+            "t",
+            &schema(),
+            &args(&["--radius", "12", "--layer", "#sky"]),
+        )
+        .unwrap();
         assert_eq!(v["radius"], 12.0);
         assert_eq!(v["layer"], "#sky");
-        assert!(v["radius"].is_number(), "a number flag must not arrive as a string");
+        assert!(
+            v["radius"].is_number(),
+            "a number flag must not arrive as a string"
+        );
     }
 
     #[test]
     fn bare_boolean_flags_mean_true_and_can_still_be_set_explicitly() {
         let v = parse("t", &schema(), &args(&["--radius", "1", "--invert"])).unwrap();
         assert_eq!(v["invert"], true);
-        let v = parse("t", &schema(), &args(&["--radius", "1", "--invert", "false"])).unwrap();
+        let v = parse(
+            "t",
+            &schema(),
+            &args(&["--radius", "1", "--invert", "false"]),
+        )
+        .unwrap();
         assert_eq!(v["invert"], false);
     }
 
     #[test]
     fn arrays_accept_both_comma_lists_and_json() {
-        let v = parse("t", &schema(), &args(&["--radius", "1", "--size", "100,200"])).unwrap();
+        let v = parse(
+            "t",
+            &schema(),
+            &args(&["--radius", "1", "--size", "100,200"]),
+        )
+        .unwrap();
         assert_eq!(v["size"], serde_json::json!([100, 200]));
         let v = parse("t", &schema(), &args(&["--radius", "1", "--size", "[3,4]"])).unwrap();
         assert_eq!(v["size"], serde_json::json!([3, 4]));
@@ -315,7 +350,12 @@ mod tests {
 
     #[test]
     fn kebab_flags_map_to_snake_fields_and_inline_values_work() {
-        let v = parse("t", &schema(), &args(&["--radius=2", "--fill-rule=evenodd"])).unwrap();
+        let v = parse(
+            "t",
+            &schema(),
+            &args(&["--radius=2", "--fill-rule=evenodd"]),
+        )
+        .unwrap();
         assert_eq!(v["radius"], 2.0);
         assert_eq!(v["fill_rule"], "evenodd");
     }
@@ -331,12 +371,20 @@ mod tests {
     fn an_unknown_flag_lists_what_the_op_actually_takes() {
         let err = parse("blur", &schema(), &args(&["--radiuss", "1"])).unwrap_err();
         assert_eq!(err.code(), "schema_violation");
-        assert!(err.to_string().contains("radius"), "the error must name the real flags: {err}");
+        assert!(
+            err.to_string().contains("radius"),
+            "the error must name the real flags: {err}"
+        );
     }
 
     #[test]
     fn raw_json_can_be_passed_wholesale() {
-        let v = parse("t", &schema(), &args(&["--args", r##"{"radius": 4, "layer": "#a"}"##])).unwrap();
+        let v = parse(
+            "t",
+            &schema(),
+            &args(&["--args", r##"{"radius": 4, "layer": "#a"}"##]),
+        )
+        .unwrap();
         assert_eq!(v["radius"], 4);
         assert_eq!(v["layer"], "#a");
     }
@@ -373,17 +421,32 @@ mod tests {
         let v = parse(
             "t",
             &object_schema(),
-            &args(&["--text", "HELLO", "--text.size", "64", "--text.family", "Inter"]),
+            &args(&[
+                "--text",
+                "HELLO",
+                "--text.size",
+                "64",
+                "--text.family",
+                "Inter",
+            ]),
         )
         .unwrap();
         assert_eq!(v["text"]["text"], "HELLO");
-        assert_eq!(v["text"]["size"], 64.0, "the nested field must keep its schema type");
+        assert_eq!(
+            v["text"]["size"], 64.0,
+            "the nested field must keep its schema type"
+        );
         assert_eq!(v["text"]["family"], "Inter");
     }
 
     #[test]
     fn a_full_json_object_still_wins_over_the_convenience_rule() {
-        let v = parse("t", &object_schema(), &args(&[r#"--text={"text":"A","size":12}"#])).unwrap();
+        let v = parse(
+            "t",
+            &object_schema(),
+            &args(&[r#"--text={"text":"A","size":12}"#]),
+        )
+        .unwrap();
         assert_eq!(v["text"]["size"], 12);
     }
 
@@ -391,7 +454,10 @@ mod tests {
     fn usage_lists_the_fields_of_an_object_argument() {
         let u = usage("raster.layer.add", "Add a layer", &object_schema());
         assert!(u.contains("--text <object>"), "{u}");
-        assert!(u.contains("--text.size"), "usage must show how to reach nested fields:\n{u}");
+        assert!(
+            u.contains("--text.size"),
+            "usage must show how to reach nested fields:\n{u}"
+        );
     }
 
     #[test]

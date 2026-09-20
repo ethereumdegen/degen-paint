@@ -24,7 +24,9 @@ impl Axis {
 
 /// Project every vertex along `axis` and normalize into `[0,1]` over the mesh bounds.
 pub fn planar(mesh: &mut MeshData, axis: Axis) {
-    let Some((lo, hi)) = mesh.bounds() else { return };
+    let Some((lo, hi)) = mesh.bounds() else {
+        return;
+    };
     let a = axis.index();
     let (u_ax, v_ax) = ((a + 1) % 3, (a + 2) % 3);
     let (du, dv) = (
@@ -41,7 +43,9 @@ pub fn planar(mesh: &mut MeshData, axis: Axis) {
 /// Six-sided box projection: each triangle takes the axis its normal points along most,
 /// so nothing stretches across a corner. Vertices are re-emitted per corner.
 pub fn box_project(mesh: &mut MeshData) {
-    let Some((lo, hi)) = mesh.bounds() else { return };
+    let Some((lo, hi)) = mesh.bounds() else {
+        return;
+    };
     let ext = [
         (hi[0] - lo[0]).max(1e-9),
         (hi[1] - lo[1]).max(1e-9),
@@ -94,7 +98,8 @@ pub fn unwrap(mesh: &mut MeshData, angle_deg: f32) {
     let cos_limit = angle_deg.clamp(1.0, 179.0).to_radians().cos();
 
     // Welded vertex ids give us real face adjacency even across duplicated corners.
-    let mut wmap: std::collections::HashMap<(i64, i64, i64), u32> = std::collections::HashMap::new();
+    let mut wmap: std::collections::HashMap<(i64, i64, i64), u32> =
+        std::collections::HashMap::new();
     let welded: Vec<u32> = mesh
         .positions
         .iter()
@@ -159,7 +164,11 @@ pub fn unwrap(mesh: &mut MeshData, angle_deg: f32) {
             avg = add(avg, normals[f]);
         }
         let n = normalize(avg);
-        let helper = if n[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+        let helper = if n[1].abs() > 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        };
         let tan = normalize(cross(helper, n));
         let bit = cross(n, tan);
         let mut uv = Vec::with_capacity(members.len() * 3);
@@ -217,7 +226,13 @@ pub fn unwrap(mesh: &mut MeshData, angle_deg: f32) {
         }
         Some(origins)
     };
-    let (mut lo_s, mut hi_s) = (1e-6f32, 1.0f32 / built.iter().fold(1e-6f32, |a, c| a.max(c.size[0].max(c.size[1]))));
+    let (mut lo_s, mut hi_s) = (
+        1e-6f32,
+        1.0f32
+            / built
+                .iter()
+                .fold(1e-6f32, |a, c| a.max(c.size[0].max(c.size[1]))),
+    );
     hi_s = hi_s.max(lo_s * 2.0);
     let mut best = try_pack(lo_s).unwrap_or_default();
     for _ in 0..24 {
@@ -310,7 +325,11 @@ pub fn tangents(mesh: &MeshData) -> Vec<[f32; 4]> {
         // Re-orthogonalize so the exported tangent is exactly perpendicular to the normal.
         let tv = [t[0], t[1], t[2]];
         let proj = sub(tv, scale(*n, dot(*n, tv)));
-        let tv = if length(proj) <= 1e-6 { tv } else { normalize(proj) };
+        let tv = if length(proj) <= 1e-6 {
+            tv
+        } else {
+            normalize(proj)
+        };
         *t = [tv[0], tv[1], tv[2], if t[3] < 0.0 { -1.0 } else { 1.0 }];
     }
     out
@@ -320,7 +339,11 @@ fn fallback_tangents(mesh: &MeshData) -> Vec<[f32; 4]> {
     mesh.normals
         .iter()
         .map(|n| {
-            let helper = if n[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+            let helper = if n[1].abs() > 0.9 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 1.0, 0.0]
+            };
             let t = normalize(cross(helper, *n));
             [t[0], t[1], t[2], 1.0]
         })

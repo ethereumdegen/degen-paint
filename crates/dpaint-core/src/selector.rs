@@ -1,7 +1,7 @@
 //! Selectors. Ops address objects by stable id, name, type and attribute — never by index,
 //! because an index shifts the moment anything is reordered. See `docs/selectors.md`.
 
-use crate::doc::{Document, DocKind};
+use crate::doc::{DocKind, Document};
 use crate::error::{Error, Result};
 use crate::ids::DocId;
 use crate::project::Project;
@@ -30,7 +30,11 @@ pub enum Source {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Predicate {
-    Attr { key: String, op: AttrOp, value: String },
+    Attr {
+        key: String,
+        op: AttrOp,
+        value: String,
+    },
     Pseudo(String),
 }
 
@@ -132,7 +136,9 @@ impl Term {
                 predicates.push(Predicate::Pseudo(p.to_string()));
                 rest = &stripped[end..];
             } else {
-                return Err(Error::SelectorSyntax(format!("unexpected '{rest}' in '{s}'")));
+                return Err(Error::SelectorSyntax(format!(
+                    "unexpected '{rest}' in '{s}'"
+                )));
             }
         }
         Ok(Term { source, predicates })
@@ -158,7 +164,9 @@ impl Predicate {
                 });
             }
         }
-        Err(Error::SelectorSyntax(format!("bad attribute predicate '[{body}]'")))
+        Err(Error::SelectorSyntax(format!(
+            "bad attribute predicate '[{body}]'"
+        )))
     }
 }
 
@@ -323,10 +331,26 @@ fn matches(c: &Candidate, t: &Term, index: usize, total: usize) -> bool {
         Predicate::Pseudo(p) => match p.as_str() {
             "first" => index == 0,
             "last" => index + 1 == total,
-            "visible" => c.attrs.get("visible").and_then(|v| v.as_bool()).unwrap_or(true),
-            "hidden" => !c.attrs.get("visible").and_then(|v| v.as_bool()).unwrap_or(true),
-            "locked" => c.attrs.get("locked").and_then(|v| v.as_bool()).unwrap_or(false),
-            "empty" => c.attrs.get("layers").map(|l| l.as_array().map(|a| a.is_empty()).unwrap_or(false)).unwrap_or(false),
+            "visible" => c
+                .attrs
+                .get("visible")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
+            "hidden" => !c
+                .attrs
+                .get("visible")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
+            "locked" => c
+                .attrs
+                .get("locked")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+            "empty" => c
+                .attrs
+                .get("layers")
+                .map(|l| l.as_array().map(|a| a.is_empty()).unwrap_or(false))
+                .unwrap_or(false),
             _ => false,
         },
     })
@@ -338,7 +362,11 @@ fn cmp_num(a: &str, b: &str) -> Option<std::cmp::Ordering> {
 
 /// Resolve a selector against the project. Zero matches is an error carrying the real
 /// candidate list, so a typo costs one turn instead of two.
-pub fn resolve(project: &Project, selector: &str, default_doc: Option<&DocId>) -> Result<Vec<Match>> {
+pub fn resolve(
+    project: &Project,
+    selector: &str,
+    default_doc: Option<&DocId>,
+) -> Result<Vec<Match>> {
     let sel = Selector::parse(selector)?;
     let doc_id = match (&sel.document, default_doc) {
         (Some(d), _) => project.resolve_doc(Some(d))?,
@@ -374,7 +402,11 @@ pub fn resolve(project: &Project, selector: &str, default_doc: Option<&DocId>) -
 }
 
 /// Resolve a selector that must name exactly one object.
-pub fn resolve_one(project: &Project, selector: &str, default_doc: Option<&DocId>) -> Result<Match> {
+pub fn resolve_one(
+    project: &Project,
+    selector: &str,
+    default_doc: Option<&DocId>,
+) -> Result<Match> {
     let mut m = resolve(project, selector, default_doc)?;
     if m.len() > 1 {
         return Err(Error::SelectorAmbiguous {
@@ -405,7 +437,13 @@ mod tests {
 
     fn project() -> Project {
         let mut r = RasterDoc::new(DocId::from("doc_main"), "main", 100, 100);
-        r.layers.push(Layer::new(LayerId::from("lyr_bg"), "bg", LayerKind::Fill { color: Color::WHITE }));
+        r.layers.push(Layer::new(
+            LayerId::from("lyr_bg"),
+            "bg",
+            LayerKind::Fill {
+                color: Color::WHITE,
+            },
+        ));
         let mut title = Layer::new(
             LayerId::from("lyr_title"),
             "title",
@@ -425,7 +463,9 @@ mod tests {
                 layers: vec![Layer::new(
                     LayerId::from("lyr_inner"),
                     "inner",
-                    LayerKind::Fill { color: Color::BLACK },
+                    LayerKind::Fill {
+                        color: Color::BLACK,
+                    },
                 )],
             },
         ));
@@ -434,7 +474,9 @@ mod tests {
         v.objects.push(VObject::new(
             ObjectId::from("obj_mark"),
             "mark",
-            VKind::Path { d: "M0 0 H10".into() },
+            VKind::Path {
+                d: "M0 0 H10".into(),
+            },
         ));
 
         let mut p = Project::new("t", Document::Raster(r));
@@ -448,7 +490,10 @@ mod tests {
             Selector::parse("#lyr_sky").unwrap().terms[0].source,
             Source::Id("lyr_sky".into())
         );
-        assert_eq!(Selector::parse("@sky").unwrap().terms[0].source, Source::Name("sky".into()));
+        assert_eq!(
+            Selector::parse("@sky").unwrap().terms[0].source,
+            Source::Name("sky".into())
+        );
         assert_eq!(Selector::parse("*").unwrap().terms[0].source, Source::All);
 
         let s = Selector::parse("logo:#obj_mark").unwrap();
@@ -475,7 +520,10 @@ mod tests {
         let p = project();
         // Both spellings from docs/selectors.md must work.
         assert_eq!(resolve(&p, "layer", None).unwrap().len(), 4);
-        assert_eq!(resolve(&p, "layer[type=text]", None).unwrap()[0].id, "lyr_title");
+        assert_eq!(
+            resolve(&p, "layer[type=text]", None).unwrap()[0].id,
+            "lyr_title"
+        );
         assert_eq!(resolve(&p, "logo:object", None).unwrap().len(), 1);
     }
 
@@ -483,7 +531,10 @@ mod tests {
     fn filters_by_type_attribute_and_pseudo() {
         let p = project();
         assert_eq!(resolve(&p, "text", None).unwrap().len(), 1);
-        assert_eq!(resolve(&p, "*[opacity<1]", None).unwrap()[0].id, "lyr_title");
+        assert_eq!(
+            resolve(&p, "*[opacity<1]", None).unwrap()[0].id,
+            "lyr_title"
+        );
         assert_eq!(resolve(&p, "*:hidden", None).unwrap()[0].id, "lyr_title");
         assert_eq!(resolve(&p, "*:first", None).unwrap()[0].id, "lyr_bg");
         assert_eq!(resolve(&p, "*[name^=in]", None).unwrap()[0].id, "lyr_inner");

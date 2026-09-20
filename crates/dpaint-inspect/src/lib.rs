@@ -17,7 +17,11 @@ pub use digest::{Digest, DigestOptions};
 pub use lint::{Finding, Report, Severity};
 
 pub fn ops() -> Vec<Box<dyn Op>> {
-    vec![Box::new(InspectDigest), Box::new(InspectTree), Box::new(LintRun)]
+    vec![
+        Box::new(InspectDigest),
+        Box::new(InspectTree),
+        Box::new(LintRun),
+    ]
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -60,7 +64,10 @@ impl Op for InspectDigest {
         };
         let opts = DigestOptions {
             per_object: !a.fast,
-            render: dpaint_render::RenderOptions { scale: a.scale, ..Default::default() },
+            render: dpaint_render::RenderOptions {
+                scale: a.scale,
+                ..Default::default()
+            },
             ..Default::default()
         };
         let d = digest::digest(p, &doc, cx.assets, &opts)?;
@@ -114,7 +121,8 @@ impl Op for InspectTree {
                     .collect(),
             ),
         };
-        Ok(OpEffect::default().with_data(serde_json::json!({ "document": doc.as_str(), "objects": data })))
+        Ok(OpEffect::default()
+            .with_data(serde_json::json!({ "document": doc.as_str(), "objects": data })))
     }
 }
 
@@ -144,14 +152,27 @@ impl Op for LintRun {
     }
     fn apply(&self, p: &mut Project, args: serde_json::Value, cx: &mut OpCx) -> Result<OpEffect> {
         let a: LintArgs = parse_args(self.id(), args)?;
-        let opts = DigestOptions { per_object: !a.fast, ..Default::default() };
+        let opts = DigestOptions {
+            per_object: !a.fast,
+            ..Default::default()
+        };
         let report = match &a.document {
             Some(d) => {
                 let id = p.resolve_doc(Some(d))?;
                 let findings = lint::lint_document(p, &id, cx.assets, &opts)?;
-                let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
-                let warnings = findings.iter().filter(|f| f.severity == Severity::Warn).count();
-                Report { findings, errors, warnings }
+                let errors = findings
+                    .iter()
+                    .filter(|f| f.severity == Severity::Error)
+                    .count();
+                let warnings = findings
+                    .iter()
+                    .filter(|f| f.severity == Severity::Warn)
+                    .count();
+                Report {
+                    findings,
+                    errors,
+                    warnings,
+                }
             }
             None => lint::lint_project(p, cx.assets, &opts)?,
         };

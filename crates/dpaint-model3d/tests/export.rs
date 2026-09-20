@@ -5,7 +5,8 @@ mod common;
 use common::*;
 use dpaint_core::doc::model::{
     AlphaMode, AnimChannel, AnimKey, AnimPath, Animation, Camera, Interpolation, Light, LightKind,
-    Material, Mesh, MeshSource, Node, Primitive, TextureBinding, TextureSlot, TextureSource, UpAxis,
+    Material, Mesh, MeshSource, Node, Primitive, TextureBinding, TextureSlot, TextureSource,
+    UpAxis,
 };
 use dpaint_core::{AssetStore, Color, DocId, MeshId, Project};
 use dpaint_model3d::{export, GltfOut};
@@ -128,7 +129,10 @@ fn the_exported_glb_reparses_and_matches_what_was_authored() {
         .meshes()
         .map(|m| m.name().unwrap_or_default().to_string())
         .collect();
-    assert!(names.contains(&"crate".to_string()), "meshes were {names:?}");
+    assert!(
+        names.contains(&"crate".to_string()),
+        "meshes were {names:?}"
+    );
     assert!(names.contains(&"ball".to_string()), "meshes were {names:?}");
 
     let crate_mesh = doc_g.meshes().find(|m| m.name() == Some("crate")).unwrap();
@@ -136,21 +140,27 @@ fn the_exported_glb_reparses_and_matches_what_was_authored() {
     let reader = prim.reader(|_| Some(&blob));
     let positions: Vec<[f32; 3]> = reader.read_positions().unwrap().collect();
     let indices: Vec<u32> = reader.read_indices().unwrap().into_u32().collect();
-    assert_eq!(positions.len(), 24, "box keeps its 24 corners through export");
+    assert_eq!(
+        positions.len(),
+        24,
+        "box keeps its 24 corners through export"
+    );
     assert_eq!(indices.len(), 36, "12 triangles");
     assert!(reader.read_normals().is_some());
     assert!(reader.read_tex_coords(0).is_some());
-    let (lo, hi) = positions.iter().fold(
-        ([f32::MAX; 3], [f32::MIN; 3]),
-        |(mut lo, mut hi), p| {
+    let (lo, hi) = positions
+        .iter()
+        .fold(([f32::MAX; 3], [f32::MIN; 3]), |(mut lo, mut hi), p| {
             for i in 0..3 {
                 lo[i] = lo[i].min(p[i]);
                 hi[i] = hi[i].max(p[i]);
             }
             (lo, hi)
-        },
+        });
+    assert_eq!(
+        [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
+        [2.0, 1.0, 1.0]
     );
-    assert_eq!([hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]], [2.0, 1.0, 1.0]);
 
     // Accessor min/max must be present and truthful for POSITION.
     let pos_accessor = prim.get(&gltf::Semantic::Positions).unwrap();
@@ -175,10 +185,16 @@ fn the_exported_glb_reparses_and_matches_what_was_authored() {
         (base[0] - 0.2159).abs() < 1e-3,
         "base color should be linear-light, got {base:?}"
     );
-    assert!(pbr.base_color_texture().is_some(), "the PNG binding survived");
+    assert!(
+        pbr.base_color_texture().is_some(),
+        "the PNG binding survived"
+    );
     assert!((metal.emissive_strength().unwrap_or(1.0) - 3.0).abs() < 1e-6);
 
-    let painted = doc_g.materials().find(|m| m.name() == Some("painted")).unwrap();
+    let painted = doc_g
+        .materials()
+        .find(|m| m.name() == Some("painted"))
+        .unwrap();
     let normal = painted.normal_texture().expect("normal map bound");
     assert!((normal.scale() - 0.5).abs() < 1e-6);
 
@@ -219,7 +235,10 @@ fn the_exported_glb_reparses_and_matches_what_was_authored() {
     assert_eq!(lights.len(), 1);
     assert_eq!(lights[0].name(), Some("key"));
     assert!((lights[0].intensity() - 800.0).abs() < 1e-3);
-    assert!(matches!(lights[0].kind(), gltf::khr_lights_punctual::Kind::Spot { .. }));
+    assert!(matches!(
+        lights[0].kind(),
+        gltf::khr_lights_punctual::Kind::Spot { .. }
+    ));
     let cam = doc_g.cameras().next().expect("a camera");
     match cam.projection() {
         gltf::camera::Projection::Perspective(p) => {
@@ -240,7 +259,11 @@ fn the_glb_container_is_byte_correct() {
     let u32_at = |i: usize| u32::from_le_bytes([glb[i], glb[i + 1], glb[i + 2], glb[i + 3]]);
     assert_eq!(&glb[0..4], b"glTF");
     assert_eq!(u32_at(4), 2, "glTF container version");
-    assert_eq!(u32_at(8) as usize, glb.len(), "header length covers the file");
+    assert_eq!(
+        u32_at(8) as usize,
+        glb.len(),
+        "header length covers the file"
+    );
     assert_eq!(glb.len() % 4, 0, "the whole container is 4-byte aligned");
 
     let json_len = u32_at(12) as usize;
@@ -260,7 +283,11 @@ fn the_glb_container_is_byte_correct() {
     assert_eq!(u32_at(bin_off + 4), 0x004E_4942, "chunk 1 is BIN");
     assert_eq!(bin_len % 4, 0, "BIN chunk is padded to 4 bytes");
     let bin = &glb[bin_off + 8..bin_off + 8 + bin_len];
-    assert_eq!(bin_len - out.bin.len(), 0, "the BIN chunk is the exported buffer");
+    assert_eq!(
+        bin_len - out.bin.len(),
+        0,
+        "the BIN chunk is the exported buffer"
+    );
     assert_eq!(bin, out.bin.as_slice());
     assert_eq!(bin_off + 8 + bin_len, glb.len(), "nothing trailing");
 }
@@ -274,12 +301,15 @@ fn the_gltf_json_points_at_a_sidecar_buffer_while_the_glb_does_not() {
     let json: serde_json::Value = serde_json::from_str(&out.json).unwrap();
     let buffer = &json["buffers"][0];
     assert_eq!(buffer["uri"], serde_json::json!("doc_scene.bin"));
-    assert_eq!(buffer["byteLength"].as_u64().unwrap() as usize, out.bin.len());
+    assert_eq!(
+        buffer["byteLength"].as_u64().unwrap() as usize,
+        out.bin.len()
+    );
     assert_eq!(GltfOut::buffer_name(&doc), "doc_scene.bin");
 
-    let json_len = u32::from_le_bytes([out.glb[12], out.glb[13], out.glb[14], out.glb[15]]) as usize;
-    let glb_json: serde_json::Value =
-        serde_json::from_slice(&out.glb[20..20 + json_len]).unwrap();
+    let json_len =
+        u32::from_le_bytes([out.glb[12], out.glb[13], out.glb[14], out.glb[15]]) as usize;
+    let glb_json: serde_json::Value = serde_json::from_slice(&out.glb[20..20 + json_len]).unwrap();
     assert!(
         glb_json["buffers"][0].get("uri").is_none(),
         "a GLB's buffer must not carry a uri"
@@ -309,8 +339,14 @@ fn animation_keys_survive_a_round_trip_with_their_interpolation() {
                     path: AnimPath::Translation,
                     interpolation: Interpolation::Linear,
                     keys: vec![
-                        AnimKey { t: 0.0, v: vec![0.0, 0.0, 0.0] },
-                        AnimKey { t: 1.5, v: vec![1.0, 2.0, 3.0] },
+                        AnimKey {
+                            t: 0.0,
+                            v: vec![0.0, 0.0, 0.0],
+                        },
+                        AnimKey {
+                            t: 1.5,
+                            v: vec![1.0, 2.0, 3.0],
+                        },
                     ],
                 },
                 AnimChannel {
@@ -318,8 +354,14 @@ fn animation_keys_survive_a_round_trip_with_their_interpolation() {
                     path: AnimPath::Scale,
                     interpolation: Interpolation::Step,
                     keys: vec![
-                        AnimKey { t: 0.0, v: vec![1.0, 1.0, 1.0] },
-                        AnimKey { t: 2.0, v: vec![2.0, 2.0, 2.0] },
+                        AnimKey {
+                            t: 0.0,
+                            v: vec![1.0, 1.0, 1.0],
+                        },
+                        AnimKey {
+                            t: 2.0,
+                            v: vec![2.0, 2.0, 2.0],
+                        },
                     ],
                 },
                 AnimChannel {
@@ -337,9 +379,7 @@ fn animation_keys_survive_a_round_trip_with_their_interpolation() {
                         },
                         AnimKey {
                             t: 1.0,
-                            v: vec![
-                                0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                            ],
+                            v: vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                         },
                     ],
                 },
@@ -354,7 +394,12 @@ fn animation_keys_survive_a_round_trip_with_their_interpolation() {
 
     let mut seen = Vec::new();
     for channel in anim.channels() {
-        let node = channel.target().node().name().unwrap_or_default().to_string();
+        let node = channel
+            .target()
+            .node()
+            .name()
+            .unwrap_or_default()
+            .to_string();
         let property = channel.target().property();
         let interpolation = channel.sampler().interpolation();
         let reader = channel.reader(|_| Some(&blob));
@@ -445,7 +490,10 @@ fn a_texture_resolver_failure_surfaces_instead_of_exporting_a_broken_image() {
     // Non-image bytes are rejected rather than written into the buffer as garbage.
     let junk = |_: &DocId| Ok(b"not an image".to_vec());
     let err = export(&project, &doc, &assets, &junk).unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::UnsupportedFormat(_)), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::UnsupportedFormat(_)),
+        "got {err:?}"
+    );
 }
 
 #[test]

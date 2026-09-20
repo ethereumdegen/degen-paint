@@ -72,7 +72,11 @@ pub struct DigestOptions {
 
 impl Default for DigestOptions {
     fn default() -> Self {
-        Self { per_object: true, histogram_bins: 16, render: RenderOptions::default() }
+        Self {
+            per_object: true,
+            histogram_bins: 16,
+            render: RenderOptions::default(),
+        }
     }
 }
 
@@ -126,7 +130,14 @@ pub fn opaque_bbox(img: &RgbaImage) -> Option<[f64; 4]> {
             }
         }
     }
-    any.then(|| [x0 as f64, y0 as f64, (x1 - x0 + 1) as f64, (y1 - y0 + 1) as f64])
+    any.then(|| {
+        [
+            x0 as f64,
+            y0 as f64,
+            (x1 - x0 + 1) as f64,
+            (y1 - y0 + 1) as f64,
+        ]
+    })
 }
 
 fn shallow_tree(document: &Document) -> Vec<NodeDigest> {
@@ -138,12 +149,28 @@ fn shallow_tree(document: &Document) -> Vec<NodeDigest> {
             type_name: c.type_name,
             depth: c.depth,
             bbox: None,
-            visible: c.attrs.get("visible").and_then(|v| v.as_bool()).unwrap_or(true),
-            opacity: c.attrs.get("opacity").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32,
-            blend: c.attrs.get("blend").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            visible: c
+                .attrs
+                .get("visible")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
+            opacity: c
+                .attrs
+                .get("opacity")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1.0) as f32,
+            blend: c
+                .attrs
+                .get("blend")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             coverage: None,
             mean_color: None,
-            text: c.attrs.get("text").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            text: c
+                .attrs
+                .get("text")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             contrast_vs_backdrop: None,
         })
         .collect()
@@ -167,7 +194,9 @@ fn object_digests(
 
     for node in out.iter_mut() {
         let mut probe = project.clone();
-        let Ok(raster) = probe.raster_mut(doc_id) else { continue };
+        let Ok(raster) = probe.raster_mut(doc_id) else {
+            continue;
+        };
         let ids: Vec<String> = dpaint_core::selector::candidates(&Document::Raster(raster.clone()))
             .into_iter()
             .map(|c| c.id)
@@ -176,7 +205,12 @@ fn object_digests(
         // ancestors stay visible too.
         let visibility: Vec<(String, bool)> = ids
             .iter()
-            .map(|id| (id.clone(), *id == node.id || is_ancestor_of(raster, id, &node.id)))
+            .map(|id| {
+                (
+                    id.clone(),
+                    *id == node.id || is_ancestor_of(raster, id, &node.id),
+                )
+            })
             .collect();
         for (id, visible) in visibility {
             if let Some(l) = raster.layer_mut(&dpaint_core::LayerId::from(id)) {
@@ -405,12 +439,22 @@ mod tests {
         let d = dominant_colors(&i, 4);
         assert_eq!(d.len(), 2);
         assert!((d[0].fraction - 0.7).abs() < 1e-9, "{:?}", d);
-        assert!(d[0].color.starts_with("#f"), "the majority color should be the red, got {}", d[0].color);
+        assert!(
+            d[0].color.starts_with("#f"),
+            "the majority color should be the red, got {}",
+            d[0].color
+        );
     }
 
     #[test]
     fn the_histogram_counts_only_opaque_pixels() {
-        let i = img(4, 4, |x, _| if x == 0 { [255, 255, 255, 255] } else { [0, 0, 0, 0] });
+        let i = img(4, 4, |x, _| {
+            if x == 0 {
+                [255, 255, 255, 255]
+            } else {
+                [0, 0, 0, 0]
+            }
+        });
         let h = histogram(&i, 4);
         assert_eq!(h.l.iter().sum::<u32>(), 4);
         assert_eq!(h.l[3], 4, "white must land in the top bin");

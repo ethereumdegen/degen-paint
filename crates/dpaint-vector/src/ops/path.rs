@@ -1,7 +1,9 @@
 //! `vector.path.*` — booleans, offsetting, stroking to outline, simplification and
 //! node-level editing.
 
-use super::{check_unlocked, doc_of, fresh_id, index_in_owner, many, one, owner_list, set_geometry};
+use super::{
+    check_unlocked, doc_of, fresh_id, index_in_owner, many, one, owner_list, set_geometry,
+};
 use crate::boolean::{self, BoolOp};
 use crate::geom::{self, DEFAULT_TOLERANCE};
 use crate::pathops::{self, NodeType};
@@ -52,7 +54,12 @@ pub struct BooleanArgs {
     pub keep_originals: bool,
 }
 
-vop!(Boolean, BooleanArgs, "vector.path.boolean", "Union, subtract, intersect, exclude or divide the selected paths");
+vop!(
+    Boolean,
+    BooleanArgs,
+    "vector.path.boolean",
+    "Union, subtract, intersect, exclude or divide the selected paths"
+);
 
 impl Boolean {
     fn run(project: &mut Project, a: BooleanArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -156,7 +163,12 @@ pub struct OffsetArgs {
     pub tolerance: Option<f64>,
 }
 
-vop!(Offset, OffsetArgs, "vector.path.offset", "Grow or shrink a path's filled region by a distance");
+vop!(
+    Offset,
+    OffsetArgs,
+    "vector.path.offset",
+    "Grow or shrink a path's filled region by a distance"
+);
 
 impl Offset {
     fn run(project: &mut Project, a: OffsetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -198,7 +210,12 @@ pub struct OutlineStrokeArgs {
     pub keep_fill: bool,
 }
 
-vop!(OutlineStroke, OutlineStrokeArgs, "vector.path.outline-stroke", "Convert a stroke into a fillable outline, honouring width, caps, joins and dashes");
+vop!(
+    OutlineStroke,
+    OutlineStrokeArgs,
+    "vector.path.outline-stroke",
+    "Convert a stroke into a fillable outline, honouring width, caps, joins and dashes"
+);
 
 impl OutlineStroke {
     fn run(project: &mut Project, a: OutlineStrokeArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -277,7 +294,12 @@ pub struct SimplifyArgs {
     pub tolerance: Option<f64>,
 }
 
-vop!(Simplify, SimplifyArgs, "vector.path.simplify", "Reduce node count while staying within a tolerance of the original");
+vop!(
+    Simplify,
+    SimplifyArgs,
+    "vector.path.simplify",
+    "Reduce node count while staying within a tolerance of the original"
+);
 
 impl Simplify {
     fn run(project: &mut Project, a: SimplifyArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -321,7 +343,12 @@ pub struct PathTargetArgs {
     pub target: String,
 }
 
-vop!(Reverse, PathTargetArgs, "vector.path.reverse", "Reverse path direction, flipping winding for nonzero fills");
+vop!(
+    Reverse,
+    PathTargetArgs,
+    "vector.path.reverse",
+    "Reverse path direction, flipping winding for nonzero fills"
+);
 
 impl Reverse {
     fn run(project: &mut Project, a: PathTargetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -331,7 +358,12 @@ impl Reverse {
 
 // ------------------------------------------------------------------------------- close
 
-vop!(Close, PathTargetArgs, "vector.path.close", "Close every open subpath");
+vop!(
+    Close,
+    PathTargetArgs,
+    "vector.path.close",
+    "Close every open subpath"
+);
 
 impl Close {
     fn run(project: &mut Project, a: PathTargetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -381,7 +413,12 @@ fn yes() -> bool {
     true
 }
 
-vop!(Append, AppendArgs, "vector.path.append", "Append other objects' geometry onto one path");
+vop!(
+    Append,
+    AppendArgs,
+    "vector.path.append",
+    "Append other objects' geometry onto one path"
+);
 
 impl Append {
     fn run(project: &mut Project, a: AppendArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -435,7 +472,12 @@ fn half() -> f64 {
     0.5
 }
 
-vop!(NodeInsert, NodeInsertArgs, "vector.path.node-insert", "Insert a node partway along a segment without changing the curve");
+vop!(
+    NodeInsert,
+    NodeInsertArgs,
+    "vector.path.node-insert",
+    "Insert a node partway along a segment without changing the curve"
+);
 
 impl NodeInsert {
     fn run(project: &mut Project, a: NodeInsertArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -455,7 +497,12 @@ pub struct NodeIndexArgs {
     pub index: usize,
 }
 
-vop!(NodeRemove, NodeIndexArgs, "vector.path.node-remove", "Delete a node, joining its neighbours");
+vop!(
+    NodeRemove,
+    NodeIndexArgs,
+    "vector.path.node-remove",
+    "Delete a node, joining its neighbours"
+);
 
 impl NodeRemove {
     fn run(project: &mut Project, a: NodeIndexArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -479,7 +526,12 @@ pub struct NodeMoveArgs {
     pub relative: bool,
 }
 
-vop!(NodeMove, NodeMoveArgs, "vector.path.node-move", "Move a node and drag its handles with it");
+vop!(
+    NodeMove,
+    NodeMoveArgs,
+    "vector.path.node-move",
+    "Move a node and drag its handles with it"
+);
 
 impl NodeMove {
     fn run(project: &mut Project, a: NodeMoveArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -500,7 +552,12 @@ pub struct NodeTypeArgs {
     pub kind: NodeType,
 }
 
-vop!(NodeSetType, NodeTypeArgs, "vector.path.node-set-type", "Make a node a corner, a smooth tangent, or a symmetric tangent");
+vop!(
+    NodeSetType,
+    NodeTypeArgs,
+    "vector.path.node-set-type",
+    "Make a node a corner, a smooth tangent, or a symmetric tangent"
+);
 
 impl NodeSetType {
     fn run(project: &mut Project, a: NodeTypeArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -536,7 +593,12 @@ pub struct RoundCornersArgs {
     pub radius: f64,
 }
 
-vop!(RoundCorners, RoundCornersArgs, "vector.path.round-corners", "Replace straight-segment corners with circular fillets");
+vop!(
+    RoundCorners,
+    RoundCornersArgs,
+    "vector.path.round-corners",
+    "Replace straight-segment corners with circular fillets"
+);
 
 impl RoundCorners {
     fn run(project: &mut Project, a: RoundCornersArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -546,6 +608,8 @@ impl RoundCorners {
         if !(a.radius > 0.0) {
             return Err(Error::Invalid("radius must be greater than zero".into()));
         }
-        edit_paths(project, cx, &a.target, |p| pathops::round_corners(p, a.radius))
+        edit_paths(project, cx, &a.target, |p| {
+            pathops::round_corners(p, a.radius)
+        })
     }
 }

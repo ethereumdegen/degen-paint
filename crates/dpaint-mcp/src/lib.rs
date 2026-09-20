@@ -40,7 +40,10 @@ pub fn handle_message(registry: &Registry, handlers: &Handlers, msg: &Value) -> 
         ));
     }
     let id = msg.get("id").cloned();
-    let method = msg.get("method").and_then(Value::as_str).unwrap_or_default();
+    let method = msg
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     if method.is_empty() {
         return Some(error_response(
             id.unwrap_or(Value::Null),
@@ -112,7 +115,11 @@ struct ProtocolError {
     message: String,
 }
 
-fn tools_call(registry: &Registry, handlers: &Handlers, params: &Value) -> std::result::Result<Value, ProtocolError> {
+fn tools_call(
+    registry: &Registry,
+    handlers: &Handlers,
+    params: &Value,
+) -> std::result::Result<Value, ProtocolError> {
     let name = params
         .get("name")
         .and_then(Value::as_str)
@@ -120,7 +127,10 @@ fn tools_call(registry: &Registry, handlers: &Handlers, params: &Value) -> std::
             code: INVALID_PARAMS,
             message: "tools/call requires a 'name'".into(),
         })?;
-    let mut args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+    let mut args = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
     if args.is_null() {
         args = json!({});
     }
@@ -153,8 +163,13 @@ fn tools_call(registry: &Registry, handlers: &Handlers, params: &Value) -> std::
 
     // `doc` and `dryRun` steer the call; everything else belongs to the op's own schema.
     let obj = args.as_object_mut().expect("checked above");
-    let doc = obj.remove("doc").and_then(|v| v.as_str().map(str::to_string));
-    let dry = obj.remove("dryRun").and_then(|v| v.as_bool()).unwrap_or(false);
+    let doc = obj
+        .remove("doc")
+        .and_then(|v| v.as_str().map(str::to_string));
+    let dry = obj
+        .remove("dryRun")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     Ok(tool_result(handlers.run_op(op_id, args, doc, dry)))
 }
 
@@ -313,13 +328,20 @@ mod tests {
     fn initialize_reports_the_protocol_and_the_server() {
         let r = registry();
         let h = Handlers::new();
-        let resp = handle_message(&r, &h, &request("initialize", json!({"protocolVersion": PROTOCOL_VERSION})))
-            .expect("a request gets a response");
+        let resp = handle_message(
+            &r,
+            &h,
+            &request("initialize", json!({"protocolVersion": PROTOCOL_VERSION})),
+        )
+        .expect("a request gets a response");
         assert_eq!(resp["jsonrpc"], "2.0");
         assert_eq!(resp["id"], 1);
         assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "degen-paint");
-        assert_eq!(resp["result"]["capabilities"]["tools"]["listChanged"], false);
+        assert_eq!(
+            resp["result"]["capabilities"]["tools"]["listChanged"],
+            false
+        );
     }
 
     #[test]
@@ -346,18 +368,25 @@ mod tests {
         let resp = handle_message(
             &r,
             &h,
-            &request("tools/call", json!({"name": "raster_filter_nonsense", "arguments": {}})),
+            &request(
+                "tools/call",
+                json!({"name": "raster_filter_nonsense", "arguments": {}}),
+            ),
         )
         .unwrap();
         assert_eq!(resp["error"]["code"], INVALID_PARAMS);
-        assert!(resp["error"]["message"].as_str().unwrap().contains("unknown tool"));
+        assert!(resp["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("unknown tool"));
     }
 
     #[test]
     fn a_malformed_line_is_answered_with_a_parse_error_and_the_loop_continues() {
         let r = registry();
         let h = Handlers::new();
-        let input = std::io::Cursor::new("not json\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n");
+        let input =
+            std::io::Cursor::new("not json\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n");
         let mut out = Vec::new();
         serve(&r, &h, input, &mut out).unwrap();
 
@@ -377,7 +406,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let project = Project::new(
             "t",
-            Document::Raster(RasterDoc::new(dpaint_core::DocId::from("doc_main"), "main", 8, 8)),
+            Document::Raster(RasterDoc::new(
+                dpaint_core::DocId::from("doc_main"),
+                "main",
+                8,
+                8,
+            )),
         );
         let ws = Workspace::create(dir.path(), project).unwrap();
         let engine = Arc::new(Mutex::new(Engine::new(registry(), ws)));
@@ -398,11 +432,20 @@ mod tests {
         let overview = handle_message(
             &registry(),
             &h,
-            &request("tools/call", json!({"name": "dpaint_overview", "arguments": {}})),
+            &request(
+                "tools/call",
+                json!({"name": "dpaint_overview", "arguments": {}}),
+            ),
         )
         .unwrap();
         assert_eq!(overview["result"]["isError"], false);
-        assert_eq!(overview["result"]["structuredContent"]["documents"][0]["id"], "doc_main");
-        assert_eq!(overview["result"]["structuredContent"]["documents"][0]["kind"], "raster");
+        assert_eq!(
+            overview["result"]["structuredContent"]["documents"][0]["id"],
+            "doc_main"
+        );
+        assert_eq!(
+            overview["result"]["structuredContent"]["documents"][0]["kind"],
+            "raster"
+        );
     }
 }

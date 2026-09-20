@@ -117,25 +117,41 @@ fn every_op_declares_a_raster_mode_a_summary_and_an_object_schema() {
         assert!(!op.about().is_empty(), "{} has no summary", op.id());
         assert_eq!(op.modes(), &[dpaint_core::DocKind::Raster], "{}", op.id());
         let schema = op.schema();
-        assert_eq!(schema["type"], "object", "{} schema is not an object", op.id());
+        assert_eq!(
+            schema["type"],
+            "object",
+            "{} schema is not an object",
+            op.id()
+        );
     }
 }
 
 #[test]
 fn a_filter_writes_a_new_blob_and_leaves_the_old_one_intact() {
     let mut f = fixture(24, 24);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x / 3 + y / 3) % 2 == 0 { 1.0 } else { 0.0 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x / 3 + y / 3) % 2 == 0 { 1.0 } else { 0.0 })
+    });
     let before_asset = f.layer_asset(&id);
     let before = f.layer_pixels(&id);
 
-    f.ok("raster.filter.gaussian-blur", json!({ "target": "#lyr_a", "sigma": 2.0 }));
+    f.ok(
+        "raster.filter.gaussian-blur",
+        json!({ "target": "#lyr_a", "sigma": 2.0 }),
+    );
 
     let after_asset = f.layer_asset(&id);
-    assert_ne!(before_asset, after_asset, "the layer must point at a new blob");
+    assert_ne!(
+        before_asset, after_asset,
+        "the layer must point at a new blob"
+    );
     // Undo is a JSON patch, so the previous blob has to still be readable.
-    let recovered = Canvas::from_png(&f.assets.get(&before_asset).expect("old blob survives"))
-        .expect("decode");
-    assert_eq!(recovered.data, before.data, "the old blob was mutated in place");
+    let recovered =
+        Canvas::from_png(&f.assets.get(&before_asset).expect("old blob survives")).expect("decode");
+    assert_eq!(
+        recovered.data, before.data,
+        "the old blob was mutated in place"
+    );
 
     let after = f.layer_pixels(&id);
     assert!(
@@ -149,11 +165,19 @@ fn a_filter_writes_a_new_blob_and_leaves_the_old_one_intact() {
 #[test]
 fn a_selection_scoped_filter_leaves_outside_pixels_bit_identical() {
     let mut f = fixture(32, 32);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x / 2 + y / 2) % 2 == 0 { 1.0 } else { 0.05 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x / 2 + y / 2) % 2 == 0 { 1.0 } else { 0.05 })
+    });
     let before = f.layer_pixels(&id);
 
-    f.ok("raster.select.rect", json!({ "rect": [4.0, 4.0, 12.0, 12.0] }));
-    f.ok("raster.filter.gaussian-blur", json!({ "target": "#lyr_a", "sigma": 3.0 }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [4.0, 4.0, 12.0, 12.0] }),
+    );
+    f.ok(
+        "raster.filter.gaussian-blur",
+        json!({ "target": "#lyr_a", "sigma": 3.0 }),
+    );
     let after = f.layer_pixels(&id);
 
     let mut changed_inside = 0;
@@ -176,7 +200,10 @@ fn a_selection_scoped_filter_leaves_outside_pixels_bit_identical() {
             }
         }
     }
-    assert!(changed_inside > 50, "only {changed_inside} pixels changed inside the selection");
+    assert!(
+        changed_inside > 50,
+        "only {changed_inside} pixels changed inside the selection"
+    );
 }
 
 #[test]
@@ -184,13 +211,20 @@ fn a_selection_scoped_adjustment_only_lightens_inside_the_selection() {
     let mut f = fixture(16, 16);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.25));
     let before = f.layer_pixels(&id);
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 8.0, 16.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 8.0, 16.0] }),
+    );
     f.ok(
         "raster.adjust.brightness-contrast",
         json!({ "target": "#lyr_a", "brightness": 0.3 }),
     );
     let c = f.layer_pixels(&id);
-    assert!(c.get(2, 8)[0] > before.get(2, 8)[0] + 0.05, "inside brightened: {:?}", c.get(2, 8));
+    assert!(
+        c.get(2, 8)[0] > before.get(2, 8)[0] + 0.05,
+        "inside brightened: {:?}",
+        c.get(2, 8)
+    );
     let i = c.idx(13, 8);
     assert_eq!(
         c.data[i..i + 4],
@@ -203,20 +237,29 @@ fn a_selection_scoped_adjustment_only_lightens_inside_the_selection() {
 fn scope_whole_ignores_the_selection_on_purpose() {
     let mut f = fixture(16, 16);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.25));
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 4.0, 4.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 4.0, 4.0] }),
+    );
     f.ok(
         "raster.adjust.brightness-contrast",
         json!({ "target": "#lyr_a", "brightness": 0.3, "scope": "whole" }),
     );
     let c = f.layer_pixels(&id);
-    assert!(c.get(13, 13)[0] > 0.3, "scope=whole must reach outside the selection");
+    assert!(
+        c.get(13, 13)[0] > 0.3,
+        "scope=whole must reach outside the selection"
+    );
 }
 
 #[test]
 fn magic_wand_selects_exactly_one_region_of_a_two_tone_image() {
     let mut f = fixture(20, 10);
     f.pixel_layer("lyr_a", |x, _| if x < 8 { gray(0.0) } else { gray(1.0) });
-    let effect = f.ok("raster.select.wand", json!({ "at": [2, 5], "tolerance": 0.05 }));
+    let effect = f.ok(
+        "raster.select.wand",
+        json!({ "at": [2, 5], "tolerance": 0.05 }),
+    );
     let area = effect.data.as_ref().unwrap()["area_px"].as_f64().unwrap();
     assert_eq!(area, 80.0, "the dark region is 8x10 pixels");
     let bounds = &effect.data.as_ref().unwrap()["bounds"];
@@ -224,7 +267,10 @@ fn magic_wand_selects_exactly_one_region_of_a_two_tone_image() {
     assert_eq!(bounds[2], 8.0, "and nothing to the right of it");
 
     // Seeding the other tone selects the complement.
-    let effect = f.ok("raster.select.wand", json!({ "at": [15, 5], "tolerance": 0.05 }));
+    let effect = f.ok(
+        "raster.select.wand",
+        json!({ "at": [15, 5], "tolerance": 0.05 }),
+    );
     assert_eq!(effect.data.unwrap()["area_px"].as_f64().unwrap(), 120.0);
 }
 
@@ -232,8 +278,17 @@ fn magic_wand_selects_exactly_one_region_of_a_two_tone_image() {
 fn wand_with_contiguous_false_reaches_disconnected_regions() {
     let mut f = fixture(12, 4);
     // Two black bars separated by white.
-    f.pixel_layer("lyr_a", |x, _| if x < 3 || x >= 9 { gray(0.0) } else { gray(1.0) });
-    let connected = f.ok("raster.select.wand", json!({ "at": [1, 1], "tolerance": 0.05 }));
+    f.pixel_layer("lyr_a", |x, _| {
+        if x < 3 || x >= 9 {
+            gray(0.0)
+        } else {
+            gray(1.0)
+        }
+    });
+    let connected = f.ok(
+        "raster.select.wand",
+        json!({ "at": [1, 1], "tolerance": 0.05 }),
+    );
     assert_eq!(connected.data.unwrap()["area_px"].as_f64().unwrap(), 12.0);
     let global = f.ok(
         "raster.select.wand",
@@ -246,7 +301,10 @@ fn wand_with_contiguous_false_reaches_disconnected_regions() {
 fn selection_modes_add_subtract_and_intersect() {
     let mut f = fixture(20, 20);
     f.pixel_layer("lyr_a", |_, _| gray(0.5));
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 10.0, 10.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 10.0, 10.0] }),
+    );
     let added = f.ok(
         "raster.select.rect",
         json!({ "rect": [10.0, 0.0, 10.0, 10.0], "mode": "add" }),
@@ -277,21 +335,39 @@ fn selection_modes_add_subtract_and_intersect() {
 fn select_grow_shrink_and_feather_change_the_covered_area() {
     let mut f = fixture(40, 40);
     f.pixel_layer("lyr_a", |_, _| gray(0.5));
-    f.ok("raster.select.rect", json!({ "rect": [10.0, 10.0, 20.0, 20.0] }));
-    let grown = f.ok("raster.select.grow", json!({ "pixels": 3 })).data.unwrap()["area_px"]
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [10.0, 10.0, 20.0, 20.0] }),
+    );
+    let grown = f
+        .ok("raster.select.grow", json!({ "pixels": 3 }))
+        .data
+        .unwrap()["area_px"]
         .as_f64()
         .unwrap();
-    assert!(grown > 400.0, "grow must cover more than the original 400 px: {grown}");
-    let shrunk = f.ok("raster.select.shrink", json!({ "pixels": 6 })).data.unwrap()["area_px"]
+    assert!(
+        grown > 400.0,
+        "grow must cover more than the original 400 px: {grown}"
+    );
+    let shrunk = f
+        .ok("raster.select.shrink", json!({ "pixels": 6 }))
+        .data
+        .unwrap()["area_px"]
         .as_f64()
         .unwrap();
-    assert!(shrunk < grown, "shrink must undo more than it added: {shrunk} vs {grown}");
+    assert!(
+        shrunk < grown,
+        "shrink must undo more than it added: {shrunk} vs {grown}"
+    );
 
     // Feathering a vector selection keeps the outline and records the radius, so the
     // selection stays resolution-independent.
     let mut f = fixture(40, 40);
     f.pixel_layer("lyr_a", |_, _| gray(0.5));
-    f.ok("raster.select.rect", json!({ "rect": [10.0, 10.0, 20.0, 20.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [10.0, 10.0, 20.0, 20.0] }),
+    );
     f.ok("raster.select.feather", json!({ "radius": 2.0 }));
     let sel = f.doc().selection.clone().unwrap();
     assert_eq!(sel.feather, 2.0);
@@ -302,7 +378,10 @@ fn select_grow_shrink_and_feather_change_the_covered_area() {
     f.ok("raster.adjust.invert", json!({ "target": "#lyr_b" }));
     let c = f.layer_pixels(&id);
     let edge = c.get(10, 20)[0];
-    assert!(edge > 0.05 && edge < 0.45, "the feathered border is partial: {edge}");
+    assert!(
+        edge > 0.05 && edge < 0.45,
+        "the feathered border is partial: {edge}"
+    );
 }
 
 #[test]
@@ -315,13 +394,19 @@ fn select_to_path_traces_a_wand_selection_into_usable_path_data() {
             gray(1.0)
         }
     });
-    f.ok("raster.select.wand", json!({ "at": [8, 8], "tolerance": 0.05 }));
+    f.ok(
+        "raster.select.wand",
+        json!({ "at": [8, 8], "tolerance": 0.05 }),
+    );
     let effect = f.ok("raster.select.to-path", json!({}));
     let d = effect.data.unwrap()["d"].as_str().unwrap().to_string();
     let path = dpaint_core::kurbo::BezPath::from_svg(&d).expect("valid path data");
     let bb = dpaint_core::kurbo::Shape::bounding_box(&path);
     assert_eq!((bb.x0, bb.y0, bb.x1, bb.y1), (4.0, 4.0, 12.0, 12.0));
-    assert!(f.doc().selection.as_ref().unwrap().d.is_some(), "the selection is now vector");
+    assert!(
+        f.doc().selection.as_ref().unwrap().d.is_some(),
+        "the selection is now vector"
+    );
 }
 
 #[test]
@@ -329,12 +414,19 @@ fn select_invert_flips_which_pixels_a_filter_touches() {
     let mut f = fixture(16, 16);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.5));
     let before = f.layer_pixels(&id);
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 8.0, 16.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 8.0, 16.0] }),
+    );
     f.ok("raster.select.invert", json!({}));
     f.ok("raster.adjust.invert", json!({ "target": "#lyr_a" }));
     let c = f.layer_pixels(&id);
     let i = c.idx(2, 8);
-    assert_eq!(c.data[i..i + 4], before.data[i..i + 4], "left half was deselected");
+    assert_eq!(
+        c.data[i..i + 4],
+        before.data[i..i + 4],
+        "left half was deselected"
+    );
     assert!(c.get(13, 8)[0] < 0.2, "right half was inverted");
 }
 
@@ -365,7 +457,10 @@ fn text_with_a_missing_font_still_renders_and_reports_the_fallback() {
     // And it really put ink on the canvas.
     let pm = f.render(1.0);
     let inked = pm.pixels().iter().filter(|p| p.alpha() > 32).count();
-    assert!(inked > 100, "the fallback font must still draw glyphs, got {inked} pixels");
+    assert!(
+        inked > 100,
+        "the fallback font must still draw glyphs, got {inked} pixels"
+    );
 }
 
 #[test]
@@ -385,20 +480,30 @@ fn text_fit_shrinks_until_the_string_fits_its_box() {
     let to = data["to"].as_f64().unwrap();
     assert!(to < 48.0, "fit must shrink: {to}");
     let layer = f.doc().layer(&"lyr_title".into()).unwrap();
-    let LayerKind::Text { spec, .. } = &layer.kind else { panic!("not text") };
+    let LayerKind::Text { spec, .. } = &layer.kind else {
+        panic!("not text")
+    };
     assert_eq!(spec.size, to);
 }
 
 #[test]
 fn text_to_shape_produces_path_data_that_parses() {
     let mut f = fixture(120, 40);
-    f.ok("raster.text.add", json!({ "text": "Ag", "size": 30.0, "name": "word" }));
+    f.ok(
+        "raster.text.add",
+        json!({ "text": "Ag", "size": 30.0, "name": "word" }),
+    );
     f.ok("raster.text.to-shape", json!({ "target": "#lyr_word" }));
     let layer = f.doc().layer(&"lyr_word".into()).unwrap();
-    let LayerKind::Shape { d, .. } = &layer.kind else { panic!("expected a shape layer") };
+    let LayerKind::Shape { d, .. } = &layer.kind else {
+        panic!("expected a shape layer")
+    };
     let path = dpaint_core::kurbo::BezPath::from_svg(d).expect("valid outline");
     let bb = dpaint_core::kurbo::Shape::bounding_box(&path);
-    assert!(bb.width() > 10.0 && bb.height() > 10.0, "outline has real extent: {bb:?}");
+    assert!(
+        bb.width() > 10.0 && bb.height() > 10.0,
+        "outline has real extent: {bb:?}"
+    );
 }
 
 #[test]
@@ -416,7 +521,11 @@ fn adjust_as_layer_inserts_a_live_adjustment_above_its_target() {
         matches!(f.doc().layers[1].kind, LayerKind::Adjustment { .. }),
         "the adjustment goes above the target"
     );
-    assert_eq!(before, f.layer_asset(&"lyr_a".into()), "pixels were not touched");
+    assert_eq!(
+        before,
+        f.layer_asset(&"lyr_a".into()),
+        "pixels were not touched"
+    );
     let out = at(&f.render(1.0), 4, 4);
     assert!(out[0] < 0.5, "and it darkens the render: {out:?}");
 }
@@ -434,9 +543,15 @@ fn curves_levels_and_exposure_move_tone_in_the_directions_they_claim() {
 
     let mut f = fixture(4, 4);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.2));
-    f.ok("raster.adjust.exposure", json!({ "target": "#lyr_a", "stops": 1.0 }));
+    f.ok(
+        "raster.adjust.exposure",
+        json!({ "target": "#lyr_a", "stops": 1.0 }),
+    );
     let doubled = f.layer_pixels(&id).get(2, 2)[0];
-    assert!((doubled - 0.4).abs() < 0.01, "one stop doubles linear light: {doubled}");
+    assert!(
+        (doubled - 0.4).abs() < 0.01,
+        "one stop doubles linear light: {doubled}"
+    );
 
     let mut f = fixture(4, 4);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.5));
@@ -452,16 +567,25 @@ fn curves_levels_and_exposure_move_tone_in_the_directions_they_claim() {
 fn threshold_posterize_and_desaturate_quantize_and_gray_out() {
     let mut f = fixture(4, 4);
     let id = f.pixel_layer("lyr_a", |x, _| gray(x as f32 / 3.0));
-    f.ok("raster.adjust.threshold", json!({ "target": "#lyr_a", "level": 0.5 }));
+    f.ok(
+        "raster.adjust.threshold",
+        json!({ "target": "#lyr_a", "level": 0.5 }),
+    );
     let c = f.layer_pixels(&id);
     for x in 0..4 {
         let v = c.get(x, 0)[0];
-        assert!(v == 0.0 || v == 1.0, "threshold must be binary, got {v} at {x}");
+        assert!(
+            v == 0.0 || v == 1.0,
+            "threshold must be binary, got {v} at {x}"
+        );
     }
 
     let mut f = fixture(64, 1);
     let id = f.pixel_layer("lyr_a", |x, _| gray(x as f32 / 63.0));
-    f.ok("raster.adjust.posterize", json!({ "target": "#lyr_a", "levels": 3 }));
+    f.ok(
+        "raster.adjust.posterize",
+        json!({ "target": "#lyr_a", "levels": 3 }),
+    );
     let c = f.layer_pixels(&id);
     let mut distinct: Vec<u32> = (0..64).map(|x| (c.get(x, 0)[0] * 1000.0) as u32).collect();
     distinct.sort_unstable();
@@ -472,7 +596,10 @@ fn threshold_posterize_and_desaturate_quantize_and_gray_out() {
     let id = f.pixel_layer("lyr_a", |_, _| [0.8, 0.1, 0.1, 1.0]);
     f.ok("raster.adjust.desaturate", json!({ "target": "#lyr_a" }));
     let px = f.layer_pixels(&id).get(2, 2);
-    assert!((px[0] - px[1]).abs() < 1e-6 && (px[1] - px[2]).abs() < 1e-6, "gray: {px:?}");
+    assert!(
+        (px[0] - px[1]).abs() < 1e-6 && (px[1] - px[2]).abs() < 1e-6,
+        "gray: {px:?}"
+    );
 }
 
 #[test]
@@ -504,9 +631,15 @@ fn a_hald_lut_applies_the_cube_it_encodes() {
     let mut f = fixture(4, 4);
     let asset = f.assets.put(&png, "png").unwrap();
     let id = f.pixel_layer("lyr_a", |_, _| [0.0, 0.0, 0.0, 1.0]);
-    f.ok("raster.adjust.lut", json!({ "target": "#lyr_a", "asset": asset.0 }));
+    f.ok(
+        "raster.adjust.lut",
+        json!({ "target": "#lyr_a", "asset": asset.0 }),
+    );
     let px = f.layer_pixels(&id).get(2, 2);
-    assert!(px[0] > 0.9 && px[1] > 0.9, "an inverting cube must turn black into white: {px:?}");
+    assert!(
+        px[0] > 0.9 && px[1] > 0.9,
+        "an inverting cube must turn black into white: {px:?}"
+    );
 }
 
 #[test]
@@ -521,7 +654,11 @@ fn a_bad_convolution_kernel_is_rejected_before_any_pixel_is_touched() {
         )
         .expect_err("an even kernel has no center");
     assert!(err.to_string().contains("odd"), "{err}");
-    assert_eq!(before, f.layer_asset(&id), "a failed op must not change the document");
+    assert_eq!(
+        before,
+        f.layer_asset(&id),
+        "a failed op must not change the document"
+    );
 }
 
 #[test]
@@ -529,9 +666,15 @@ fn a_selector_that_matches_nothing_is_an_error_not_a_no_op() {
     let mut f = fixture(4, 4);
     f.pixel_layer("lyr_a", |_, _| gray(0.5));
     let err = f
-        .run("raster.filter.gaussian-blur", json!({ "target": "#lyr_nope", "sigma": 1.0 }))
+        .run(
+            "raster.filter.gaussian-blur",
+            json!({ "target": "#lyr_nope", "sigma": 1.0 }),
+        )
         .expect_err("missing selectors must fail loudly");
-    assert!(matches!(err, dpaint_core::Error::SelectorNoMatch { .. }), "{err}");
+    assert!(
+        matches!(err, dpaint_core::Error::SelectorNoMatch { .. }),
+        "{err}"
+    );
 }
 
 #[test]
@@ -539,20 +682,31 @@ fn filters_on_a_text_layer_say_to_rasterize_first() {
     let mut f = fixture(40, 20);
     f.ok("raster.text.add", json!({ "text": "hi", "name": "t" }));
     let err = f
-        .run("raster.filter.gaussian-blur", json!({ "target": "#lyr_t", "sigma": 1.0 }))
+        .run(
+            "raster.filter.gaussian-blur",
+            json!({ "target": "#lyr_t", "sigma": 1.0 }),
+        )
         .expect_err("text layers have no pixels to filter");
     assert!(err.to_string().contains("rasterize"), "{err}");
 
     // And after rasterizing, the same filter works.
     f.ok("raster.layer.rasterize", json!({ "target": "#lyr_t" }));
-    f.ok("raster.filter.gaussian-blur", json!({ "target": "#lyr_t", "sigma": 1.0 }));
+    f.ok(
+        "raster.filter.gaussian-blur",
+        json!({ "target": "#lyr_t", "sigma": 1.0 }),
+    );
 }
 
 #[test]
 fn pixelate_flattens_detail_into_blocks() {
     let mut f = fixture(16, 16);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x + y) % 2 == 0 { 1.0 } else { 0.0 }));
-    f.ok("raster.filter.pixelate", json!({ "target": "#lyr_a", "size": 4 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x + y) % 2 == 0 { 1.0 } else { 0.0 })
+    });
+    f.ok(
+        "raster.filter.pixelate",
+        json!({ "target": "#lyr_a", "size": 4 }),
+    );
     let c = f.layer_pixels(&id);
     let first = c.get(0, 0);
     for y in 0..4 {
@@ -560,7 +714,10 @@ fn pixelate_flattens_detail_into_blocks() {
             assert_eq!(c.get(x, y), first, "a block must be uniform");
         }
     }
-    assert!((first[0] - 0.5).abs() < 0.01, "and hold the block average: {first:?}");
+    assert!(
+        (first[0] - 0.5).abs() < 0.01,
+        "and hold the block average: {first:?}"
+    );
 }
 
 #[test]
@@ -569,8 +726,16 @@ fn edge_detect_finds_the_edge_and_ignores_the_flats() {
     let id = f.pixel_layer("lyr_a", |x, _| if x < 8 { gray(0.0) } else { gray(1.0) });
     f.ok("raster.filter.edge-detect", json!({ "target": "#lyr_a" }));
     let c = f.layer_pixels(&id);
-    assert!(c.get(8, 8)[0] > 0.3, "the edge lights up: {:?}", c.get(8, 8));
-    assert!(c.get(2, 8)[0] < 0.05, "flat areas stay dark: {:?}", c.get(2, 8));
+    assert!(
+        c.get(8, 8)[0] > 0.3,
+        "the edge lights up: {:?}",
+        c.get(8, 8)
+    );
+    assert!(
+        c.get(2, 8)[0] < 0.05,
+        "flat areas stay dark: {:?}",
+        c.get(2, 8)
+    );
     assert!(c.get(14, 8)[0] < 0.05, "both of them: {:?}", c.get(14, 8));
 }
 
@@ -630,7 +795,10 @@ fn paint_stroke_deposits_color_along_its_path_and_nowhere_else() {
     );
     let c = f.layer_pixels(&id);
     let on = c.get(20, 20);
-    assert!(on[3] > 0.9 && on[0] > 0.9 && on[1] < 0.05, "red paint on the path: {on:?}");
+    assert!(
+        on[3] > 0.9 && on[0] > 0.9 && on[1] < 0.05,
+        "red paint on the path: {on:?}"
+    );
     assert_eq!(c.get(20, 32)[3], 0.0, "and nothing far from it");
 }
 
@@ -644,8 +812,15 @@ fn bucket_fill_stays_inside_the_region_it_seeds() {
         json!({ "target": "#lyr_a", "color": "#0000ff", "at": [2, 10], "tolerance": 0.05 }),
     );
     let c = f.layer_pixels(&id);
-    assert!(c.get(3, 10)[2] > 0.9 && c.get(3, 10)[0] < 0.05, "left side filled blue");
-    assert!(c.get(15, 10)[0] > 0.9, "right side untouched: {:?}", c.get(15, 10));
+    assert!(
+        c.get(3, 10)[2] > 0.9 && c.get(3, 10)[0] < 0.05,
+        "left side filled blue"
+    );
+    assert!(
+        c.get(15, 10)[0] > 0.9,
+        "right side untouched: {:?}",
+        c.get(15, 10)
+    );
 }
 
 #[test]
@@ -667,7 +842,10 @@ fn gradient_fill_ramps_across_the_layer_in_linear_light() {
     );
     let c = f.layer_pixels(&id);
     assert!(c.get(0, 2)[0] < 0.02);
-    assert!((c.get(50, 2)[0] - 0.5).abs() < 0.03, "mid ramp is half the light");
+    assert!(
+        (c.get(50, 2)[0] - 0.5).abs() < 0.03,
+        "mid ramp is half the light"
+    );
     assert!(c.get(100, 2)[0] > 0.97);
 }
 
@@ -680,7 +858,11 @@ fn erase_removes_coverage_where_the_brush_passes() {
         json!({ "target": "#lyr_a", "d": "M 5 20 L 35 20", "size": 8.0, "hardness": 1.0 }),
     );
     let c = f.layer_pixels(&id);
-    assert!(c.get(20, 20)[3] < 0.05, "erased on the path: {:?}", c.get(20, 20));
+    assert!(
+        c.get(20, 20)[3] < 0.05,
+        "erased on the path: {:?}",
+        c.get(20, 20)
+    );
     assert_eq!(c.get(20, 35)[3], 1.0, "intact away from it");
 }
 
@@ -691,16 +873,30 @@ fn pattern_fill_tiles_its_source_image() {
     for y in 0..4 {
         for x in 0..4 {
             let i = tile.idx(x, y);
-            tile.set_straight(i, if x == 0 { [1.0, 0.0, 0.0, 1.0] } else { [0.0, 0.0, 1.0, 1.0] });
+            tile.set_straight(
+                i,
+                if x == 0 {
+                    [1.0, 0.0, 0.0, 1.0]
+                } else {
+                    [0.0, 0.0, 1.0, 1.0]
+                },
+            );
         }
     }
     let asset = f.assets.put(&tile.to_png().unwrap(), "png").unwrap();
     let id = f.pixel_layer("lyr_a", |_, _| [0.0; 4]);
-    f.ok("raster.paint.pattern", json!({ "target": "#lyr_a", "asset": asset.0 }));
+    f.ok(
+        "raster.paint.pattern",
+        json!({ "target": "#lyr_a", "asset": asset.0 }),
+    );
     let c = f.layer_pixels(&id);
     for tx in [0u32, 4, 8, 12] {
         assert!(c.get(tx, 3)[0] > 0.9, "red stripe repeats at x={tx}");
-        assert!(c.get(tx + 1, 3)[2] > 0.9, "blue between the stripes at x={}", tx + 1);
+        assert!(
+            c.get(tx + 1, 3)[2] > 0.9,
+            "blue between the stripes at x={}",
+            tx + 1
+        );
     }
 }
 
@@ -708,7 +904,10 @@ fn pattern_fill_tiles_its_source_image() {
 fn a_mask_from_the_selection_hides_everything_outside_it() {
     let mut f = fixture(16, 16);
     f.pixel_layer("lyr_a", |_, _| gray(1.0));
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 8.0, 16.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 8.0, 16.0] }),
+    );
     f.ok("raster.mask.from-selection", json!({ "target": "#lyr_a" }));
     let pm = f.render(1.0);
     assert_eq!(at(&pm, 2, 8)[3], 1.0, "inside the old selection survives");
@@ -752,22 +951,51 @@ fn clip_set_refuses_the_bottom_layer_and_works_above_it() {
 #[test]
 fn layer_group_then_ungroup_keeps_the_same_render() {
     let mut f = fixture(8, 8);
-    f.pixel_layer("lyr_a", |x, _| if x < 4 { [1.0, 0.0, 0.0, 1.0] } else { [0.0; 4] });
-    f.pixel_layer("lyr_b", |x, _| if x >= 4 { [0.0, 0.0, 1.0, 1.0] } else { [0.0; 4] });
+    f.pixel_layer("lyr_a", |x, _| {
+        if x < 4 {
+            [1.0, 0.0, 0.0, 1.0]
+        } else {
+            [0.0; 4]
+        }
+    });
+    f.pixel_layer("lyr_b", |x, _| {
+        if x >= 4 {
+            [0.0, 0.0, 1.0, 1.0]
+        } else {
+            [0.0; 4]
+        }
+    });
     let before = f.render(1.0).data().to_vec();
-    f.ok("raster.layer.group", json!({ "target": "pixel", "name": "both" }));
+    f.ok(
+        "raster.layer.group",
+        json!({ "target": "pixel", "name": "both" }),
+    );
     assert_eq!(f.doc().layers.len(), 1, "both layers moved into the group");
-    assert_eq!(f.render(1.0).data(), &before[..], "grouping does not change pixels");
+    assert_eq!(
+        f.render(1.0).data(),
+        &before[..],
+        "grouping does not change pixels"
+    );
     f.ok("raster.layer.ungroup", json!({ "target": "#lyr_both" }));
     assert_eq!(f.doc().layers.len(), 2);
-    assert_eq!(f.render(1.0).data(), &before[..], "and neither does ungrouping");
+    assert_eq!(
+        f.render(1.0).data(),
+        &before[..],
+        "and neither does ungrouping"
+    );
 }
 
 #[test]
 fn merge_down_and_flatten_collapse_the_stack_without_changing_the_picture() {
     let mut f = fixture(8, 8);
     f.pixel_layer("lyr_a", |_, _| [1.0, 1.0, 1.0, 1.0]);
-    let top = f.pixel_layer("lyr_b", |x, _| if x < 4 { [1.0, 0.0, 0.0, 0.5] } else { [0.0; 4] });
+    let top = f.pixel_layer("lyr_b", |x, _| {
+        if x < 4 {
+            [1.0, 0.0, 0.0, 0.5]
+        } else {
+            [0.0; 4]
+        }
+    });
     f.doc_mut().layer_mut(&top).unwrap().opacity = 0.75;
     let before = f.render(1.0).data().to_vec();
 
@@ -782,17 +1010,29 @@ fn merge_down_and_flatten_collapse_the_stack_without_changing_the_picture() {
     f.ok("raster.doc.flatten", json!({}));
     assert_eq!(f.doc().layers.len(), 1);
     let flat = f.render(1.0).data().to_vec();
-    assert!(flat.iter().zip(&merged).all(|(a, b)| a.abs_diff(*b) <= 1), "flatten changed it");
+    assert!(
+        flat.iter().zip(&merged).all(|(a, b)| a.abs_diff(*b) <= 1),
+        "flatten changed it"
+    );
 }
 
 #[test]
 fn flatten_bakes_the_background_instead_of_doubling_it() {
     let mut f = fixture(4, 4);
     f.doc_mut().background = Some(dpaint_core::Color::rgba(0.0, 0.0, 1.0, 1.0));
-    f.pixel_layer("lyr_a", |x, _| if x < 2 { [1.0, 0.0, 0.0, 1.0] } else { [0.0; 4] });
+    f.pixel_layer("lyr_a", |x, _| {
+        if x < 2 {
+            [1.0, 0.0, 0.0, 1.0]
+        } else {
+            [0.0; 4]
+        }
+    });
     let before = f.render(1.0).data().to_vec();
     f.ok("raster.doc.flatten", json!({}));
-    assert!(f.doc().background.is_none(), "the background is in the pixels now");
+    assert!(
+        f.doc().background.is_none(),
+        "the background is in the pixels now"
+    );
     assert_eq!(f.render(1.0).data(), &before[..]);
 }
 
@@ -805,7 +1045,11 @@ fn layer_duplicate_gives_the_copy_fresh_ids() {
     let new_id = effect.created[0].clone();
     assert_ne!(new_id, "lyr_a");
     assert_eq!(f.doc().layers.len(), 2);
-    assert_eq!(f.doc().layers[1].id.as_str(), new_id, "the copy sits above the original");
+    assert_eq!(
+        f.doc().layers[1].id.as_str(),
+        new_id,
+        "the copy sits above the original"
+    );
 }
 
 #[test]
@@ -813,10 +1057,19 @@ fn layer_reorder_moves_a_layer_within_its_siblings() {
     let mut f = fixture(4, 4);
     f.pixel_layer("lyr_a", |_, _| [1.0, 0.0, 0.0, 1.0]);
     f.pixel_layer("lyr_b", |_, _| [0.0, 1.0, 0.0, 1.0]);
-    assert!(at(&f.render(1.0), 2, 2)[1] > 0.9, "green is on top to start with");
-    f.ok("raster.layer.reorder", json!({ "target": "#lyr_a", "to": "front" }));
+    assert!(
+        at(&f.render(1.0), 2, 2)[1] > 0.9,
+        "green is on top to start with"
+    );
+    f.ok(
+        "raster.layer.reorder",
+        json!({ "target": "#lyr_a", "to": "front" }),
+    );
     assert!(at(&f.render(1.0), 2, 2)[0] > 0.9, "red is on top now");
-    f.ok("raster.layer.reorder", json!({ "target": "#lyr_a", "index": 0 }));
+    f.ok(
+        "raster.layer.reorder",
+        json!({ "target": "#lyr_a", "index": 0 }),
+    );
     assert!(at(&f.render(1.0), 2, 2)[1] > 0.9, "and back down again");
 }
 
@@ -824,12 +1077,22 @@ fn layer_reorder_moves_a_layer_within_its_siblings() {
 fn layer_set_and_rename_change_only_what_they_name() {
     let mut f = fixture(4, 4);
     f.pixel_layer("lyr_a", |_, _| gray(1.0));
-    f.ok("raster.layer.set", json!({ "target": "#lyr_a", "opacity": 0.5 }));
+    f.ok(
+        "raster.layer.set",
+        json!({ "target": "#lyr_a", "opacity": 0.5 }),
+    );
     assert!((at(&f.render(1.0), 2, 2)[3] - 0.5).abs() < 0.01);
-    f.ok("raster.layer.rename", json!({ "target": "#lyr_a", "name": "Sky" }));
+    f.ok(
+        "raster.layer.rename",
+        json!({ "target": "#lyr_a", "name": "Sky" }),
+    );
     assert_eq!(f.doc().layer(&"lyr_a".into()).unwrap().name, "Sky");
     assert!(
-        f.run("raster.layer.set", json!({ "target": "#lyr_a", "opacity": 2.0 })).is_err(),
+        f.run(
+            "raster.layer.set",
+            json!({ "target": "#lyr_a", "opacity": 2.0 })
+        )
+        .is_err(),
         "opacity outside 0..=1 must be refused"
     );
 }
@@ -848,7 +1111,10 @@ fn layer_transform_can_bake_itself_into_pixels() {
         "raster.layer.transform",
         json!({ "target": "#lyr_a", "translate": [8.0, 8.0], "bake": true }),
     );
-    assert!(f.doc().layer(&id).unwrap().transform.is_identity(), "the transform was baked");
+    assert!(
+        f.doc().layer(&id).unwrap().transform.is_identity(),
+        "the transform was baked"
+    );
     let c = f.layer_pixels(&id);
     assert_eq!(c.get(1, 1)[3], 0.0);
     assert_eq!(c.get(9, 9)[3], 1.0, "the pixels themselves moved");
@@ -858,7 +1124,10 @@ fn layer_transform_can_bake_itself_into_pixels() {
 fn layer_from_selection_lifts_and_can_cut() {
     let mut f = fixture(16, 16);
     let src = f.pixel_layer("lyr_a", |_, _| [1.0, 1.0, 1.0, 1.0]);
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 8.0, 16.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 8.0, 16.0] }),
+    );
     let effect = f.ok(
         "raster.layer.from-selection",
         json!({ "source": "#lyr_a", "name": "lifted", "cut": true }),
@@ -868,18 +1137,29 @@ fn layer_from_selection_lifts_and_can_cut() {
     assert_eq!(lifted.get(2, 8)[3], 1.0, "the selected pixels came across");
     assert_eq!(lifted.get(13, 8)[3], 0.0, "and only those");
     let remaining = f.layer_pixels(&src);
-    assert_eq!(remaining.get(2, 8)[3], 0.0, "cut removed them from the source");
+    assert_eq!(
+        remaining.get(2, 8)[3],
+        0.0,
+        "cut removed them from the source"
+    );
     assert_eq!(remaining.get(13, 8)[3], 1.0);
 }
 
 #[test]
 fn canvas_resize_scales_content_and_extend_keeps_it() {
     let mut f = fixture(16, 16);
-    f.pixel_layer("lyr_a", |x, y| if x < 8 && y < 8 { gray(1.0) } else { [0.0; 4] });
+    f.pixel_layer(
+        "lyr_a",
+        |x, y| if x < 8 && y < 8 { gray(1.0) } else { [0.0; 4] },
+    );
     f.ok("raster.canvas.resize", json!({ "width": 32, "height": 32 }));
     assert_eq!(f.doc().size, [32, 32]);
     let pm = f.render(1.0);
-    assert_eq!(at(&pm, 8, 8)[3], 1.0, "scaled content covers twice the area");
+    assert_eq!(
+        at(&pm, 8, 8)[3],
+        1.0,
+        "scaled content covers twice the area"
+    );
     assert_eq!(at(&pm, 20, 20)[3], 0.0);
 
     let mut f = fixture(16, 16);
@@ -903,10 +1183,17 @@ fn canvas_crop_trim_flip_and_rotate_move_the_page_as_advertised() {
             [0.0; 4]
         }
     });
-    f.ok("raster.canvas.crop", json!({ "rect": [4.0, 4.0, 8.0, 8.0] }));
+    f.ok(
+        "raster.canvas.crop",
+        json!({ "rect": [4.0, 4.0, 8.0, 8.0] }),
+    );
     assert_eq!(f.doc().size, [8, 8]);
     let pm = f.render(1.0);
-    assert_eq!(at(&pm, 0, 0)[3], 1.0, "the cropped region starts at the origin");
+    assert_eq!(
+        at(&pm, 0, 0)[3],
+        1.0,
+        "the cropped region starts at the origin"
+    );
     assert_eq!(pm.width(), 8);
 
     // Trim finds the content bounds on its own.
@@ -929,7 +1216,11 @@ fn canvas_crop_trim_flip_and_rotate_move_the_page_as_advertised() {
     assert_eq!(at(&pm, 0, 2)[3], 0.0);
     assert_eq!(at(&pm, 7, 2)[3], 1.0, "content moved to the right edge");
     f.ok("raster.canvas.rotate", json!({ "degrees": 90.0 }));
-    assert_eq!(f.doc().size, [4, 8], "a quarter turn swaps width and height");
+    assert_eq!(
+        f.doc().size,
+        [4, 8],
+        "a quarter turn swaps width and height"
+    );
 }
 
 #[test]
@@ -937,16 +1228,28 @@ fn canvas_dpi_background_and_guides_are_recorded() {
     let mut f = fixture(4, 4);
     f.ok("raster.canvas.set-dpi", json!({ "dpi": 300.0 }));
     assert_eq!(f.doc().dpi, 300.0);
-    assert!(f.run("raster.canvas.set-dpi", json!({ "dpi": 0.0 })).is_err());
-    f.ok("raster.canvas.set-background", json!({ "color": "#102030" }));
+    assert!(f
+        .run("raster.canvas.set-dpi", json!({ "dpi": 0.0 }))
+        .is_err());
+    f.ok(
+        "raster.canvas.set-background",
+        json!({ "color": "#102030" }),
+    );
     assert_eq!(f.doc().background.unwrap().to_hex(), "#102030");
     f.ok("raster.canvas.set-background", json!({}));
     assert!(f.doc().background.is_none(), "omitting the color clears it");
-    f.ok("raster.canvas.set-guides", json!({ "bleed": 3.0, "vertical": [1.0, 2.0] }));
+    f.ok(
+        "raster.canvas.set-guides",
+        json!({ "bleed": 3.0, "vertical": [1.0, 2.0] }),
+    );
     assert_eq!(f.doc().guides.bleed, 3.0);
     assert_eq!(f.doc().guides.vertical, vec![1.0, 2.0]);
     f.ok("raster.canvas.set-guides", json!({ "safe": 5.0 }));
-    assert_eq!(f.doc().guides.bleed, 3.0, "unspecified guide fields are left alone");
+    assert_eq!(
+        f.doc().guides.bleed,
+        3.0,
+        "unspecified guide fields are left alone"
+    );
     assert_eq!(f.doc().guides.safe, 5.0);
 }
 
@@ -966,9 +1269,16 @@ fn effects_are_stored_live_and_removable() {
         json!({ "target": "#lyr_a", "dx": 6.0, "dy": 6.0, "blur": 4.0, "color": "#000000" }),
     );
     assert_eq!(f.doc().layer(&id).unwrap().effects.len(), 1);
-    assert_eq!(asset_before, f.layer_asset(&id), "effects do not touch pixels");
+    assert_eq!(
+        asset_before,
+        f.layer_asset(&id),
+        "effects do not touch pixels"
+    );
     let pm = f.render(1.0);
-    assert!(bytes_at(&pm, 33, 33)[3] > 40, "the shadow shows in the render");
+    assert!(
+        bytes_at(&pm, 33, 33)[3] > 40,
+        "the shadow shows in the render"
+    );
 
     // Asking twice replaces rather than stacking, by default.
     f.ok(
@@ -980,13 +1290,21 @@ fn effects_are_stored_live_and_removable() {
         "raster.effect.outer-glow",
         json!({ "target": "#lyr_a", "blur": 6.0, "color": "#00ff00" }),
     );
-    assert_eq!(f.doc().layer(&id).unwrap().effects.len(), 2, "different kinds coexist");
-    f.ok("raster.effect.remove", json!({ "target": "#lyr_a", "effect": "drop-shadow" }));
+    assert_eq!(
+        f.doc().layer(&id).unwrap().effects.len(),
+        2,
+        "different kinds coexist"
+    );
+    f.ok(
+        "raster.effect.remove",
+        json!({ "target": "#lyr_a", "effect": "drop-shadow" }),
+    );
     assert_eq!(f.doc().layer(&id).unwrap().effects.len(), 1);
     f.ok("raster.effect.remove", json!({ "target": "#lyr_a" }));
     assert!(f.doc().layer(&id).unwrap().effects.is_empty());
     assert!(
-        f.run("raster.effect.remove", json!({ "target": "#lyr_a" })).is_err(),
+        f.run("raster.effect.remove", json!({ "target": "#lyr_a" }))
+            .is_err(),
         "removing nothing is a mistake worth reporting"
     );
 }
@@ -1007,7 +1325,10 @@ fn an_effect_stroke_rings_a_shape_in_the_render() {
     );
     let pm = f.render(1.0);
     let ring = at(&pm, 8, 20);
-    assert!(ring[3] > 0.5 && ring[0] > 0.5 && ring[1] < 0.1, "red ring outside: {ring:?}");
+    assert!(
+        ring[3] > 0.5 && ring[0] > 0.5 && ring[1] < 0.1,
+        "red ring outside: {ring:?}"
+    );
     assert!(at(&pm, 20, 20)[1] > 0.9, "the shape is still white inside");
 }
 
@@ -1015,7 +1336,10 @@ fn an_effect_stroke_rings_a_shape_in_the_render() {
 fn layer_add_builds_every_kind_and_rejects_missing_parameters() {
     let mut f = fixture(20, 20);
     f.ok("raster.layer.add", json!({ "type": "pixel", "name": "px" }));
-    f.ok("raster.layer.add", json!({ "type": "fill", "color": "#ff8800", "name": "fl" }));
+    f.ok(
+        "raster.layer.add",
+        json!({ "type": "fill", "color": "#ff8800", "name": "fl" }),
+    );
     f.ok(
         "raster.layer.add",
         json!({
@@ -1041,18 +1365,28 @@ fn layer_add_builds_every_kind_and_rejects_missing_parameters() {
         json!({ "type": "adjustment", "name": "ad", "adjustment": { "kind": "invert" } }),
     );
     f.ok("raster.layer.add", json!({ "type": "group", "name": "gp" }));
-    f.ok("raster.layer.add", json!({ "type": "pixel", "name": "child", "parent": "#lyr_gp" }));
+    f.ok(
+        "raster.layer.add",
+        json!({ "type": "pixel", "name": "child", "parent": "#lyr_gp" }),
+    );
     assert_eq!(f.doc().walk().len(), 7, "six roots plus one child");
     let group = f.doc().layer(&"lyr_gp".into()).unwrap();
-    let LayerKind::Group { layers } = &group.kind else { panic!("not a group") };
+    let LayerKind::Group { layers } = &group.kind else {
+        panic!("not a group")
+    };
     assert_eq!(layers.len(), 1, "the child went into the group");
 
     assert!(
-        f.run("raster.layer.add", json!({ "type": "fill" })).is_err(),
+        f.run("raster.layer.add", json!({ "type": "fill" }))
+            .is_err(),
         "a fill layer without a color must be refused"
     );
     assert!(
-        f.run("raster.layer.add", json!({ "type": "shape", "d": "not a path" })).is_err(),
+        f.run(
+            "raster.layer.add",
+            json!({ "type": "shape", "d": "not a path" })
+        )
+        .is_err(),
         "bad path data must be refused"
     );
     assert!(
@@ -1085,9 +1419,17 @@ fn a_dry_run_validates_without_changing_anything() {
     let op = f.registry.get("raster.filter.gaussian-blur").unwrap();
     let mut cx = dpaint_core::OpCx::new(&f.assets).with_doc(Some(DOC.to_string()));
     cx.dry_run = true;
-    op.apply(&mut f.project, json!({ "target": "#lyr_a", "sigma": 2.0 }), &mut cx)
-        .expect("dry run succeeds");
-    assert_eq!(before, f.layer_asset(&id), "a dry run must not repoint the layer");
+    op.apply(
+        &mut f.project,
+        json!({ "target": "#lyr_a", "sigma": 2.0 }),
+        &mut cx,
+    )
+    .expect("dry run succeeds");
+    assert_eq!(
+        before,
+        f.layer_asset(&id),
+        "a dry run must not repoint the layer"
+    );
 }
 
 #[test]
@@ -1118,7 +1460,10 @@ fn displace_pushes_pixels_by_its_map() {
         json!({ "target": "#lyr_a", "map": asset.0, "scale_x": 8.0, "scale_y": 0.0 }),
     );
     let c = f.layer_pixels(&id);
-    assert!(c.get(10, 16)[3] > 0.9, "the edge moved left by the map's shift");
+    assert!(
+        c.get(10, 16)[3] > 0.9,
+        "the edge moved left by the map's shift"
+    );
     assert!(c.get(6, 16)[3] < 0.1, "but not further than asked");
 }
 
@@ -1126,7 +1471,10 @@ fn displace_pushes_pixels_by_its_map() {
 fn dither_reduces_a_ramp_to_two_tones_that_still_read_as_a_ramp() {
     let mut f = fixture(64, 8);
     let id = f.pixel_layer("lyr_a", |x, _| gray(x as f32 / 63.0));
-    f.ok("raster.filter.dither", json!({ "target": "#lyr_a", "levels": 2, "matrix": 8 }));
+    f.ok(
+        "raster.filter.dither",
+        json!({ "target": "#lyr_a", "levels": 2, "matrix": 8 }),
+    );
     let c = f.layer_pixels(&id);
     for i in (0..c.data.len()).step_by(4) {
         let v = c.data[i];
@@ -1138,18 +1486,32 @@ fn dither_reduces_a_ramp_to_two_tones_that_still_read_as_a_ramp() {
             .filter(|(x, y)| c.get(*x, *y)[0] > 0.5)
             .count()
     };
-    assert!(lit(0, 16) < lit(48, 64), "the dark end must stay darker than the bright end");
+    assert!(
+        lit(0, 16) < lit(48, 64),
+        "the dark end must stay darker than the bright end"
+    );
 }
 
 #[test]
 fn unsharp_and_sharpen_put_local_contrast_back_after_a_blur() {
     let mut f = fixture(32, 32);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x / 4 + y / 4) % 2 == 0 { 0.9 } else { 0.1 }));
-    f.ok("raster.filter.gaussian-blur", json!({ "target": "#lyr_a", "sigma": 2.0 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x / 4 + y / 4) % 2 == 0 { 0.9 } else { 0.1 })
+    });
+    f.ok(
+        "raster.filter.gaussian-blur",
+        json!({ "target": "#lyr_a", "sigma": 2.0 }),
+    );
     let blurred = luma_variance(&f.layer_pixels(&id));
-    f.ok("raster.filter.unsharp", json!({ "target": "#lyr_a", "sigma": 2.0, "amount": 1.5 }));
+    f.ok(
+        "raster.filter.unsharp",
+        json!({ "target": "#lyr_a", "sigma": 2.0, "amount": 1.5 }),
+    );
     let sharpened = luma_variance(&f.layer_pixels(&id));
-    assert!(sharpened > blurred, "unsharp must raise local contrast: {blurred} -> {sharpened}");
+    assert!(
+        sharpened > blurred,
+        "unsharp must raise local contrast: {blurred} -> {sharpened}"
+    );
 }
 
 #[test]
@@ -1165,7 +1527,10 @@ fn noise_reduce_removes_speckles_but_keeps_the_edge() {
         }
     });
     let before = f.layer_pixels(&id);
-    f.ok("raster.filter.noise-reduce", json!({ "target": "#lyr_a", "radius": 1, "threshold": 1.0 }));
+    f.ok(
+        "raster.filter.noise-reduce",
+        json!({ "target": "#lyr_a", "radius": 1, "threshold": 1.0 }),
+    );
     let after = f.layer_pixels(&id);
     let speckles = |c: &Canvas| {
         (1..31u32)
@@ -1178,30 +1543,46 @@ fn noise_reduce_removes_speckles_but_keeps_the_edge() {
             .count()
     };
     assert!(speckles(&before) > 10, "the fixture has speckles to remove");
-    assert!(speckles(&after) < speckles(&before) / 2, "most speckles should be gone");
+    assert!(
+        speckles(&after) < speckles(&before) / 2,
+        "most speckles should be gone"
+    );
     // The edge between the two fields survives.
-    assert!(after.get(14, 20)[0] < 0.3 && after.get(18, 20)[0] > 0.6, "edge preserved");
+    assert!(
+        after.get(14, 20)[0] < 0.3 && after.get(18, 20)[0] > 0.6,
+        "edge preserved"
+    );
 }
 
 #[test]
 fn radial_and_motion_blur_smear_without_losing_the_image() {
     let mut f = fixture(32, 32);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x / 4 + y / 4) % 2 == 0 { 1.0 } else { 0.0 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x / 4 + y / 4) % 2 == 0 { 1.0 } else { 0.0 })
+    });
     let sharp = luma_variance(&f.layer_pixels(&id));
     f.ok(
         "raster.filter.motion-blur",
         json!({ "target": "#lyr_a", "distance": 8.0, "angle": 0.0 }),
     );
     let motion = luma_variance(&f.layer_pixels(&id));
-    assert!(motion < sharp, "motion blur must reduce variance: {sharp} -> {motion}");
+    assert!(
+        motion < sharp,
+        "motion blur must reduce variance: {sharp} -> {motion}"
+    );
 
     let mut f = fixture(32, 32);
-    let id = f.pixel_layer("lyr_a", |x, y| gray(if (x / 4 + y / 4) % 2 == 0 { 1.0 } else { 0.0 }));
+    let id = f.pixel_layer("lyr_a", |x, y| {
+        gray(if (x / 4 + y / 4) % 2 == 0 { 1.0 } else { 0.0 })
+    });
     f.ok(
         "raster.filter.radial-blur",
         json!({ "target": "#lyr_a", "mode": "spin", "amount": 20.0 }),
     );
-    assert!(luma_variance(&f.layer_pixels(&id)) < sharp, "spin blur must smear too");
+    assert!(
+        luma_variance(&f.layer_pixels(&id)) < sharp,
+        "spin blur must smear too"
+    );
 }
 
 #[test]
@@ -1214,11 +1595,17 @@ fn color_range_and_alpha_selections_scope_later_edits() {
             [0.0, 0.0, 1.0, 1.0]
         }
     });
-    f.ok("raster.select.color-range", json!({ "color": "#ff0000", "tolerance": 0.2 }));
+    f.ok(
+        "raster.select.color-range",
+        json!({ "color": "#ff0000", "tolerance": 0.2 }),
+    );
     f.ok("raster.adjust.desaturate", json!({ "target": "#lyr_a" }));
     let c = f.layer_pixels(&id);
     let left = c.get(2, 8);
-    assert!((left[0] - left[2]).abs() < 1e-5, "the red field went gray: {left:?}");
+    assert!(
+        (left[0] - left[2]).abs() < 1e-5,
+        "the red field went gray: {left:?}"
+    );
     assert!(c.get(13, 8)[2] > 0.9, "the blue field is untouched");
 
     // Alpha selections come from a layer's own coverage.
@@ -1228,29 +1615,49 @@ fn color_range_and_alpha_selections_scope_later_edits() {
     f.ok("raster.select.alpha", json!({ "target": "#lyr_shape" }));
     f.ok("raster.adjust.invert", json!({ "target": "#lyr_b" }));
     let c = f.layer_pixels(&target);
-    assert!(c.get(1, 8)[0] > 0.9, "inverted inside the alpha selection: {:?}", c.get(1, 8));
+    assert!(
+        c.get(1, 8)[0] > 0.9,
+        "inverted inside the alpha selection: {:?}",
+        c.get(1, 8)
+    );
     assert!(c.get(10, 8)[0] < 0.1, "untouched outside it");
 }
 
 #[test]
 fn select_text_selects_the_glyphs_of_a_text_layer() {
     let mut f = fixture(120, 60);
-    f.ok("raster.text.add", json!({ "text": "OO", "size": 48.0, "name": "word" }));
+    f.ok(
+        "raster.text.add",
+        json!({ "text": "OO", "size": 48.0, "name": "word" }),
+    );
     let effect = f.ok("raster.select.text", json!({ "target": "#lyr_word" }));
-    assert!(effect.warnings.is_empty(), "the default family is available");
+    assert!(
+        effect.warnings.is_empty(),
+        "the default family is available"
+    );
     let sel = f.doc().selection.clone().expect("a selection was stored");
     assert!(sel.d.is_some(), "glyph outlines stay vector");
-    assert!(sel.bounds.w() > 20.0 && sel.bounds.h() > 10.0, "bounds: {:?}", sel.bounds.0);
+    assert!(
+        sel.bounds.w() > 20.0 && sel.bounds.h() > 10.0,
+        "bounds: {:?}",
+        sel.bounds.0
+    );
 }
 
 #[test]
 fn select_none_clears_and_all_covers_the_page() {
     let mut f = fixture(8, 8);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.5));
-    f.ok("raster.select.rect", json!({ "rect": [0.0, 0.0, 2.0, 2.0] }));
+    f.ok(
+        "raster.select.rect",
+        json!({ "rect": [0.0, 0.0, 2.0, 2.0] }),
+    );
     f.ok("raster.select.all", json!({}));
     f.ok("raster.adjust.invert", json!({ "target": "#lyr_a" }));
-    assert!(f.layer_pixels(&id).get(7, 7)[0] < 0.2, "select.all reaches the far corner");
+    assert!(
+        f.layer_pixels(&id).get(7, 7)[0] < 0.2,
+        "select.all reaches the far corner"
+    );
     f.ok("raster.select.none", json!({}));
     assert!(f.doc().selection.is_none());
     assert!(
@@ -1263,14 +1670,25 @@ fn select_none_clears_and_all_covers_the_page() {
 fn mask_add_starts_from_white_or_black_and_can_be_removed() {
     let mut f = fixture(8, 8);
     f.pixel_layer("lyr_a", |_, _| gray(1.0));
-    f.ok("raster.mask.add", json!({ "target": "#lyr_a", "from": "black" }));
-    assert_eq!(at(&f.render(1.0), 4, 4)[3], 0.0, "a black mask hides the layer");
-    f.ok("raster.mask.add", json!({ "target": "#lyr_a", "from": "white" }));
+    f.ok(
+        "raster.mask.add",
+        json!({ "target": "#lyr_a", "from": "black" }),
+    );
+    assert_eq!(
+        at(&f.render(1.0), 4, 4)[3],
+        0.0,
+        "a black mask hides the layer"
+    );
+    f.ok(
+        "raster.mask.add",
+        json!({ "target": "#lyr_a", "from": "white" }),
+    );
     assert_eq!(at(&f.render(1.0), 4, 4)[3], 1.0, "a white mask reveals it");
     f.ok("raster.mask.remove", json!({ "target": "#lyr_a" }));
     assert!(f.doc().layer(&"lyr_a".into()).unwrap().mask.is_none());
     assert!(
-        f.run("raster.mask.remove", json!({ "target": "#lyr_a" })).is_err(),
+        f.run("raster.mask.remove", json!({ "target": "#lyr_a" }))
+            .is_err(),
         "removing a mask that is not there is worth reporting"
     );
 }
@@ -1281,10 +1699,19 @@ fn box_blur_and_sharpen_trade_local_contrast_in_opposite_directions() {
     let mut f = fixture(24, 24);
     let id = f.pixel_layer("lyr_a", checker);
     let sharp = luma_variance(&f.layer_pixels(&id));
-    f.ok("raster.filter.box-blur", json!({ "target": "#lyr_a", "radius": 2, "iterations": 2 }));
+    f.ok(
+        "raster.filter.box-blur",
+        json!({ "target": "#lyr_a", "radius": 2, "iterations": 2 }),
+    );
     let blurred = luma_variance(&f.layer_pixels(&id));
-    assert!(blurred < sharp * 0.6, "box blur must smooth: {sharp} -> {blurred}");
-    f.ok("raster.filter.sharpen", json!({ "target": "#lyr_a", "amount": 1.0 }));
+    assert!(
+        blurred < sharp * 0.6,
+        "box blur must smooth: {sharp} -> {blurred}"
+    );
+    f.ok(
+        "raster.filter.sharpen",
+        json!({ "target": "#lyr_a", "amount": 1.0 }),
+    );
     assert!(
         luma_variance(&f.layer_pixels(&id)) > blurred,
         "sharpen must push contrast back up"
@@ -1304,11 +1731,18 @@ fn ellipse_and_path_selections_scope_edits_to_their_interior() {
     let c = f.layer_pixels(&id);
     assert!(c.get(20, 20)[0] < 0.2, "the ellipse center was inverted");
     let i = c.idx(20, 4);
-    assert_eq!(c.data[i..i + 4], before.data[i..i + 4], "outside the ellipse is untouched");
+    assert_eq!(
+        c.data[i..i + 4],
+        before.data[i..i + 4],
+        "outside the ellipse is untouched"
+    );
 
     let mut f = fixture(40, 40);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.5));
-    f.ok("raster.select.path", json!({ "d": "M 2 2 L 18 2 L 18 18 L 2 18 Z" }));
+    f.ok(
+        "raster.select.path",
+        json!({ "d": "M 2 2 L 18 2 L 18 18 L 2 18 Z" }),
+    );
     f.ok("raster.adjust.invert", json!({ "target": "#lyr_a" }));
     let c = f.layer_pixels(&id);
     assert!(c.get(10, 10)[0] < 0.2, "inside the path");
@@ -1331,22 +1765,41 @@ fn inner_shadow_darkens_inside_the_edge_and_effect_blur_softens_it() {
         json!({ "target": "#lyr_a", "dx": 4.0, "dy": 0.0, "blur": 4.0, "color": "#000000" }),
     );
     let shadowed = bytes_at(&f.render(1.0), 11, 20);
-    assert!(shadowed[0] < plain[0], "the inside edge darkened: {plain:?} -> {shadowed:?}");
-    assert_eq!(bytes_at(&f.render(1.0), 5, 20)[3], 0, "an inner shadow never spills outside");
+    assert!(
+        shadowed[0] < plain[0],
+        "the inside edge darkened: {plain:?} -> {shadowed:?}"
+    );
+    assert_eq!(
+        bytes_at(&f.render(1.0), 5, 20)[3],
+        0,
+        "an inner shadow never spills outside"
+    );
 
     f.ok("raster.effect.remove", json!({ "target": "#lyr_a" }));
-    f.ok("raster.effect.blur", json!({ "target": "#lyr_a", "radius": 8.0 }));
+    f.ok(
+        "raster.effect.blur",
+        json!({ "target": "#lyr_a", "radius": 8.0 }),
+    );
     let a = at(&f.render(1.0), 8, 20)[3];
-    assert!(a > 0.0 && a < 1.0, "a live blur softens the layer's edge: {a}");
+    assert!(
+        a > 0.0 && a < 1.0,
+        "a live blur softens the layer's edge: {a}"
+    );
 }
 
 #[test]
 fn hsl_color_balance_and_channel_mixer_move_color_where_they_say() {
     let mut f = fixture(4, 4);
     let id = f.pixel_layer("lyr_a", |_, _| [0.5, 0.1, 0.1, 1.0]);
-    f.ok("raster.adjust.hsl", json!({ "target": "#lyr_a", "hue": 120.0 }));
+    f.ok(
+        "raster.adjust.hsl",
+        json!({ "target": "#lyr_a", "hue": 120.0 }),
+    );
     let px = f.layer_pixels(&id).get(2, 2);
-    assert!(px[1] > px[0] && px[1] > px[2], "rotating red by 120 degrees gives green: {px:?}");
+    assert!(
+        px[1] > px[0] && px[1] > px[2],
+        "rotating red by 120 degrees gives green: {px:?}"
+    );
 
     let mut f = fixture(4, 4);
     let id = f.pixel_layer("lyr_a", |_, _| gray(0.5));
@@ -1392,6 +1845,12 @@ fn a_pressure_curve_tapers_the_stroke_it_paints() {
         solid(6),
         solid(30)
     );
-    assert!(any_ink(6) > 0, "the tapered end still lays down faint paint");
-    assert!(any_ink(6) < any_ink(30), "and covers less of the column than the middle");
+    assert!(
+        any_ink(6) > 0,
+        "the tapered end still lays down faint paint"
+    );
+    assert!(
+        any_ink(6) < any_ink(30),
+        "and covers less of the column than the middle"
+    );
 }

@@ -84,7 +84,12 @@ fn the_registry_carries_the_whole_model_catalog_with_usable_schemas() {
         );
         assert_eq!(op.modes(), &[dpaint_core::doc::DocKind::Model]);
     }
-    assert_eq!(reg.len(), CATALOG.len(), "ids beyond the catalog: {:?}", reg.ids());
+    assert_eq!(
+        reg.len(),
+        CATALOG.len(),
+        "ids beyond the catalog: {:?}",
+        reg.ids()
+    );
     assert!(reg.get("model.validate").unwrap().is_query());
     assert!(!reg.get("model.node.add").unwrap().is_query());
 }
@@ -140,7 +145,16 @@ fn building_a_scene_through_ops_produces_an_exportable_document() {
 
     let model = project.model(&doc).unwrap();
     assert_eq!(model.materials.len(), 1);
-    assert_eq!(model.node(&"nd_post".into()).unwrap().material.as_ref().unwrap().as_str(), "mat_brass");
+    assert_eq!(
+        model
+            .node(&"nd_post".into())
+            .unwrap()
+            .material
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        "mat_brass"
+    );
     assert_eq!(model.lights.len(), 1);
     assert_eq!(model.cameras.len(), 1);
     // fov is authored in degrees and stored in radians, as glTF wants.
@@ -166,7 +180,12 @@ fn a_camera_aimed_with_look_at_actually_points_at_its_target() {
         serde_json::json!({ "name": "hero", "translation": [0.0, 0.0, 5.0], "look_at": [0.0, 0.0, 0.0] }),
     )
     .unwrap();
-    let node = project.model(&doc).unwrap().node(&"nd_hero".into()).unwrap().clone();
+    let node = project
+        .model(&doc)
+        .unwrap()
+        .node(&"nd_hero".into())
+        .unwrap()
+        .clone();
     // -Z is forward in glTF; from +5 on Z, looking at the origin means no rotation at all.
     let forward = rotate(node.rotation, [0.0, 0.0, -1.0]);
     assert!(
@@ -182,7 +201,12 @@ fn a_camera_aimed_with_look_at_actually_points_at_its_target() {
         serde_json::json!({ "target": "#nd_hero", "at": [10.0, 0.0, 5.0] }),
     )
     .unwrap();
-    let node = project.model(&doc).unwrap().node(&"nd_hero".into()).unwrap().clone();
+    let node = project
+        .model(&doc)
+        .unwrap()
+        .node(&"nd_hero".into())
+        .unwrap()
+        .clone();
     let forward = rotate(node.rotation, [0.0, 0.0, -1.0]);
     assert!((forward[0] - 1.0).abs() < 1e-4, "forward was {forward:?}");
 }
@@ -211,7 +235,11 @@ fn extruding_through_the_op_records_a_recipe_that_rebuilds_from_the_source_path(
     let (_tmp, assets) = store();
     let reg = registry();
     let (mut project, doc) = model_project();
-    add_vector_doc(&mut project, &[("obj_mark", &square_path(4.0))], FillRule::Nonzero);
+    add_vector_doc(
+        &mut project,
+        &[("obj_mark", &square_path(4.0))],
+        FillRule::Nonzero,
+    );
 
     run(
         &reg,
@@ -223,13 +251,19 @@ fn extruding_through_the_op_records_a_recipe_that_rebuilds_from_the_source_path(
     .unwrap();
     let mesh_id = MeshId::from("msh_mark");
     let before = dpaint_model3d::build_mesh(&project, &doc, &mesh_id, &assets).unwrap();
-    assert!((before.volume() - 32.0).abs() < 0.01, "4*4*2, got {}", before.volume());
+    assert!(
+        (before.volume() - 32.0).abs() < 0.01,
+        "4*4*2, got {}",
+        before.volume()
+    );
 
     // Edit the source path: the mesh is a recipe, so the solid follows.
     {
         let v = project.vector_mut(&DocId::from("doc_art")).unwrap();
         let obj = v.object_mut(&"obj_mark".into()).unwrap();
-        obj.kind = dpaint_core::doc::vector::VKind::Path { d: square_path(8.0) };
+        obj.kind = dpaint_core::doc::vector::VKind::Path {
+            d: square_path(8.0),
+        };
     }
     let after = dpaint_model3d::build_mesh(&project, &doc, &mesh_id, &assets).unwrap();
     assert!(
@@ -330,12 +364,21 @@ fn transform_bake_moves_the_node_transform_into_the_vertices() {
     )
     .unwrap();
 
-    let node = project.model(&doc).unwrap().node(&"nd_cube".into()).unwrap().clone();
+    let node = project
+        .model(&doc)
+        .unwrap()
+        .node(&"nd_cube".into())
+        .unwrap()
+        .clone();
     assert_eq!(node.translation, [0.0, 0.0, 0.0]);
     assert_eq!(node.scale, [1.0, 1.0, 1.0]);
     let m = dpaint_model3d::build_mesh(&project, &doc, &MeshId::from("msh_cube"), &assets).unwrap();
     let (lo, hi) = m.bounds().unwrap();
-    assert_eq!([lo[0], hi[0]], [4.0, 6.0], "the translation and scale are in the vertices");
+    assert_eq!(
+        [lo[0], hi[0]],
+        [4.0, 6.0],
+        "the translation and scale are in the vertices"
+    );
     assert!((m.volume() - 8.0).abs() < 1e-3);
 }
 
@@ -405,7 +448,14 @@ fn scene_center_and_scale_to_fit_reposition_the_whole_scene() {
     )
     .unwrap();
 
-    run(&reg, &mut project, &assets, "model.scene.center", serde_json::json!({})).unwrap();
+    run(
+        &reg,
+        &mut project,
+        &assets,
+        "model.scene.center",
+        serde_json::json!({}),
+    )
+    .unwrap();
     let bounds = dpaint_model3d::export::scene_bounds(&project, &doc, &assets)
         .unwrap()
         .unwrap();
@@ -441,7 +491,11 @@ fn scene_center_and_scale_to_fit_reposition_the_whole_scene() {
     let (lo, _) = dpaint_model3d::export::scene_bounds(&project, &doc, &assets)
         .unwrap()
         .unwrap();
-    assert!(lo[1].abs() < 1e-4, "ground mode rests the scene on y=0, got {}", lo[1]);
+    assert!(
+        lo[1].abs() < 1e-4,
+        "ground mode rests the scene on y=0, got {}",
+        lo[1]
+    );
 }
 
 #[test]
@@ -495,7 +549,12 @@ fn animation_ops_build_a_track_and_guard_its_key_shape() {
         )
         .unwrap();
     }
-    assert_eq!(project.model(&doc).unwrap().animations[0].channels[0].keys.len(), 2);
+    assert_eq!(
+        project.model(&doc).unwrap().animations[0].channels[0]
+            .keys
+            .len(),
+        2
+    );
 
     // Switching to CUBICSPLINE rewrites existing keys into tangent triples.
     run(
@@ -507,9 +566,16 @@ fn animation_ops_build_a_track_and_guard_its_key_shape() {
     )
     .unwrap();
     let channel = &project.model(&doc).unwrap().animations[0].channels[0];
-    assert_eq!(channel.interpolation, dpaint_core::doc::model::Interpolation::CubicSpline);
+    assert_eq!(
+        channel.interpolation,
+        dpaint_core::doc::model::Interpolation::CubicSpline
+    );
     assert_eq!(channel.keys[0].v.len(), 12);
-    assert_eq!(&channel.keys[0].v[4..8], &[0.0, 0.0, 0.0, 1.0], "the value is preserved");
+    assert_eq!(
+        &channel.keys[0].v[4..8],
+        &[0.0, 0.0, 0.0, 1.0],
+        "the value is preserved"
+    );
 
     let out = dpaint_model3d::export(&project, &doc, &assets, &|_| Ok(TINY_PNG.to_vec())).unwrap();
     let g = gltf::Gltf::from_slice(&out.glb).unwrap();
@@ -527,7 +593,12 @@ fn animation_ops_build_a_track_and_guard_its_key_shape() {
         serde_json::json!({ "animation": "spin", "node": "#nd_cube", "path": "rotation", "t": 1.0 }),
     )
     .unwrap();
-    assert_eq!(project.model(&doc).unwrap().animations[0].channels[0].keys.len(), 1);
+    assert_eq!(
+        project.model(&doc).unwrap().animations[0].channels[0]
+            .keys
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -535,7 +606,14 @@ fn node_removal_takes_the_subtree_and_its_animation_channels() {
     let (_tmp, assets) = store();
     let reg = registry();
     let (mut project, doc) = model_project();
-    run(&reg, &mut project, &assets, "model.node.add", serde_json::json!({ "name": "root" })).unwrap();
+    run(
+        &reg,
+        &mut project,
+        &assets,
+        "model.node.add",
+        serde_json::json!({ "name": "root" }),
+    )
+    .unwrap();
     run(
         &reg,
         &mut project,
@@ -565,7 +643,9 @@ fn node_removal_takes_the_subtree_and_its_animation_channels() {
     assert_eq!(effect.removed.len(), 2);
     assert!(project.model(&doc).unwrap().nodes.is_empty());
     assert!(
-        project.model(&doc).unwrap().animations[0].channels.is_empty(),
+        project.model(&doc).unwrap().animations[0]
+            .channels
+            .is_empty(),
         "channels targeting a removed node must go too"
     );
 }
@@ -575,7 +655,14 @@ fn reparenting_refuses_to_build_a_cycle() {
     let (_tmp, assets) = store();
     let reg = registry();
     let (mut project, _doc) = model_project();
-    run(&reg, &mut project, &assets, "model.node.add", serde_json::json!({ "name": "a" })).unwrap();
+    run(
+        &reg,
+        &mut project,
+        &assets,
+        "model.node.add",
+        serde_json::json!({ "name": "a" }),
+    )
+    .unwrap();
     run(
         &reg,
         &mut project,
@@ -592,7 +679,10 @@ fn reparenting_refuses_to_build_a_cycle() {
         serde_json::json!({ "target": "#nd_a", "parent": "#nd_b" }),
     )
     .unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::CyclicLink { .. }), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::CyclicLink { .. }),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -619,7 +709,10 @@ fn a_failed_op_leaves_the_document_untouched() {
         serde_json::json!({ "target": "#nd_cube", "material": "#mat_nope" }),
     )
     .unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::SelectorNoMatch { .. }), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::SelectorNoMatch { .. }),
+        "got {err:?}"
+    );
     assert_eq!(project.model(&doc).unwrap(), &before);
 
     // An impossible primitive never lands a half-built mesh.
@@ -631,7 +724,10 @@ fn a_failed_op_leaves_the_document_untouched() {
         serde_json::json!({ "shape": "sphere", "name": "bad", "size": [1.0, -1.0, 1.0] }),
     )
     .unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::DegenerateGeometry(_)), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::DegenerateGeometry(_)),
+        "got {err:?}"
+    );
     assert_eq!(project.model(&doc).unwrap(), &before);
 }
 
@@ -652,7 +748,8 @@ fn importing_an_exported_glb_reproduces_the_geometry() {
     let mut node = dpaint_core::doc::model::Node::new("nd_src".into(), "src");
     node.mesh = Some(MeshId::from("msh_src"));
     project.model_mut(&doc).unwrap().nodes.push(node);
-    let original = dpaint_model3d::build_mesh(&project, &doc, &MeshId::from("msh_src"), &assets).unwrap();
+    let original =
+        dpaint_model3d::build_mesh(&project, &doc, &MeshId::from("msh_src"), &assets).unwrap();
 
     let out = dpaint_model3d::export(&project, &doc, &assets, &|_| Ok(TINY_PNG.to_vec())).unwrap();
     let path = tmp.path().join("torus.glb");
@@ -703,7 +800,11 @@ fn material_from_a_raster_doc_binds_that_document_and_refuses_a_model_one() {
         dpaint_core::doc::model::TextureSource::Document { document } if document.as_str() == "doc_skin"
     ));
     // The model document now depends on the raster one, which is what render ordering needs.
-    assert!(project.doc(&doc).unwrap().dependencies().contains(&DocId::from("doc_skin")));
+    assert!(project
+        .doc(&doc)
+        .unwrap()
+        .dependencies()
+        .contains(&DocId::from("doc_skin")));
 
     let err = run(
         &reg,
@@ -713,7 +814,10 @@ fn material_from_a_raster_doc_binds_that_document_and_refuses_a_model_one() {
         serde_json::json!({ "source": "doc_scene", "name": "self" }),
     )
     .unwrap_err();
-    assert!(matches!(err, dpaint_core::Error::WrongDocumentKind { .. }), "got {err:?}");
+    assert!(
+        matches!(err, dpaint_core::Error::WrongDocumentKind { .. }),
+        "got {err:?}"
+    );
 }
 
 /// Every op in the catalog, executed once against a real document. An op that has never
@@ -751,95 +855,217 @@ fn every_op_in_the_catalog_runs_and_changes_something() {
 
     let mut ran: Vec<&str> = Vec::new();
     let mut go = |project: &mut Project, id: &'static str, args: serde_json::Value| {
-        run(&reg, project, &assets, id, args)
-            .unwrap_or_else(|e| panic!("{id} failed: {e}"));
+        run(&reg, project, &assets, id, args).unwrap_or_else(|e| panic!("{id} failed: {e}"));
         ran.push(id);
     };
 
-    go(&mut project, "model.mesh.primitive",
-       serde_json::json!({ "shape": "box", "name": "cube", "size": [2.0, 2.0, 2.0] }));
-    go(&mut project, "model.mesh.extrude",
-       serde_json::json!({ "path": "doc_art:#obj_square", "depth": 1.0, "name": "slab", "bevel": 0.2 }));
-    go(&mut project, "model.mesh.revolve",
-       serde_json::json!({ "path": "doc_art:#obj_profile", "name": "vase", "segments": 16 }));
-    go(&mut project, "model.mesh.loft",
-       serde_json::json!({ "paths": ["doc_art:#obj_square", "doc_art:#obj_small"], "name": "taper" }));
-    go(&mut project, "model.mesh.from-text",
-       serde_json::json!({ "path": "doc_art:#obj_label", "depth": 0.5, "name": "label" }));
-    go(&mut project, "model.mesh.weld",
-       serde_json::json!({ "target": "#msh_slab", "tolerance": 1e-4 }));
-    go(&mut project, "model.mesh.recompute-normals",
-       serde_json::json!({ "target": "#msh_slab", "flat": true }));
-    go(&mut project, "model.mesh.generate-uv",
-       serde_json::json!({ "target": "#msh_slab", "mode": "unwrap", "angle": 50.0 }));
-    go(&mut project, "model.mesh.generate-uv",
-       serde_json::json!({ "target": "#msh_cube", "mode": "planar", "axis": "z" }));
-    go(&mut project, "model.mesh.generate-tangents", serde_json::json!({ "target": "#msh_slab" }));
-    go(&mut project, "model.mesh.decimate",
-       serde_json::json!({ "target": "#msh_vase", "ratio": 0.5 }));
-    go(&mut project, "model.mesh.transform-bake", serde_json::json!({ "target": "#nd_vase" }));
+    go(
+        &mut project,
+        "model.mesh.primitive",
+        serde_json::json!({ "shape": "box", "name": "cube", "size": [2.0, 2.0, 2.0] }),
+    );
+    go(
+        &mut project,
+        "model.mesh.extrude",
+        serde_json::json!({ "path": "doc_art:#obj_square", "depth": 1.0, "name": "slab", "bevel": 0.2 }),
+    );
+    go(
+        &mut project,
+        "model.mesh.revolve",
+        serde_json::json!({ "path": "doc_art:#obj_profile", "name": "vase", "segments": 16 }),
+    );
+    go(
+        &mut project,
+        "model.mesh.loft",
+        serde_json::json!({ "paths": ["doc_art:#obj_square", "doc_art:#obj_small"], "name": "taper" }),
+    );
+    go(
+        &mut project,
+        "model.mesh.from-text",
+        serde_json::json!({ "path": "doc_art:#obj_label", "depth": 0.5, "name": "label" }),
+    );
+    go(
+        &mut project,
+        "model.mesh.weld",
+        serde_json::json!({ "target": "#msh_slab", "tolerance": 1e-4 }),
+    );
+    go(
+        &mut project,
+        "model.mesh.recompute-normals",
+        serde_json::json!({ "target": "#msh_slab", "flat": true }),
+    );
+    go(
+        &mut project,
+        "model.mesh.generate-uv",
+        serde_json::json!({ "target": "#msh_slab", "mode": "unwrap", "angle": 50.0 }),
+    );
+    go(
+        &mut project,
+        "model.mesh.generate-uv",
+        serde_json::json!({ "target": "#msh_cube", "mode": "planar", "axis": "z" }),
+    );
+    go(
+        &mut project,
+        "model.mesh.generate-tangents",
+        serde_json::json!({ "target": "#msh_slab" }),
+    );
+    go(
+        &mut project,
+        "model.mesh.decimate",
+        serde_json::json!({ "target": "#msh_vase", "ratio": 0.5 }),
+    );
+    go(
+        &mut project,
+        "model.mesh.transform-bake",
+        serde_json::json!({ "target": "#nd_vase" }),
+    );
 
-    go(&mut project, "model.material.create",
-       serde_json::json!({ "name": "paint", "base_color": "#3366cc", "roughness": 0.4 }));
-    go(&mut project, "model.material.set-pbr",
-       serde_json::json!({ "target": "#mat_paint", "metallic": 0.2, "emissive": "#101010", "alpha_mode": "MASK", "double_sided": true }));
-    go(&mut project, "model.material.set-texture",
-       serde_json::json!({ "target": "#mat_paint", "slot": "base-color", "asset": png.as_str() }));
-    go(&mut project, "model.material.set-texture",
-       serde_json::json!({ "target": "#mat_paint", "slot": "normal", "source": "doc_skin", "scale": 0.7 }));
-    go(&mut project, "model.material.from-raster-doc",
-       serde_json::json!({ "source": "doc_skin", "name": "decal" }));
-    go(&mut project, "model.material.assign",
-       serde_json::json!({ "target": "#nd_cube", "material": "#mat_paint" }));
+    go(
+        &mut project,
+        "model.material.create",
+        serde_json::json!({ "name": "paint", "base_color": "#3366cc", "roughness": 0.4 }),
+    );
+    go(
+        &mut project,
+        "model.material.set-pbr",
+        serde_json::json!({ "target": "#mat_paint", "metallic": 0.2, "emissive": "#101010", "alpha_mode": "MASK", "double_sided": true }),
+    );
+    go(
+        &mut project,
+        "model.material.set-texture",
+        serde_json::json!({ "target": "#mat_paint", "slot": "base-color", "asset": png.as_str() }),
+    );
+    go(
+        &mut project,
+        "model.material.set-texture",
+        serde_json::json!({ "target": "#mat_paint", "slot": "normal", "source": "doc_skin", "scale": 0.7 }),
+    );
+    go(
+        &mut project,
+        "model.material.from-raster-doc",
+        serde_json::json!({ "source": "doc_skin", "name": "decal" }),
+    );
+    go(
+        &mut project,
+        "model.material.assign",
+        serde_json::json!({ "target": "#nd_cube", "material": "#mat_paint" }),
+    );
 
-    go(&mut project, "model.node.add", serde_json::json!({ "name": "pivot" }));
-    go(&mut project, "model.node.rename",
-       serde_json::json!({ "target": "#nd_pivot", "name": "hub" }));
-    go(&mut project, "model.node.reparent",
-       serde_json::json!({ "target": "#nd_cube", "parent": "#nd_pivot" }));
-    go(&mut project, "model.node.set-trs",
-       serde_json::json!({ "target": "#nd_pivot", "rotation": [0.0, 45.0, 0.0] }));
-    go(&mut project, "model.node.look-at",
-       serde_json::json!({ "target": "#nd_pivot", "at": [0.0, 0.0, -1.0] }));
+    go(
+        &mut project,
+        "model.node.add",
+        serde_json::json!({ "name": "pivot" }),
+    );
+    go(
+        &mut project,
+        "model.node.rename",
+        serde_json::json!({ "target": "#nd_pivot", "name": "hub" }),
+    );
+    go(
+        &mut project,
+        "model.node.reparent",
+        serde_json::json!({ "target": "#nd_cube", "parent": "#nd_pivot" }),
+    );
+    go(
+        &mut project,
+        "model.node.set-trs",
+        serde_json::json!({ "target": "#nd_pivot", "rotation": [0.0, 45.0, 0.0] }),
+    );
+    go(
+        &mut project,
+        "model.node.look-at",
+        serde_json::json!({ "target": "#nd_pivot", "at": [0.0, 0.0, -1.0] }),
+    );
 
-    go(&mut project, "model.light.add",
-       serde_json::json!({ "name": "fill", "kind": "point", "intensity": 50.0 }));
-    go(&mut project, "model.light.set",
-       serde_json::json!({ "target": "#lgt_fill", "intensity": 75.0, "range": 12.0, "color": "#ffeedd" }));
-    go(&mut project, "model.camera.add", serde_json::json!({ "name": "wide", "fov": 60.0 }));
-    go(&mut project, "model.camera.set",
-       serde_json::json!({ "target": "#cam_wide", "fov": 50.0, "zfar": 80.0 }));
-    go(&mut project, "model.scene.set-up-axis", serde_json::json!({ "axis": "z" }));
+    go(
+        &mut project,
+        "model.light.add",
+        serde_json::json!({ "name": "fill", "kind": "point", "intensity": 50.0 }),
+    );
+    go(
+        &mut project,
+        "model.light.set",
+        serde_json::json!({ "target": "#lgt_fill", "intensity": 75.0, "range": 12.0, "color": "#ffeedd" }),
+    );
+    go(
+        &mut project,
+        "model.camera.add",
+        serde_json::json!({ "name": "wide", "fov": 60.0 }),
+    );
+    go(
+        &mut project,
+        "model.camera.set",
+        serde_json::json!({ "target": "#cam_wide", "fov": 50.0, "zfar": 80.0 }),
+    );
+    go(
+        &mut project,
+        "model.scene.set-up-axis",
+        serde_json::json!({ "axis": "z" }),
+    );
     go(&mut project, "model.scene.center", serde_json::json!({}));
-    go(&mut project, "model.scene.scale-to-fit", serde_json::json!({ "size": 4.0 }));
+    go(
+        &mut project,
+        "model.scene.scale-to-fit",
+        serde_json::json!({ "size": 4.0 }),
+    );
 
-    go(&mut project, "model.anim.clip-create", serde_json::json!({ "name": "idle" }));
-    go(&mut project, "model.anim.track-add",
-       serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation" }));
-    go(&mut project, "model.anim.key-add",
-       serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 0.0, "value": [0.0, 0.0, 0.0] }));
-    go(&mut project, "model.anim.key-add",
-       serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 1.0, "value": [0.0, 1.0, 0.0] }));
-    go(&mut project, "model.anim.set-interpolation",
-       serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "interpolation": "STEP" }));
-    go(&mut project, "model.anim.key-remove",
-       serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 1.0 }));
+    go(
+        &mut project,
+        "model.anim.clip-create",
+        serde_json::json!({ "name": "idle" }),
+    );
+    go(
+        &mut project,
+        "model.anim.track-add",
+        serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation" }),
+    );
+    go(
+        &mut project,
+        "model.anim.key-add",
+        serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 0.0, "value": [0.0, 0.0, 0.0] }),
+    );
+    go(
+        &mut project,
+        "model.anim.key-add",
+        serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 1.0, "value": [0.0, 1.0, 0.0] }),
+    );
+    go(
+        &mut project,
+        "model.anim.set-interpolation",
+        serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "interpolation": "STEP" }),
+    );
+    go(
+        &mut project,
+        "model.anim.key-remove",
+        serde_json::json!({ "animation": "idle", "node": "#nd_cube", "path": "translation", "t": 1.0 }),
+    );
 
     // mesh.merge needs two nodes with meshes; slab and label still have theirs.
-    go(&mut project, "model.mesh.merge",
-       serde_json::json!({ "targets": "#nd_slab, #nd_label", "name": "signage" }));
+    go(
+        &mut project,
+        "model.mesh.merge",
+        serde_json::json!({ "targets": "#nd_slab, #nd_label", "name": "signage" }),
+    );
 
     let glb = {
-        let out = dpaint_model3d::export(&project, &doc, &assets, &|_| Ok(TINY_PNG.to_vec())).unwrap();
+        let out =
+            dpaint_model3d::export(&project, &doc, &assets, &|_| Ok(TINY_PNG.to_vec())).unwrap();
         let path = tmp.path().join("scene.glb");
         std::fs::write(&path, &out.glb).unwrap();
         path
     };
-    go(&mut project, "model.mesh.import",
-       serde_json::json!({ "file": glb.to_str().unwrap(), "name": "reimported", "node": false }));
+    go(
+        &mut project,
+        "model.mesh.import",
+        serde_json::json!({ "file": glb.to_str().unwrap(), "name": "reimported", "node": false }),
+    );
 
     // Ids never change, so the renamed node is still #nd_pivot; address it by name.
-    go(&mut project, "model.node.remove", serde_json::json!({ "target": "@hub" }));
+    go(
+        &mut project,
+        "model.node.remove",
+        serde_json::json!({ "target": "@hub" }),
+    );
     go(&mut project, "model.validate", serde_json::json!({}));
 
     let mut expected: Vec<&str> = CATALOG.to_vec();

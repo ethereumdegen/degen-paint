@@ -147,18 +147,40 @@ mod tests {
 
     #[test]
     fn key_ignores_argument_order_and_integer_spelling() {
-        let a = cache_key("fal", "m", &json!({"prompt": "a barn", "seed": 7, "scale": 2.0}), &[]);
-        let b = cache_key("fal", "m", &json!({"scale": 2, "seed": 7, "prompt": "a barn"}), &[]);
+        let a = cache_key(
+            "fal",
+            "m",
+            &json!({"prompt": "a barn", "seed": 7, "scale": 2.0}),
+            &[],
+        );
+        let b = cache_key(
+            "fal",
+            "m",
+            &json!({"scale": 2, "seed": 7, "prompt": "a barn"}),
+            &[],
+        );
         assert_eq!(a, b);
     }
 
     #[test]
     fn key_changes_with_provider_model_params_and_inputs() {
         let base = cache_key("fal", "m", &json!({"prompt": "a"}), &[b"img".to_vec()]);
-        assert_ne!(base, cache_key("quiver", "m", &json!({"prompt": "a"}), &[b"img".to_vec()]));
-        assert_ne!(base, cache_key("fal", "m2", &json!({"prompt": "a"}), &[b"img".to_vec()]));
-        assert_ne!(base, cache_key("fal", "m", &json!({"prompt": "b"}), &[b"img".to_vec()]));
-        assert_ne!(base, cache_key("fal", "m", &json!({"prompt": "a"}), &[b"other".to_vec()]));
+        assert_ne!(
+            base,
+            cache_key("quiver", "m", &json!({"prompt": "a"}), &[b"img".to_vec()])
+        );
+        assert_ne!(
+            base,
+            cache_key("fal", "m2", &json!({"prompt": "a"}), &[b"img".to_vec()])
+        );
+        assert_ne!(
+            base,
+            cache_key("fal", "m", &json!({"prompt": "b"}), &[b"img".to_vec()])
+        );
+        assert_ne!(
+            base,
+            cache_key("fal", "m", &json!({"prompt": "a"}), &[b"other".to_vec()])
+        );
     }
 
     #[test]

@@ -32,7 +32,12 @@ pub struct Camera {
 
 impl Default for Camera {
     fn default() -> Self {
-        Self { yaw: 35.0, pitch: 20.0, zoom: 1.0, yfov: 0.6 }
+        Self {
+            yaw: 35.0,
+            pitch: 20.0,
+            zoom: 1.0,
+            yfov: 0.6,
+        }
     }
 }
 
@@ -45,7 +50,11 @@ pub struct Lighting {
 
 impl Default for Lighting {
     fn default() -> Self {
-        Self { key: [0.5, 0.8, 0.6], fill: [-0.6, 0.3, -0.4], ambient: 0.22 }
+        Self {
+            key: [0.5, 0.8, 0.6],
+            fill: [-0.6, 0.3, -0.4],
+            ambient: 0.22,
+        }
     }
 }
 
@@ -212,10 +221,30 @@ pub fn render(
                 continue;
             }
 
-            let min_x = screen.iter().map(|p| p[0]).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
-            let max_x = (screen.iter().map(|p| p[0]).fold(f32::NEG_INFINITY, f32::max).ceil()).min(width as f32 - 1.0);
-            let min_y = screen.iter().map(|p| p[1]).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
-            let max_y = (screen.iter().map(|p| p[1]).fold(f32::NEG_INFINITY, f32::max).ceil()).min(height as f32 - 1.0);
+            let min_x = screen
+                .iter()
+                .map(|p| p[0])
+                .fold(f32::INFINITY, f32::min)
+                .floor()
+                .max(0.0) as u32;
+            let max_x = (screen
+                .iter()
+                .map(|p| p[0])
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil())
+            .min(width as f32 - 1.0);
+            let min_y = screen
+                .iter()
+                .map(|p| p[1])
+                .fold(f32::INFINITY, f32::min)
+                .floor()
+                .max(0.0) as u32;
+            let max_y = (screen
+                .iter()
+                .map(|p| p[1])
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil())
+            .min(height as f32 - 1.0);
             if max_x < 0.0 || max_y < 0.0 {
                 continue;
             }
@@ -253,7 +282,11 @@ pub fn render(
                         ns[0][1] * w2 + ns[1][1] * w1 + ns[2][1] * w0,
                         ns[0][2] * w2 + ns[1][2] * w1 + ns[2][2] * w0,
                     ]);
-                    let n = if dot(n, forward) > 0.0 { [-n[0], -n[1], -n[2]] } else { n };
+                    let n = if dot(n, forward) > 0.0 {
+                        [-n[0], -n[1], -n[2]]
+                    } else {
+                        n
+                    };
 
                     let diffuse = dot(n, key).max(0.0) + 0.35 * dot(n, fill).max(0.0);
                     let view_dir = [-forward[0], -forward[1], -forward[2]];
@@ -262,7 +295,8 @@ pub fn render(
                         key[1] + view_dir[1],
                         key[2] + view_dir[2],
                     ]);
-                    let shininess = (2.0 / (mesh.roughness.clamp(0.03, 1.0).powi(4)) - 2.0).clamp(1.0, 4096.0);
+                    let shininess =
+                        (2.0 / (mesh.roughness.clamp(0.03, 1.0).powi(4)) - 2.0).clamp(1.0, 4096.0);
                     let spec = dot(n, half).max(0.0).powf(shininess)
                         * (0.04 + 0.96 * mesh.metallic)
                         * (1.0 - mesh.roughness * 0.7);
@@ -297,8 +331,14 @@ mod tests {
     fn unit_cube() -> Mesh {
         // 8 corners, 12 triangles, outward normals approximated per corner.
         let p = vec![
-            [-1.0, -1.0, -1.0], [1.0, -1.0, -1.0], [1.0, 1.0, -1.0], [-1.0, 1.0, -1.0],
-            [-1.0, -1.0, 1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0], [-1.0, 1.0, 1.0],
+            [-1.0, -1.0, -1.0],
+            [1.0, -1.0, -1.0],
+            [1.0, 1.0, -1.0],
+            [-1.0, 1.0, -1.0],
+            [-1.0, -1.0, 1.0],
+            [1.0, -1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [-1.0, 1.0, 1.0],
         ];
         let n: Vec<[f32; 3]> = p.iter().map(|v| norm(*v)).collect();
         let i = vec![
@@ -313,7 +353,12 @@ mod tests {
             positions: p,
             normals: n,
             indices: i,
-            world: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
+            world: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
             base_color: Color::parse("#d4af37").unwrap(),
             metallic: 1.0,
             roughness: 0.3,
@@ -327,26 +372,86 @@ mod tests {
 
     #[test]
     fn a_cube_renders_shaded_pixels_in_the_middle_of_the_frame() {
-        let pm = render(&[unit_cube()], 64, 64, Camera::default(), Lighting::default(), None).unwrap();
+        let pm = render(
+            &[unit_cube()],
+            64,
+            64,
+            Camera::default(),
+            Lighting::default(),
+            None,
+        )
+        .unwrap();
         let cov = coverage(&pm);
-        assert!(cov > 0.15 && cov < 0.8, "cube should fill part of the frame, covered {cov}");
+        assert!(
+            cov > 0.15 && cov < 0.8,
+            "cube should fill part of the frame, covered {cov}"
+        );
         let center = pm.pixel(32, 32).unwrap();
         assert!(center.alpha() > 0, "the subject must be centered in frame");
     }
 
     #[test]
     fn rotating_the_camera_changes_the_image_but_not_the_silhouette_size() {
-        let a = render(&[unit_cube()], 64, 64, Camera { yaw: 0.0, ..Camera::default() }, Lighting::default(), None).unwrap();
-        let b = render(&[unit_cube()], 64, 64, Camera { yaw: 90.0, ..Camera::default() }, Lighting::default(), None).unwrap();
-        assert_ne!(a.data(), b.data(), "a 90 degree turn must change the render");
-        assert!((coverage(&a) - coverage(&b)).abs() < 0.08, "a cube is symmetric under a quarter turn");
+        let a = render(
+            &[unit_cube()],
+            64,
+            64,
+            Camera {
+                yaw: 0.0,
+                ..Camera::default()
+            },
+            Lighting::default(),
+            None,
+        )
+        .unwrap();
+        let b = render(
+            &[unit_cube()],
+            64,
+            64,
+            Camera {
+                yaw: 90.0,
+                ..Camera::default()
+            },
+            Lighting::default(),
+            None,
+        )
+        .unwrap();
+        assert_ne!(
+            a.data(),
+            b.data(),
+            "a 90 degree turn must change the render"
+        );
+        assert!(
+            (coverage(&a) - coverage(&b)).abs() < 0.08,
+            "a cube is symmetric under a quarter turn"
+        );
     }
 
     #[test]
     fn rendering_is_deterministic_across_runs() {
-        let a = render(&[unit_cube()], 48, 48, Camera::default(), Lighting::default(), None).unwrap();
-        let b = render(&[unit_cube()], 48, 48, Camera::default(), Lighting::default(), None).unwrap();
-        assert_eq!(a.data(), b.data(), "golden tests depend on byte-identical repeats");
+        let a = render(
+            &[unit_cube()],
+            48,
+            48,
+            Camera::default(),
+            Lighting::default(),
+            None,
+        )
+        .unwrap();
+        let b = render(
+            &[unit_cube()],
+            48,
+            48,
+            Camera::default(),
+            Lighting::default(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            a.data(),
+            b.data(),
+            "golden tests depend on byte-identical repeats"
+        );
     }
 
     #[test]
@@ -362,18 +467,37 @@ mod tests {
             &[far, near],
             64,
             64,
-            Camera { yaw: 0.0, pitch: 0.0, ..Camera::default() },
-            Lighting { ambient: 1.0, key: [0.0, 0.0, 1.0], fill: [0.0, 0.0, 1.0] },
+            Camera {
+                yaw: 0.0,
+                pitch: 0.0,
+                ..Camera::default()
+            },
+            Lighting {
+                ambient: 1.0,
+                key: [0.0, 0.0, 1.0],
+                fill: [0.0, 0.0, 1.0],
+            },
             None,
         )
         .unwrap();
         let c = pm.pixel(32, 32).unwrap();
-        assert!(c.red() > c.blue(), "the near red cube must win the depth test, got {c:?}");
+        assert!(
+            c.red() > c.blue(),
+            "the near red cube must win the depth test, got {c:?}"
+        );
     }
 
     #[test]
     fn an_empty_scene_produces_the_background_and_no_geometry() {
-        let pm = render(&[], 16, 16, Camera::default(), Lighting::default(), Some(Color::WHITE)).unwrap();
+        let pm = render(
+            &[],
+            16,
+            16,
+            Camera::default(),
+            Lighting::default(),
+            Some(Color::WHITE),
+        )
+        .unwrap();
         assert_eq!(coverage(&pm), 1.0);
         assert_eq!(pm.pixel(8, 8).unwrap().red(), 255);
     }

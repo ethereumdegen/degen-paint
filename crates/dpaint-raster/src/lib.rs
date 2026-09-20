@@ -26,7 +26,7 @@ pub mod select;
 pub mod text;
 
 pub use canvas::Canvas;
-pub use composite::{render_canvas, render_doc, raster_only_link, LinkResolver};
+pub use composite::{raster_only_link, render_canvas, render_doc, LinkResolver};
 pub use select::SelMask;
 
 /// Ops contributed by this crate, registered by the CLI and the MCP server.

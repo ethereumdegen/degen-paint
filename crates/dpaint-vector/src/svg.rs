@@ -119,7 +119,11 @@ fn collect_defs(v: &VectorDoc, objects: &[VObject], out: &mut String) -> Result<
                 out,
                 r#"    <mask id="mk_{m}" maskUnits="userSpaceOnUse"><path d="{}" fill="{}"/></mask>"#,
                 geom::to_d(&p),
-                if fill.is_empty() { "#ffffff".to_string() } else { fill }
+                if fill.is_empty() {
+                    "#ffffff".to_string()
+                } else {
+                    fill
+                }
             );
         }
         if let VKind::Group { objects } = &o.kind {
@@ -220,7 +224,11 @@ fn write_object(
             }
             let _ = writeln!(out, "{pad}</g>");
         }
-        VKind::Text { spec, origin, on_path } if on_path.is_none() && inline_text(spec) => {
+        VKind::Text {
+            spec,
+            origin,
+            on_path,
+        } if on_path.is_none() && inline_text(spec) => {
             let m = text::shape(text::fonts(), spec).metrics;
             let anchor = match spec.align {
                 TextAlign::Center => Some("middle"),
@@ -292,7 +300,11 @@ fn inline_text(spec: &TextSpec) -> bool {
 
 fn style_attrs(o: &VObject) -> String {
     let mut s = String::new();
-    let _ = write!(s, r#" fill="{}""#, paint_attr(&o.fill, &grad_id(&o.id, "fill")));
+    let _ = write!(
+        s,
+        r#" fill="{}""#,
+        paint_attr(&o.fill, &grad_id(&o.id, "fill"))
+    );
     if let Paint::Solid { color } = &o.fill {
         if color.a < 1.0 {
             let _ = write!(s, r#" fill-opacity="{}""#, num(color.a as f64));
@@ -433,7 +445,8 @@ fn blend_name(b: BlendMode) -> &'static str {
 /// pixels in, and the document model never carries pixels inline.
 pub fn import_svg(svg: &str, doc_id: DocId, name: &str) -> Result<VectorDoc> {
     let mut opt = usvg::Options::default();
-    opt.fontdb_mut().load_font_data(text::FALLBACK_FONT.to_vec());
+    opt.fontdb_mut()
+        .load_font_data(text::FALLBACK_FONT.to_vec());
     map_generic_families(&mut opt);
     let tree = usvg::Tree::from_str(svg, &opt)
         .map_err(|e| Error::UnsupportedFormat(format!("not a parseable SVG: {e}")))?;
@@ -536,7 +549,11 @@ impl Import {
             return Ok(Some(c));
         }
         let id = self.id_for(g.id());
-        let mut o = VObject::new(id.clone(), display_name(&id), VKind::Group { objects: children });
+        let mut o = VObject::new(
+            id.clone(),
+            display_name(&id),
+            VKind::Group { objects: children },
+        );
         o.transform = Transform::from_kurbo(affine(g.transform()));
         o.opacity = g.opacity().get();
         o.blend = blend;
@@ -563,9 +580,7 @@ impl Import {
             let obj = VObject::new(
                 id.clone(),
                 display_name(&id),
-                VKind::Path {
-                    d: geom::to_d(&d),
-                },
+                VKind::Path { d: geom::to_d(&d) },
             );
             self.defs.push(obj);
         }
@@ -952,7 +967,10 @@ mod tests {
     #[test]
     fn a_document_with_gradients_dashes_a_clip_and_a_group_round_trips_byte_for_byte() {
         let (one, two) = round_trip(&rich_doc());
-        assert_eq!(one, two, "round trip is not stable\n--- first ---\n{one}\n--- second ---\n{two}");
+        assert_eq!(
+            one, two,
+            "round trip is not stable\n--- first ---\n{one}\n--- second ---\n{two}"
+        );
         assert!(one.contains("<defs>") && one.contains("linearGradient"));
         assert!(one.contains("clipPath") && one.contains("stroke-dasharray"));
     }
@@ -999,8 +1017,14 @@ mod tests {
         let b = import_svg(svg, DocId::from("doc_a"), "a").unwrap();
         assert_eq!(a.objects.len(), 2);
         assert_eq!(
-            a.objects.iter().map(|o| o.id.to_string()).collect::<Vec<_>>(),
-            b.objects.iter().map(|o| o.id.to_string()).collect::<Vec<_>>()
+            a.objects
+                .iter()
+                .map(|o| o.id.to_string())
+                .collect::<Vec<_>>(),
+            b.objects
+                .iter()
+                .map(|o| o.id.to_string())
+                .collect::<Vec<_>>()
         );
         assert!(a.objects[0].id.as_str().starts_with("obj_"));
     }
@@ -1011,7 +1035,11 @@ mod tests {
             <rect id="obj_r" x="10" y="10" width="40" height="20" fill="#000"/></svg>"##;
         let d = import_svg(svg, DocId::from("doc_a"), "a").unwrap();
         let p = geom::path_in_doc(&d, &ObjectId::from("obj_r")).unwrap();
-        assert!((geom::area(&p) - 800.0).abs() < 1e-6, "area {}", geom::area(&p));
+        assert!(
+            (geom::area(&p) - 800.0).abs() < 1e-6,
+            "area {}",
+            geom::area(&p)
+        );
     }
 
     #[test]

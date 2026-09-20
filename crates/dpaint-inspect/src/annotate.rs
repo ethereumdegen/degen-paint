@@ -6,7 +6,9 @@ use dpaint_core::{Color, Result};
 use tiny_skia::{Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 /// Distinct, high-contrast marker colors, cycled by index.
-const PALETTE: [&str; 6] = ["#ff3b30", "#34c759", "#0a84ff", "#ff9f0a", "#bf5af2", "#00c7be"];
+const PALETTE: [&str; 6] = [
+    "#ff3b30", "#34c759", "#0a84ff", "#ff9f0a", "#bf5af2", "#00c7be",
+];
 
 /// Draw each measured object's bbox with its index badge. Returns the legend an agent reads
 /// alongside the image: index -> selector.
@@ -25,14 +27,22 @@ pub fn annotate(base: &Pixmap, digest: &Digest) -> Result<(Pixmap, Vec<Legend>)>
 
         let mut pb = PathBuilder::new();
         pb.push_rect(
-            tiny_skia::Rect::from_xywh(bb[0] as f32, bb[1] as f32, bb[2].max(1.0) as f32, bb[3].max(1.0) as f32)
-                .unwrap_or_else(|| tiny_skia::Rect::from_xywh(0.0, 0.0, 1.0, 1.0).expect("unit rect")),
+            tiny_skia::Rect::from_xywh(
+                bb[0] as f32,
+                bb[1] as f32,
+                bb[2].max(1.0) as f32,
+                bb[3].max(1.0) as f32,
+            )
+            .unwrap_or_else(|| tiny_skia::Rect::from_xywh(0.0, 0.0, 1.0, 1.0).expect("unit rect")),
         );
         if let Some(path) = pb.finish() {
             pm.stroke_path(
                 &path,
                 &paint,
-                &Stroke { width: 2.0, ..Default::default() },
+                &Stroke {
+                    width: 2.0,
+                    ..Default::default()
+                },
                 Transform::identity(),
                 None,
             );
@@ -40,7 +50,8 @@ pub fn annotate(base: &Pixmap, digest: &Digest) -> Result<(Pixmap, Vec<Legend>)>
 
         // Badge: a filled square whose size encodes nothing, only its color and position
         // matter; the legend carries the mapping.
-        let badge = tiny_skia::Rect::from_xywh(bb[0] as f32, (bb[1] - 14.0).max(0.0) as f32, 14.0, 14.0);
+        let badge =
+            tiny_skia::Rect::from_xywh(bb[0] as f32, (bb[1] - 14.0).max(0.0) as f32, 14.0, 14.0);
         if let Some(r) = badge {
             pm.fill_rect(r, &paint, Transform::identity(), None);
         }
@@ -99,7 +110,12 @@ mod tests {
                     contrast_vs_backdrop: None,
                 })
                 .collect(),
-            histogram: Histogram { r: vec![], g: vec![], b: vec![], l: vec![] },
+            histogram: Histogram {
+                r: vec![],
+                g: vec![],
+                b: vec![],
+                l: vec![],
+            },
             dominant_colors: vec![],
             alpha_coverage: 1.0,
             mean_color: "#ffffff".into(),
@@ -109,17 +125,27 @@ mod tests {
     #[test]
     fn annotation_draws_on_the_image_and_returns_actionable_selectors() {
         let base = Pixmap::new(64, 64).unwrap();
-        let d = digest_with(&[("lyr_a", [8.0, 20.0, 20.0, 20.0]), ("lyr_b", [40.0, 40.0, 10.0, 10.0])]);
+        let d = digest_with(&[
+            ("lyr_a", [8.0, 20.0, 20.0, 20.0]),
+            ("lyr_b", [40.0, 40.0, 10.0, 10.0]),
+        ]);
         let (out, legend) = annotate(&base, &d).unwrap();
 
         assert_eq!(legend.len(), 2);
         assert_eq!(legend[0].selector, "#lyr_a");
         assert_eq!(legend[0].index, 1);
-        assert_ne!(legend[0].color, legend[1].color, "adjacent boxes must be distinguishable");
+        assert_ne!(
+            legend[0].color, legend[1].color,
+            "adjacent boxes must be distinguishable"
+        );
 
         let painted = out.pixels().iter().filter(|p| p.alpha() > 0).count();
         assert!(painted > 0, "the annotation must actually mark the image");
-        assert_eq!(base.pixels().iter().filter(|p| p.alpha() > 0).count(), 0, "the base must not be mutated");
+        assert_eq!(
+            base.pixels().iter().filter(|p| p.alpha() > 0).count(),
+            0,
+            "the base must not be mutated"
+        );
     }
 
     #[test]

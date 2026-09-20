@@ -77,7 +77,10 @@ fn bevel_of(size: Option<f32>, segments: u32) -> Result<Option<Bevel>> {
         None => Ok(None),
         Some(s) if s <= 0.0 => Ok(None),
         Some(s) if !s.is_finite() => Err(Error::Invalid(format!("bevel size {s} is not finite"))),
-        Some(s) => Ok(Some(Bevel { size: s, segments: segments.clamp(1, 64) })),
+        Some(s) => Ok(Some(Bevel {
+            size: s,
+            segments: segments.clamp(1, 64),
+        })),
     }
 }
 
@@ -138,7 +141,9 @@ fn mesh_primitive(project: &mut Project, args: PrimitiveArgs, cx: &mut OpCx) -> 
         segments: args.segments,
     };
     crate::build::build_source(project, &source, cx.assets)?;
-    let name = args.name.unwrap_or_else(|| format!("{:?}", args.shape).to_lowercase());
+    let name = args
+        .name
+        .unwrap_or_else(|| format!("{:?}", args.shape).to_lowercase());
     install(project, &doc, &name, source, args.node, material)
 }
 
@@ -290,7 +295,9 @@ fn mesh_revolve(project: &mut Project, args: RevolveArgs, cx: &mut OpCx) -> Resu
         flatten: args.flatten,
     };
     crate::build::build_source(project, &source, cx.assets)?;
-    let name = args.name.unwrap_or_else(|| format!("{} revolve", from.object));
+    let name = args
+        .name
+        .unwrap_or_else(|| format!("{} revolve", from.object));
     install(project, &doc, &name, source, args.node, material)
 }
 
@@ -380,8 +387,12 @@ fn mesh_merge(project: &mut Project, args: MergeArgs, cx: &mut OpCx) -> Result<O
     for id in &node_ids {
         let node_id = NodeId::from(id.as_str());
         let model = project.model(&doc)?;
-        let Some(node) = model.node(&node_id) else { continue };
-        let Some(mesh_id) = node.mesh.clone() else { continue };
+        let Some(node) = model.node(&node_id) else {
+            continue;
+        };
+        let Some(mesh_id) = node.mesh.clone() else {
+            continue;
+        };
         if material.is_none() {
             material = node.material.clone();
         }
@@ -606,7 +617,11 @@ fn default_unwrap_angle() -> f32 {
     60.0
 }
 
-fn mesh_generate_uv(project: &mut Project, args: GenerateUvArgs, cx: &mut OpCx) -> Result<OpEffect> {
+fn mesh_generate_uv(
+    project: &mut Project,
+    args: GenerateUvArgs,
+    cx: &mut OpCx,
+) -> Result<OpEffect> {
     let doc = target_model(project, cx)?;
     let ids = all_of_type(project, &args.target, &doc, "mesh")?;
     for id in ids {
@@ -649,7 +664,9 @@ fn mesh_transform_bake(
     let mut plan: Vec<(NodeId, MeshId, [[f32; 4]; 4])> = Vec::new();
     for id in &node_ids {
         let node_id = NodeId::from(id.as_str());
-        let Some(node) = model.node(&node_id) else { continue };
+        let Some(node) = model.node(&node_id) else {
+            continue;
+        };
         let Some(mesh_id) = node.mesh.clone() else {
             return Err(Error::Invalid(format!("node '{id}' draws no mesh")));
         };

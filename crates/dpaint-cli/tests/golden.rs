@@ -59,7 +59,13 @@ fn replay(case: &str, work: &Path) -> PathBuf {
                 cmd.arg("op")
                     .arg(entry["op"].as_str().expect("op entry needs an op id"))
                     .arg("--args")
-                    .arg(entry.get("args").cloned().unwrap_or(serde_json::json!({})).to_string());
+                    .arg(
+                        entry
+                            .get("args")
+                            .cloned()
+                            .unwrap_or(serde_json::json!({}))
+                            .to_string(),
+                    );
             }
         }
 
@@ -90,13 +96,25 @@ fn replay(case: &str, work: &Path) -> PathBuf {
         cmd.arg("--doc").arg(doc);
     }
     cmd.arg("render").arg(&actual);
-    for (flag, key) in [("--scale", "scale"), ("--width", "width"), ("--background", "background")] {
+    for (flag, key) in [
+        ("--scale", "scale"),
+        ("--width", "width"),
+        ("--background", "background"),
+    ] {
         if let Some(v) = meta.get(key) {
-            cmd.arg(flag).arg(v.as_str().map(|s| s.to_string()).unwrap_or_else(|| v.to_string()));
+            cmd.arg(flag).arg(
+                v.as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| v.to_string()),
+            );
         }
     }
     let out = cmd.output().expect("render");
-    assert!(out.status.success(), "render failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "render failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     actual
 }
 
@@ -114,7 +132,9 @@ fn check(case: &str) {
     let expected = image::open(&expected_path)
         .unwrap_or_else(|e| panic!("missing golden for {case} ({e}); run with UPDATE_GOLDENS=1"))
         .to_rgba8();
-    let actual = image::open(&actual_path).expect("actual render decodes").to_rgba8();
+    let actual = image::open(&actual_path)
+        .expect("actual render decodes")
+        .to_rgba8();
 
     assert_eq!(
         expected.dimensions(),

@@ -98,7 +98,10 @@ pub fn lint_document(
                         severity: Severity::Error,
                         document: doc_id.to_string(),
                         target: sel.clone(),
-                        detail: format!("bbox {bb:?} lies outside the {}x{} canvas", canvas[0], canvas[1]),
+                        detail: format!(
+                            "bbox {bb:?} lies outside the {}x{} canvas",
+                            canvas[0], canvas[1]
+                        ),
                         value: None,
                         required: None,
                     });
@@ -141,7 +144,8 @@ pub fn lint_document(
                             });
                         }
                     }
-                    if let Some(layer) = raster.layer(&dpaint_core::LayerId::from(node.id.clone())) {
+                    if let Some(layer) = raster.layer(&dpaint_core::LayerId::from(node.id.clone()))
+                    {
                         if let LayerKind::Text { spec, .. } = &layer.kind {
                             let points = spec.size * 72.0 / raster.dpi.max(1.0) as f64;
                             if points < MIN_POINT_SIZE {
@@ -167,7 +171,10 @@ pub fn lint_document(
                                         target: sel.clone(),
                                         detail: format!(
                                             "rendered {:.0}x{:.0} overflows its {:.0}x{:.0} box",
-                                            bb[2], bb[3], b.w(), b.h()
+                                            bb[2],
+                                            bb[3],
+                                            b.w(),
+                                            b.h()
                                         ),
                                         value: None,
                                         required: None,
@@ -189,10 +196,17 @@ pub fn lint_document(
             }
 
             // Text on text: two text objects whose painted regions intersect.
-            let texts: Vec<_> = d.tree.iter().filter(|n| n.type_name == "text" && n.bbox.is_some()).collect();
+            let texts: Vec<_> = d
+                .tree
+                .iter()
+                .filter(|n| n.type_name == "text" && n.bbox.is_some())
+                .collect();
             for (i, a) in texts.iter().enumerate() {
                 for b in texts.iter().skip(i + 1) {
-                    let (ra, rb) = (crate::digest::rect_of(a.bbox.unwrap()), crate::digest::rect_of(b.bbox.unwrap()));
+                    let (ra, rb) = (
+                        crate::digest::rect_of(a.bbox.unwrap()),
+                        crate::digest::rect_of(b.bbox.unwrap()),
+                    );
                     if ra.intersects(rb) {
                         out.push(Finding {
                             rule: "text-collision",
@@ -234,7 +248,10 @@ pub fn lint_document(
             }
             for o in vector.walk() {
                 let paints = !matches!(o.fill, dpaint_core::doc::Paint::None) || o.stroke.is_some();
-                if o.visible && !paints && !matches!(o.kind, dpaint_core::doc::vector::VKind::Group { .. }) {
+                if o.visible
+                    && !paints
+                    && !matches!(o.kind, dpaint_core::doc::vector::VKind::Group { .. })
+                {
                     out.push(Finding {
                         rule: "invisible-layer",
                         severity: Severity::Warn,
@@ -290,10 +307,7 @@ pub fn lint_document(
                     });
                 }
 
-                let textured = model
-                    .materials
-                    .iter()
-                    .any(|m| !m.textures.is_empty());
+                let textured = model.materials.iter().any(|m| !m.textures.is_empty());
                 if textured && data.uvs.is_empty() {
                     out.push(Finding {
                         rule: "missing-uv",
@@ -332,7 +346,9 @@ fn check_upscale(
     out: &mut Vec<Finding>,
 ) {
     let Ok(bytes) = assets.get(asset) else { return };
-    let Ok(img) = image::load_from_memory(&bytes) else { return };
+    let Ok(img) = image::load_from_memory(&bytes) else {
+        return;
+    };
     let native = img.width() as f64;
     if native > 0.0 && bb[2] > native * 1.25 {
         out.push(Finding {
@@ -380,7 +396,9 @@ pub fn lint_project(
                     severity: Severity::Info,
                     document: String::new(),
                     target: a.to_string(),
-                    detail: "blob is not referenced by any document; `dpaint op asset.gc` reclaims it".into(),
+                    detail:
+                        "blob is not referenced by any document; `dpaint op asset.gc` reclaims it"
+                            .into(),
                     value: None,
                     required: None,
                 });
@@ -388,9 +406,19 @@ pub fn lint_project(
         }
     }
 
-    let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
-    let warnings = findings.iter().filter(|f| f.severity == Severity::Warn).count();
-    Ok(Report { findings, errors, warnings })
+    let errors = findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .count();
+    let warnings = findings
+        .iter()
+        .filter(|f| f.severity == Severity::Warn)
+        .count();
+    Ok(Report {
+        findings,
+        errors,
+        warnings,
+    })
 }
 
 /// A digest plus its lint findings — what the MCP `dpaint_render` tool returns.

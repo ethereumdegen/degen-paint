@@ -9,7 +9,9 @@ use crate::keys::Provider;
 use crate::Runtime;
 use dpaint_core::doc::model::{TextureBinding, TextureSlot, TextureSource};
 use dpaint_core::doc::DocKind;
-use dpaint_core::{parse_args, resolve_one, schema_for, DocId, Document, MaterialId, Project, RasterDoc};
+use dpaint_core::{
+    parse_args, resolve_one, schema_for, DocId, Document, MaterialId, Project, RasterDoc,
+};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -220,10 +222,8 @@ impl Op for TextureGenerate {
         let mut cached_all = true;
 
         for (slot, prompt, asset, gen) in generated {
-            let tex_doc_id = unique_doc_id(
-                project,
-                &format!("tex {material_name} {}", slot_name(slot)),
-            );
+            let tex_doc_id =
+                unique_doc_id(project, &format!("tex {material_name} {}", slot_name(slot)));
             let mut tex = RasterDoc::new(
                 tex_doc_id.clone(),
                 format!("{material_name} {}", slot_name(slot)),
@@ -234,7 +234,10 @@ impl Op for TextureGenerate {
             let mut layer = Layer::new(
                 layer_id.clone(),
                 slot_name(slot),
-                LayerKind::Pixel { asset: asset.clone(), offset: [0, 0] },
+                LayerKind::Pixel {
+                    asset: asset.clone(),
+                    offset: [0, 0],
+                },
             );
             layer.provenance = Some(provenance(
                 Provider::Fal,
@@ -265,7 +268,9 @@ impl Op for TextureGenerate {
             material.textures.retain(|t| t.slot != slot);
             material.textures.push(TextureBinding {
                 slot,
-                source: TextureSource::Document { document: tex_doc_id.clone() },
+                source: TextureSource::Document {
+                    document: tex_doc_id.clone(),
+                },
                 scale: 1.0,
                 uv_set: 0,
             });

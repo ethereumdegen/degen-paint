@@ -93,7 +93,9 @@ impl Default for QuiverConfig {
 
 impl QuiverConfig {
     pub fn models(&self) -> BTreeMap<String, String> {
-        [("default".to_string(), self.model.clone())].into_iter().collect()
+        [("default".to_string(), self.model.clone())]
+            .into_iter()
+            .collect()
     }
 }
 
@@ -271,7 +273,10 @@ model = "arrow-2-telos"
         assert_eq!(cfg.fal.model_for("ai.image.generate"), "fal-ai/recraft-v3");
         assert_eq!(cfg.fal.model_for("ai.image.upscale"), "fal-ai/esrgan");
         // Untouched entries keep their documented defaults.
-        assert_eq!(cfg.fal.model_for("ai.image.inpaint"), "fal-ai/flux-general/inpainting");
+        assert_eq!(
+            cfg.fal.model_for("ai.image.inpaint"),
+            "fal-ai/flux-general/inpainting"
+        );
         assert_eq!(cfg.quiver.model, "arrow-2-telos");
         assert_eq!(cfg.cost_of("ai.image.generate"), 0.5);
         assert_eq!(cfg.cost_of("ai.image.upscale"), 0.02);
@@ -281,7 +286,10 @@ model = "arrow-2-telos"
     fn a_missing_or_broken_config_still_yields_a_working_tool() {
         let dir = tempfile::tempdir().unwrap();
         let missing = AiConfig::load_from(&dir.path().join("nope.toml"));
-        assert_eq!(missing.fal.model_for("ai.image.generate"), "fal-ai/flux/dev");
+        assert_eq!(
+            missing.fal.model_for("ai.image.generate"),
+            "fal-ai/flux/dev"
+        );
 
         let broken = dir.path().join("broken.toml");
         std::fs::write(&broken, "this is not toml {{{").unwrap();

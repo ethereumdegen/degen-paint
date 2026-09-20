@@ -21,7 +21,6 @@ pub use svg::{import_svg, to_svg};
 
 pub use geom::path_of;
 
-
 /// Ops contributed by this crate, registered by the CLI and the MCP server.
 pub fn ops() -> Vec<Box<dyn Op>> {
     ops::all()

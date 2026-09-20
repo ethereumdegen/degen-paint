@@ -12,7 +12,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// `blake3:<64 hex>.<ext>` — the hash identifies the bytes, the extension records the format.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(transparent)]
 pub struct AssetRef(pub String);
 
@@ -37,7 +39,9 @@ impl AssetRef {
     pub fn rel_path(&self) -> PathBuf {
         let h = self.hash();
         let shard = &h[..2.min(h.len())];
-        PathBuf::from("assets").join(shard).join(format!("{h}.{}", self.ext()))
+        PathBuf::from("assets")
+            .join(shard)
+            .join(format!("{h}.{}", self.ext()))
     }
 
     pub fn as_str(&self) -> &str {
@@ -59,7 +63,9 @@ pub struct AssetStore {
 
 impl std::fmt::Debug for AssetStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AssetStore").field("root", &self.root).finish_non_exhaustive()
+        f.debug_struct("AssetStore")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 
@@ -71,7 +77,10 @@ impl AssetStore {
     }
 
     pub fn with_vfs(root: impl Into<PathBuf>, vfs: Arc<dyn Vfs>) -> Self {
-        Self { root: root.into(), vfs }
+        Self {
+            root: root.into(),
+            vfs,
+        }
     }
 
     pub fn root(&self) -> &Path {
@@ -135,9 +144,15 @@ impl AssetStore {
         }
         for shard in self.vfs.list(&dir)? {
             // Only the two-hex shard directories hold blobs; anything else is not ours.
-            let Ok(files) = self.vfs.list(&shard) else { continue };
+            let Ok(files) = self.vfs.list(&shard) else {
+                continue;
+            };
             for f in files {
-                let name = f.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let name = f
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 if name.ends_with(".tmp") {
                     continue;
                 }
@@ -188,7 +203,10 @@ mod tests {
         let b = store.put(b"two", "png").unwrap();
         assert_ne!(a, b);
         let rel = a.rel_path();
-        let parts: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+        let parts: Vec<_> = rel
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect();
         assert_eq!(parts[0], "assets");
         assert_eq!(parts[1], a.hash()[..2].to_string());
     }
@@ -237,7 +255,9 @@ mod tests {
         let shard = store.path_of(&a).parent().unwrap().to_path_buf();
         assert!(shard.ends_with(&a.hash()[..2]));
 
-        let (removed, freed) = store.gc(&std::collections::BTreeSet::from([a.clone()])).unwrap();
+        let (removed, freed) = store
+            .gc(&std::collections::BTreeSet::from([a.clone()]))
+            .unwrap();
         assert_eq!(removed.len(), 2, "both unreachable blobs go");
         assert_eq!(freed, 12 + 9);
         assert_eq!(store.list().unwrap(), vec![a.clone()]);

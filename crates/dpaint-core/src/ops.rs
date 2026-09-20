@@ -77,7 +77,9 @@ impl Op for DocAdd {
         let id = unique_doc_id(p, &a.name);
         let (w, h) = (a.width.unwrap_or(1024.0), a.height.unwrap_or(1024.0));
         if w <= 0.0 || h <= 0.0 {
-            return Err(Error::Invalid(format!("size must be positive, got {w}x{h}")));
+            return Err(Error::Invalid(format!(
+                "size must be positive, got {w}x{h}"
+            )));
         }
         let doc = match kind {
             DocKind::Raster => {
@@ -120,7 +122,9 @@ impl Op for DocRemove {
         let a: DocRefArgs = parse_args(self.id(), args)?;
         let id = p.resolve_doc(Some(&a.document))?;
         if p.documents.len() == 1 {
-            return Err(Error::Invalid("a project must keep at least one document".into()));
+            return Err(Error::Invalid(
+                "a project must keep at least one document".into(),
+            ));
         }
         let dependents: Vec<String> = p
             .documents
@@ -205,7 +209,10 @@ impl Op for DocDuplicate {
 /// Give every `id` field in a document subtree a fresh suffix, keeping internal references
 /// consistent by rewriting both sides with the same mapping.
 fn remap_ids(v: &mut serde_json::Value, old_doc: &DocId, new_doc: &DocId) {
-    let suffix = format!("-{}", &ulid::Ulid::new().to_string()[20..].to_ascii_lowercase());
+    let suffix = format!(
+        "-{}",
+        &ulid::Ulid::new().to_string()[20..].to_ascii_lowercase()
+    );
     fn walk(v: &mut serde_json::Value, suffix: &str, old_doc: &str, new_doc: &str) {
         match v {
             serde_json::Value::Object(m) => {
@@ -228,7 +235,9 @@ fn remap_ids(v: &mut serde_json::Value, old_doc: &DocId, new_doc: &DocId) {
                     }
                 }
             }
-            serde_json::Value::Array(a) => a.iter_mut().for_each(|x| walk(x, suffix, old_doc, new_doc)),
+            serde_json::Value::Array(a) => {
+                a.iter_mut().for_each(|x| walk(x, suffix, old_doc, new_doc))
+            }
             _ => {}
         }
     }
@@ -379,7 +388,10 @@ impl Op for PaletteRemove {
     fn apply(&self, p: &mut Project, args: serde_json::Value, _cx: &mut OpCx) -> Result<OpEffect> {
         let a: PaletteRemoveArgs = parse_args(self.id(), args)?;
         if p.palette.remove(&a.name).is_none() {
-            return Err(Error::Invalid(format!("no palette entry named '{}'", a.name)));
+            return Err(Error::Invalid(format!(
+                "no palette entry named '{}'",
+                a.name
+            )));
         }
         Ok(OpEffect::default().with_removed(a.name))
     }
@@ -419,7 +431,9 @@ impl Op for FontRegister {
                 .unwrap_or_else(|| "embedded".into())
         });
         let asset = cx.assets.put_file(path)?;
-        p.fonts.retain(|f| !(f.family == family && f.weight == a.weight.unwrap_or(400) && f.italic == a.italic));
+        p.fonts.retain(|f| {
+            !(f.family == family && f.weight == a.weight.unwrap_or(400) && f.italic == a.italic)
+        });
         p.fonts.push(FontEntry {
             family: family.clone(),
             asset: asset.clone(),
@@ -490,7 +504,13 @@ mod tests {
         (tmp, reg, p)
     }
 
-    fn run(reg: &Registry, p: &mut Project, assets: &AssetStore, id: &str, args: serde_json::Value) -> Result<OpEffect> {
+    fn run(
+        reg: &Registry,
+        p: &mut Project,
+        assets: &AssetStore,
+        id: &str,
+        args: serde_json::Value,
+    ) -> Result<OpEffect> {
         reg.get(id).unwrap().apply(p, args, &mut OpCx::new(assets))
     }
 
@@ -499,12 +519,26 @@ mod tests {
         let (tmp, reg, mut p) = setup();
         let assets = AssetStore::new(tmp.path());
         for (name, kind) in [("logo", "vector"), ("badge", "model"), ("poster", "raster")] {
-            run(&reg, &mut p, &assets, "doc.add", serde_json::json!({ "name": name, "kind": kind, "width": 64, "height": 64 })).unwrap();
+            run(
+                &reg,
+                &mut p,
+                &assets,
+                "doc.add",
+                serde_json::json!({ "name": name, "kind": kind, "width": 64, "height": 64 }),
+            )
+            .unwrap();
         }
         assert_eq!(p.documents.len(), 4);
         assert_eq!(p.resolve_doc(Some("logo")).unwrap().as_str(), "doc_logo");
 
-        run(&reg, &mut p, &assets, "doc.set-active", serde_json::json!({ "document": "logo" })).unwrap();
+        run(
+            &reg,
+            &mut p,
+            &assets,
+            "doc.set-active",
+            serde_json::json!({ "document": "logo" }),
+        )
+        .unwrap();
         assert_eq!(p.active.as_str(), "doc_logo");
     }
 
@@ -513,10 +547,20 @@ mod tests {
         let (tmp, reg, mut p) = setup();
         let assets = AssetStore::new(tmp.path());
         for _ in 0..2 {
-            run(&reg, &mut p, &assets, "doc.add", serde_json::json!({ "name": "logo", "kind": "vector" })).unwrap();
+            run(
+                &reg,
+                &mut p,
+                &assets,
+                "doc.add",
+                serde_json::json!({ "name": "logo", "kind": "vector" }),
+            )
+            .unwrap();
         }
         let ids: Vec<&str> = p.documents.keys().map(|k| k.as_str()).collect();
-        assert!(ids.contains(&"doc_logo") && ids.contains(&"doc_logo-2"), "got {ids:?}");
+        assert!(
+            ids.contains(&"doc_logo") && ids.contains(&"doc_logo-2"),
+            "got {ids:?}"
+        );
     }
 
     #[test]
@@ -525,17 +569,34 @@ mod tests {
         use crate::ids::LayerId;
         let (tmp, reg, mut p) = setup();
         let assets = AssetStore::new(tmp.path());
-        run(&reg, &mut p, &assets, "doc.add", serde_json::json!({ "name": "logo", "kind": "vector" })).unwrap();
-        p.raster_mut(&DocId::from("doc_main")).unwrap().layers.push(Layer::new(
-            LayerId::from("lyr_link"),
-            "link",
-            LayerKind::Linked {
-                document: DocId::from("doc_logo"),
-                fit: Fit::Contain,
-                r#box: Rect::new(0.0, 0.0, 10.0, 10.0),
-            },
-        ));
-        let err = run(&reg, &mut p, &assets, "doc.remove", serde_json::json!({ "document": "logo" })).unwrap_err();
+        run(
+            &reg,
+            &mut p,
+            &assets,
+            "doc.add",
+            serde_json::json!({ "name": "logo", "kind": "vector" }),
+        )
+        .unwrap();
+        p.raster_mut(&DocId::from("doc_main"))
+            .unwrap()
+            .layers
+            .push(Layer::new(
+                LayerId::from("lyr_link"),
+                "link",
+                LayerKind::Linked {
+                    document: DocId::from("doc_logo"),
+                    fit: Fit::Contain,
+                    r#box: Rect::new(0.0, 0.0, 10.0, 10.0),
+                },
+            ));
+        let err = run(
+            &reg,
+            &mut p,
+            &assets,
+            "doc.remove",
+            serde_json::json!({ "document": "logo" }),
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("still linked"), "got: {err}");
         assert_eq!(p.documents.len(), 2);
     }
@@ -546,16 +607,36 @@ mod tests {
         use crate::ids::LayerId;
         let (tmp, reg, mut p) = setup();
         let assets = AssetStore::new(tmp.path());
-        p.raster_mut(&DocId::from("doc_main")).unwrap().layers.push(Layer::new(
-            LayerId::from("lyr_bg"),
-            "bg",
-            LayerKind::Fill { color: Color::WHITE },
-        ));
-        run(&reg, &mut p, &assets, "doc.duplicate", serde_json::json!({ "document": "doc_main" })).unwrap();
+        p.raster_mut(&DocId::from("doc_main"))
+            .unwrap()
+            .layers
+            .push(Layer::new(
+                LayerId::from("lyr_bg"),
+                "bg",
+                LayerKind::Fill {
+                    color: Color::WHITE,
+                },
+            ));
+        run(
+            &reg,
+            &mut p,
+            &assets,
+            "doc.duplicate",
+            serde_json::json!({ "document": "doc_main" }),
+        )
+        .unwrap();
         assert_eq!(p.documents.len(), 2);
-        let copy = p.documents.values().find(|d| d.name() == "main copy").unwrap();
+        let copy = p
+            .documents
+            .values()
+            .find(|d| d.name() == "main copy")
+            .unwrap();
         let copy_layer = &copy.as_raster().unwrap().layers[0];
-        assert_ne!(copy_layer.id.as_str(), "lyr_bg", "a copy must not share ids with its source");
+        assert_ne!(
+            copy_layer.id.as_str(),
+            "lyr_bg",
+            "a copy must not share ids with its source"
+        );
         assert_eq!(copy_layer.name, "bg");
     }
 
@@ -565,8 +646,22 @@ mod tests {
         let assets = AssetStore::new(tmp.path());
         let f = tmp.path().join("in.png");
         std::fs::write(&f, b"not really a png").unwrap();
-        let e1 = run(&reg, &mut p, &assets, "asset.import", serde_json::json!({ "path": f.to_str().unwrap() })).unwrap();
-        let e2 = run(&reg, &mut p, &assets, "asset.import", serde_json::json!({ "path": f.to_str().unwrap() })).unwrap();
+        let e1 = run(
+            &reg,
+            &mut p,
+            &assets,
+            "asset.import",
+            serde_json::json!({ "path": f.to_str().unwrap() }),
+        )
+        .unwrap();
+        let e2 = run(
+            &reg,
+            &mut p,
+            &assets,
+            "asset.import",
+            serde_json::json!({ "path": f.to_str().unwrap() }),
+        )
+        .unwrap();
         assert_eq!(e1.created, e2.created);
         assert_eq!(assets.list().unwrap().len(), 1);
         assert_eq!(e1.data.unwrap()["bytes"], 16);
@@ -587,7 +682,14 @@ mod tests {
     fn resizing_rejects_nonsense_dimensions() {
         let (tmp, reg, mut p) = setup();
         let assets = AssetStore::new(tmp.path());
-        let err = run(&reg, &mut p, &assets, "doc.resize", serde_json::json!({ "width": 0, "height": 10 })).unwrap_err();
+        let err = run(
+            &reg,
+            &mut p,
+            &assets,
+            "doc.resize",
+            serde_json::json!({ "width": 0, "height": 10 }),
+        )
+        .unwrap_err();
         assert_eq!(err.code(), "invalid");
         assert_eq!(p.raster(&DocId::from("doc_main")).unwrap().size, [100, 100]);
     }

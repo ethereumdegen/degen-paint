@@ -73,7 +73,12 @@ fn one() -> f64 {
     1.0
 }
 
-vop!(TraceImage, TraceArgs, "vector.trace.image", "Trace a raster image into editable paths, entirely offline");
+vop!(
+    TraceImage,
+    TraceArgs,
+    "vector.trace.image",
+    "Trace a raster image into editable paths, entirely offline"
+);
 
 impl TraceImage {
     fn run(project: &mut Project, a: TraceArgs, cx: &mut OpCx) -> Result<OpEffect> {

@@ -9,9 +9,9 @@ pub mod bridge;
 
 use dpaint_core::Error;
 use dpaint_studio::Studio;
+use parking_lot::RwLock;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use parking_lot::RwLock;
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
@@ -31,7 +31,10 @@ pub struct Shell {
 
 impl Shell {
     pub fn new(studio: Option<Studio>, notice: impl Into<String>) -> Self {
-        Self { studio: RwLock::new(studio), notice: RwLock::new(notice.into()) }
+        Self {
+            studio: RwLock::new(studio),
+            notice: RwLock::new(notice.into()),
+        }
     }
 
     pub fn root(&self) -> Option<PathBuf> {
@@ -99,7 +102,11 @@ fn open_studio_window(app: &AppHandle) -> tauri::Result<()> {
         w.set_focus()?;
         return Ok(());
     }
-    let title = app.state::<Shell>().root().map(|r| window_title(&r)).unwrap_or_else(|| "degen-paint".into());
+    let title = app
+        .state::<Shell>()
+        .root()
+        .map(|r| window_title(&r))
+        .unwrap_or_else(|| "degen-paint".into());
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title(title)
         .inner_size(1440.0, 900.0)
@@ -138,7 +145,10 @@ pub fn open_project(app: &AppHandle, path: &Path) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_title(&window_title(&root));
     }
-    let _ = app.emit("dpaint:changed", json!({ "reason": "project-opened", "root": root.display().to_string() }));
+    let _ = app.emit(
+        "dpaint:changed",
+        json!({ "reason": "project-opened", "root": root.display().to_string() }),
+    );
     Ok(())
 }
 
@@ -319,9 +329,9 @@ pub fn resolve_project(arg: Option<PathBuf>) -> Result<Studio, String> {
     match arg {
         Some(p) => Studio::open(&p).map_err(|e| format!("--project {}: {e}", p.display())),
         None => Studio::discover(".").map_err(|e| match e {
-            Error::Invalid(_) | Error::Io(_) => format!(
-                "No project found in the current directory or any parent.\n{e}"
-            ),
+            Error::Invalid(_) | Error::Io(_) => {
+                format!("No project found in the current directory or any parent.\n{e}")
+            }
             other => other.to_string(),
         }),
     }
@@ -349,7 +359,11 @@ pub fn run() {
         // window says when it finished loading and reports whether the injected bridge landed.
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
-                eprintln!("degen-paint: window '{}' loaded {}", webview.label(), payload.url());
+                eprintln!(
+                    "degen-paint: window '{}' loaded {}",
+                    webview.label(),
+                    payload.url()
+                );
                 let _ = webview.eval(bridge::BRIDGE_PROBE);
             }
         })

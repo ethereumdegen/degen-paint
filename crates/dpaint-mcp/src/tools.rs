@@ -167,8 +167,14 @@ mod tests {
 
     #[test]
     fn dotted_op_ids_become_identifier_shaped_tool_names() {
-        assert_eq!(tool_name("raster.filter.gaussian-blur"), "raster_filter_gaussian_blur");
-        assert_eq!(tool_name("ai.image.remove-background"), "ai_image_remove_background");
+        assert_eq!(
+            tool_name("raster.filter.gaussian-blur"),
+            "raster_filter_gaussian_blur"
+        );
+        assert_eq!(
+            tool_name("ai.image.remove-background"),
+            "ai_image_remove_background"
+        );
     }
 
     #[test]

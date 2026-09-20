@@ -58,7 +58,9 @@ fn create(
 ) -> Result<(dpaint_core::DocId, ObjectId)> {
     let doc = doc_of(project, cx)?;
     let fill = match &ap.fill {
-        Some(s) => parse_color(project, s)?.map(Paint::solid).unwrap_or(Paint::None),
+        Some(s) => parse_color(project, s)?
+            .map(Paint::solid)
+            .unwrap_or(Paint::None),
         None => Paint::None,
     };
     let stroke_color = match &ap.stroke {
@@ -120,7 +122,12 @@ pub struct AddPathArgs {
     pub style: Appearance,
 }
 
-vop!(AddPath, AddPathArgs, "vector.object.add-path", "Add a Bézier path from SVG path data");
+vop!(
+    AddPath,
+    AddPathArgs,
+    "vector.object.add-path",
+    "Add a Bézier path from SVG path data"
+);
 
 impl AddPath {
     fn run(project: &mut Project, a: AddPathArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -145,7 +152,12 @@ pub struct AddRectArgs {
     pub style: Appearance,
 }
 
-vop!(AddRect, AddRectArgs, "vector.object.add-rect", "Add a rectangle, optionally with rounded corners");
+vop!(
+    AddRect,
+    AddRectArgs,
+    "vector.object.add-rect",
+    "Add a rectangle, optionally with rounded corners"
+);
 
 impl AddRect {
     fn run(project: &mut Project, a: AddRectArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -181,7 +193,12 @@ pub struct AddEllipseArgs {
     pub style: Appearance,
 }
 
-vop!(AddEllipse, AddEllipseArgs, "vector.object.add-ellipse", "Add an ellipse or circle");
+vop!(
+    AddEllipse,
+    AddEllipseArgs,
+    "vector.object.add-ellipse",
+    "Add an ellipse or circle"
+);
 
 impl AddEllipse {
     fn run(project: &mut Project, a: AddEllipseArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -218,7 +235,12 @@ pub struct AddPolygonArgs {
     pub style: Appearance,
 }
 
-vop!(AddPolygon, AddPolygonArgs, "vector.object.add-polygon", "Add a regular polygon");
+vop!(
+    AddPolygon,
+    AddPolygonArgs,
+    "vector.object.add-polygon",
+    "Add a regular polygon"
+);
 
 impl AddPolygon {
     fn run(project: &mut Project, a: AddPolygonArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -298,7 +320,12 @@ pub struct AddLineArgs {
     pub style: Appearance,
 }
 
-vop!(AddLine, AddLineArgs, "vector.object.add-line", "Add a straight line segment");
+vop!(
+    AddLine,
+    AddLineArgs,
+    "vector.object.add-line",
+    "Add a straight line segment"
+);
 
 impl AddLine {
     fn run(project: &mut Project, a: AddLineArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -349,7 +376,12 @@ pub struct AddTextArgs {
     pub style: Appearance,
 }
 
-vop!(AddText, AddTextArgs, "vector.object.add-text", "Add a text object");
+vop!(
+    AddText,
+    AddTextArgs,
+    "vector.object.add-text",
+    "Add a text object"
+);
 
 impl AddText {
     fn run(project: &mut Project, a: AddTextArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -413,7 +445,12 @@ pub struct AddImageArgs {
     pub style: Appearance,
 }
 
-vop!(AddImage, AddImageArgs, "vector.object.add-image", "Place a raster image, stored in the asset store");
+vop!(
+    AddImage,
+    AddImageArgs,
+    "vector.object.add-image",
+    "Place a raster image, stored in the asset store"
+);
 
 impl AddImage {
     fn run(project: &mut Project, a: AddImageArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -449,7 +486,12 @@ pub struct TargetArgs {
     pub target: String,
 }
 
-vop!(Remove, TargetArgs, "vector.object.remove", "Delete the selected objects");
+vop!(
+    Remove,
+    TargetArgs,
+    "vector.object.remove",
+    "Delete the selected objects"
+);
 
 impl Remove {
     fn run(project: &mut Project, a: TargetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -500,7 +542,12 @@ pub struct DuplicateArgs {
     pub dy: f64,
 }
 
-vop!(Duplicate, DuplicateArgs, "vector.object.duplicate", "Copy the selected objects, optionally offset");
+vop!(
+    Duplicate,
+    DuplicateArgs,
+    "vector.object.duplicate",
+    "Copy the selected objects, optionally offset"
+);
 
 impl Duplicate {
     fn run(project: &mut Project, a: DuplicateArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -509,7 +556,9 @@ impl Duplicate {
         let v = project.vector_mut(&doc)?;
         let mut eff = OpEffect::changed(&doc);
         for id in &ids {
-            let Some(src) = v.object(id).cloned() else { continue };
+            let Some(src) = v.object(id).cloned() else {
+                continue;
+            };
             let new_id = fresh_id(v, &format!("{}-copy", src.name));
             let mut copy = renumber(v, src, new_id.clone());
             copy.transform = Transform::from_kurbo(
@@ -567,7 +616,12 @@ pub struct ReorderArgs {
     pub index: Option<usize>,
 }
 
-vop!(Reorder, ReorderArgs, "vector.object.reorder", "Change an object's stacking order within its parent");
+vop!(
+    Reorder,
+    ReorderArgs,
+    "vector.object.reorder",
+    "Change an object's stacking order within its parent"
+);
 
 impl Reorder {
     fn run(project: &mut Project, a: ReorderArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -612,7 +666,12 @@ pub struct RenameArgs {
     pub name: String,
 }
 
-vop!(Rename, RenameArgs, "vector.object.rename", "Rename an object without changing its id");
+vop!(
+    Rename,
+    RenameArgs,
+    "vector.object.rename",
+    "Rename an object without changing its id"
+);
 
 impl Rename {
     fn run(project: &mut Project, a: RenameArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -637,7 +696,12 @@ pub struct GroupArgs {
     pub name: Option<String>,
 }
 
-vop!(Group, GroupArgs, "vector.object.group", "Wrap the selected objects in a group");
+vop!(
+    Group,
+    GroupArgs,
+    "vector.object.group",
+    "Wrap the selected objects in a group"
+);
 
 impl Group {
     fn run(project: &mut Project, a: GroupArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -668,7 +732,8 @@ impl Group {
         let v = project.vector_mut(&doc)?;
         let gid = fresh_id(v, &name);
         let anchor = index_in_owner(v, &ids[0]).unwrap_or(0);
-        let list = owner_list(v, &ids[0]).ok_or_else(|| Error::Invalid("object vanished".into()))?;
+        let list =
+            owner_list(v, &ids[0]).ok_or_else(|| Error::Invalid("object vanished".into()))?;
         let mut taken = Vec::new();
         let mut i = 0;
         while i < list.len() {
@@ -689,7 +754,12 @@ impl Group {
 
 // ----------------------------------------------------------------------------- ungroup
 
-vop!(Ungroup, TargetArgs, "vector.object.ungroup", "Dissolve a group, baking its transform and opacity into its children");
+vop!(
+    Ungroup,
+    TargetArgs,
+    "vector.object.ungroup",
+    "Dissolve a group, baking its transform and opacity into its children"
+);
 
 impl Ungroup {
     fn run(project: &mut Project, a: TargetArgs, cx: &mut OpCx) -> Result<OpEffect> {

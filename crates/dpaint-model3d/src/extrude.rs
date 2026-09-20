@@ -132,7 +132,9 @@ fn filled(p: [f64; 2], rings: &[Ring], rule: FillRule) -> bool {
 fn orient_rings(rings: &mut [Ring], rule: FillRule) {
     let snapshot: Vec<Ring> = rings.to_vec();
     for r in rings.iter_mut() {
-        let Some(probe) = probe_sides(r) else { continue };
+        let Some(probe) = probe_sides(r) else {
+            continue;
+        };
         let (left, right) = probe;
         let l = filled(left, &snapshot, rule);
         let rr = filled(right, &snapshot, rule);
@@ -255,7 +257,11 @@ fn cap(rings: &[Ring], z: f64, front: bool, rule: FillRule, tol: f64) -> Result<
             .tessellate_path(&path, &options, &mut builder)
             .map_err(|e| Error::DegenerateGeometry(format!("cap tessellation failed: {e:?}")))?;
     }
-    let normal = if front { [0.0, 0.0, 1.0] } else { [0.0, 0.0, -1.0] };
+    let normal = if front {
+        [0.0, 0.0, 1.0]
+    } else {
+        [0.0, 0.0, -1.0]
+    };
     let mut m = MeshData::default();
     let (mut lo, mut hi) = ([f64::MAX; 2], [f64::MIN; 2]);
     for v in &buffers.vertices {
@@ -443,11 +449,7 @@ pub fn extrude_rings(
 
 /// Lathe an open profile around the `Y` axis. `x` is the radius, `-y` the height; run the
 /// profile bottom to top for outward normals.
-pub fn revolve_profile(
-    profile: &[[f64; 2]],
-    angle_deg: f32,
-    segments: u32,
-    ) -> Result<MeshData> {
+pub fn revolve_profile(profile: &[[f64; 2]], angle_deg: f32, segments: u32) -> Result<MeshData> {
     if profile.len() < 2 {
         return Err(Error::DegenerateGeometry(
             "revolve needs a profile with at least two points".into(),
@@ -536,7 +538,12 @@ pub fn loft_sections(sections: Vec<Vec<Ring>>, rule: FillRule, tolerance: f64) -
         });
         outer.push(rings.remove(0));
     }
-    let n = outer.iter().map(|r| r.len()).max().unwrap_or(3).clamp(3, 4096);
+    let n = outer
+        .iter()
+        .map(|r| r.len())
+        .max()
+        .unwrap_or(3)
+        .clamp(3, 4096);
     let resampled: Vec<Ring> = outer.iter().map(|r| resample_ring(r, n)).collect();
 
     let count = resampled.len();
@@ -569,7 +576,9 @@ pub fn loft_sections(sections: Vec<Vec<Ring>>, rule: FillRule, tolerance: f64) -
     )?);
     m.drop_degenerate(1e-12);
     if m.indices.is_empty() {
-        return Err(Error::DegenerateGeometry("loft produced no triangles".into()));
+        return Err(Error::DegenerateGeometry(
+            "loft produced no triangles".into(),
+        ));
     }
     m.recompute_normals(35.0);
     Ok(m)
@@ -578,12 +587,16 @@ pub fn loft_sections(sections: Vec<Vec<Ring>>, rule: FillRule, tolerance: f64) -
 /// Resample a closed ring to `n` points at uniform arc length, starting from the vertex
 /// whose direction from the centroid is closest to `+X`.
 fn resample_ring(r: &Ring, n: usize) -> Ring {
-    let centroid = r.iter().fold([0.0f64; 2], |a, p| [a[0] + p[0], a[1] + p[1]]);
+    let centroid = r
+        .iter()
+        .fold([0.0f64; 2], |a, p| [a[0] + p[0], a[1] + p[1]]);
     let centroid = [centroid[0] / r.len() as f64, centroid[1] / r.len() as f64];
     let start = (0..r.len())
         .min_by(|&a, &b| {
             let ang = |i: usize| (r[i][1] - centroid[1]).atan2(r[i][0] - centroid[0]).abs();
-            ang(a).partial_cmp(&ang(b)).unwrap_or(std::cmp::Ordering::Equal)
+            ang(a)
+                .partial_cmp(&ang(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .unwrap_or(0);
     let rot: Ring = (0..r.len()).map(|i| r[(start + i) % r.len()]).collect();
@@ -609,7 +622,11 @@ fn resample_ring(r: &Ring, n: usize) -> Ring {
             walked += lens[seg];
             seg += 1;
         }
-        let t = if lens[seg] > 0.0 { (target - walked) / lens[seg] } else { 0.0 };
+        let t = if lens[seg] > 0.0 {
+            (target - walked) / lens[seg]
+        } else {
+            0.0
+        };
         let a = rot[seg];
         let b = rot[(seg + 1) % rot.len()];
         out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);

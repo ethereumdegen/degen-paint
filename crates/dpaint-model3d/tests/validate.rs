@@ -77,7 +77,11 @@ fn a_clean_scene_passes_with_no_errors() {
     model.nodes.push(node);
 
     let report = validate(&mut project, &assets, 4096);
-    assert_eq!(report["ok"], serde_json::json!(true), "report was {report:#}");
+    assert_eq!(
+        report["ok"],
+        serde_json::json!(true),
+        "report was {report:#}"
+    );
     assert_eq!(report["errors"], serde_json::json!(0));
     assert!(
         codes(&report).is_empty(),
@@ -101,7 +105,7 @@ fn a_non_manifold_mesh_is_flagged() {
         normals: vec![[0.0, 0.0, 1.0]; 5],
         uvs: vec![[0.0, 0.0]; 5],
         indices: vec![0, 1, 2, 0, 1, 3, 0, 1, 4],
-        };
+    };
     let (mut project, _doc) = scene_with_mesh(&assets, &mesh);
 
     let report = validate(&mut project, &assets, 4096);
@@ -120,7 +124,10 @@ fn a_non_manifold_mesh_is_flagged() {
     assert_eq!(finding["severity"], "error");
     assert_eq!(finding["target"], "msh_test");
     assert!(
-        finding["detail"].as_str().unwrap().contains("three or more"),
+        finding["detail"]
+            .as_str()
+            .unwrap()
+            .contains("three or more"),
         "detail should say what is wrong: {finding}"
     );
 }
@@ -129,7 +136,12 @@ fn a_non_manifold_mesh_is_flagged() {
 fn degenerate_triangles_are_reported() {
     let (_tmp, assets) = store();
     let mesh = MeshData {
-        positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        positions: vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
         normals: vec![[0.0, 0.0, 1.0]; 4],
         uvs: vec![[0.0, 0.0]; 4],
         // The first triangle is collinear, so it has no area at all.
@@ -138,7 +150,10 @@ fn degenerate_triangles_are_reported() {
     let (mut project, _doc) = scene_with_mesh(&assets, &mesh);
     let report = validate(&mut project, &assets, 4096);
     let found = codes(&report);
-    assert!(found.contains(&"degenerate-triangles".to_string()), "got {found:?}");
+    assert!(
+        found.contains(&"degenerate-triangles".to_string()),
+        "got {found:?}"
+    );
     assert!(
         found.contains(&"open-surface".to_string()),
         "two loose triangles are an open surface: {found:?}"
@@ -169,7 +184,11 @@ fn a_bound_texture_without_uvs_is_an_error() {
         model.node_mut(&"nd_test".into()).unwrap().material = Some("mat_skin".into());
     }
     let report = validate(&mut project, &assets, 4096);
-    assert!(codes(&report).contains(&"missing-uv".to_string()), "got {:?}", codes(&report));
+    assert!(
+        codes(&report).contains(&"missing-uv".to_string()),
+        "got {:?}",
+        codes(&report)
+    );
     assert_eq!(report["ok"], serde_json::json!(false));
 }
 
@@ -191,7 +210,11 @@ fn an_oversized_texture_warns_without_failing_the_document() {
     // The fixture PNG is 2x2, so a 1px ceiling must trip and a 2px ceiling must not.
     let report = validate(&mut project, &assets, 1);
     assert!(codes(&report).contains(&"texture-oversized".to_string()));
-    assert_eq!(report["ok"], serde_json::json!(true), "oversize is a warning, not an error");
+    assert_eq!(
+        report["ok"],
+        serde_json::json!(true),
+        "oversize is a warning, not an error"
+    );
     assert_eq!(report["warnings"], serde_json::json!(1));
 
     let report = validate(&mut project, &assets, 2);
@@ -222,8 +245,14 @@ fn dangling_references_are_named() {
     let report = validate(&mut project, &assets, 4096);
     let found = codes(&report);
     assert!(found.contains(&"missing-mesh".to_string()), "got {found:?}");
-    assert!(found.contains(&"missing-material".to_string()), "got {found:?}");
-    assert!(found.contains(&"texture-unresolved".to_string()), "got {found:?}");
+    assert!(
+        found.contains(&"missing-material".to_string()),
+        "got {found:?}"
+    );
+    assert!(
+        found.contains(&"texture-unresolved".to_string()),
+        "got {found:?}"
+    );
     assert_eq!(report["ok"], serde_json::json!(false));
 }
 
@@ -255,7 +284,11 @@ fn an_open_extrusion_reports_boundary_edges_as_information_not_failure() {
     let report = validate(&mut project, &assets, 4096);
     let found = codes(&report);
     assert_eq!(found, vec!["open-surface".to_string()], "got {found:?}");
-    assert_eq!(report["ok"], serde_json::json!(true), "an open tube is legal glTF");
+    assert_eq!(
+        report["ok"],
+        serde_json::json!(true),
+        "an open tube is legal glTF"
+    );
 }
 
 #[test]
@@ -284,4 +317,3 @@ fn a_mesh_whose_recipe_cannot_build_is_reported_rather_than_panicking() {
         codes(&report)
     );
 }
-

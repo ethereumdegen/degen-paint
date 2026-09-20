@@ -2,9 +2,7 @@
 
 use super::{all_of_type, declare_op, one_of_type, target_model, unique_id};
 use dpaint_core::doc::model::{AlphaMode, Material, TextureBinding, TextureSlot, TextureSource};
-use dpaint_core::{
-    AssetRef, Color, Error, MaterialId, NodeId, OpCx, OpEffect, Project, Result,
-};
+use dpaint_core::{AssetRef, Color, Error, MaterialId, NodeId, OpCx, OpEffect, Project, Result};
 use serde::Deserialize;
 
 /// Colors accept a palette name or any CSS-style hex, so `--base-color brand-red` works
@@ -308,10 +306,12 @@ fn material_from_raster_doc(
             to: src.to_string(),
         });
     }
-    let name = args
-        .name
-        .clone()
-        .unwrap_or_else(|| project.doc(&src).map(|d| d.name().to_string()).unwrap_or_default());
+    let name = args.name.clone().unwrap_or_else(|| {
+        project
+            .doc(&src)
+            .map(|d| d.name().to_string())
+            .unwrap_or_default()
+    });
     let mut material = Material::new(MaterialId::from("mat_placeholder"), name.clone());
     args.pbr.apply_to(project, &mut material)?;
     material.textures.push(TextureBinding {

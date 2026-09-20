@@ -49,7 +49,11 @@ pub struct ClipCreateArgs {
     pub name: String,
 }
 
-fn anim_clip_create(project: &mut Project, args: ClipCreateArgs, cx: &mut OpCx) -> Result<OpEffect> {
+fn anim_clip_create(
+    project: &mut Project,
+    args: ClipCreateArgs,
+    cx: &mut OpCx,
+) -> Result<OpEffect> {
     let doc = target_model(project, cx)?;
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.animations.iter().map(|a| a.id.to_string()).collect();
@@ -176,7 +180,11 @@ fn anim_key_add(project: &mut Project, args: KeyAddArgs, cx: &mut OpCx) -> Resul
         )));
     }
     let mut effect = OpEffect::changed(&doc);
-    if let Some(existing) = channel.keys.iter().position(|k| (k.t - args.t).abs() < 1e-6) {
+    if let Some(existing) = channel
+        .keys
+        .iter()
+        .position(|k| (k.t - args.t).abs() < 1e-6)
+    {
         channel.keys[existing].v = args.value;
         effect = effect.warn(
             "key-replaced",
@@ -184,7 +192,10 @@ fn anim_key_add(project: &mut Project, args: KeyAddArgs, cx: &mut OpCx) -> Resul
             format!("a key already existed at t={}", args.t),
         );
     } else {
-        channel.keys.push(AnimKey { t: args.t, v: args.value });
+        channel.keys.push(AnimKey {
+            t: args.t,
+            v: args.value,
+        });
     }
     channel
         .keys

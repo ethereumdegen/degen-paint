@@ -18,7 +18,13 @@ use std::sync::LazyLock;
 pub use dpaint_core::{FALLBACK_FAMILY, FALLBACK_FONT};
 
 /// Families that mean "whatever the renderer's default is" rather than a specific face.
-const GENERIC: &[&str] = &["sans-serif", "sans", "default", "system-ui", FALLBACK_FAMILY];
+const GENERIC: &[&str] = &[
+    "sans-serif",
+    "sans",
+    "default",
+    "system-ui",
+    FALLBACK_FAMILY,
+];
 
 pub struct Fonts {
     db: fontdb::Database,
@@ -84,7 +90,11 @@ impl Fonts {
                 let exact = self
                     .db
                     .face(id)
-                    .map(|f| f.families.iter().any(|(n, _)| n.eq_ignore_ascii_case(wanted)))
+                    .map(|f| {
+                        f.families
+                            .iter()
+                            .any(|(n, _)| n.eq_ignore_ascii_case(wanted))
+                    })
                     .unwrap_or(false);
                 if exact {
                     return Selection {
@@ -157,32 +167,31 @@ impl Shaped {
 pub fn shape(fonts: &Fonts, spec: &TextSpec) -> Shaped {
     let sel = fonts.select(&spec.family, spec.weight, spec.italic);
     let wrap = spec.r#box.map(|b| b.w()).filter(|w| *w > 0.0);
-    let out = fonts
-        .with_face(sel.id, |face| {
-            let upem = face.units_per_em() as f64;
-            let scale = spec.size / upem.max(1.0);
-            let metrics = Metrics {
-                ascent: face.ascender() as f64 * scale,
-                descent: -(face.descender() as f64) * scale,
-                line_height: spec.size * spec.leading,
-                scale,
-            };
-            let mut lines = Vec::new();
-            for para in spec.text.split('\n') {
-                match wrap {
-                    Some(w) => lines.extend(wrap_paragraph(face, para, scale, spec.tracking, w)),
-                    None => lines.push(shape_run(face, para, scale, spec.tracking)),
-                }
+    let out = fonts.with_face(sel.id, |face| {
+        let upem = face.units_per_em() as f64;
+        let scale = spec.size / upem.max(1.0);
+        let metrics = Metrics {
+            ascent: face.ascender() as f64 * scale,
+            descent: -(face.descender() as f64) * scale,
+            line_height: spec.size * spec.leading,
+            scale,
+        };
+        let mut lines = Vec::new();
+        for para in spec.text.split('\n') {
+            match wrap {
+                Some(w) => lines.extend(wrap_paragraph(face, para, scale, spec.tracking, w)),
+                None => lines.push(shape_run(face, para, scale, spec.tracking)),
             }
-            if lines.is_empty() {
-                lines.push(Line::default());
-            }
-            Shaped {
-                lines,
-                metrics,
-                substituted: sel.substituted.clone(),
-            }
-        });
+        }
+        if lines.is_empty() {
+            lines.push(Line::default());
+        }
+        Shaped {
+            lines,
+            metrics,
+            substituted: sel.substituted.clone(),
+        }
+    });
     out.unwrap_or_else(|| Shaped {
         lines: vec![Line::default()],
         metrics: Metrics {
@@ -348,7 +357,11 @@ fn align_offset(align: TextAlign, line_w: f64, box_w: Option<f64>) -> f64 {
 }
 
 /// Whole text block as one path.
-pub fn outline_block(fonts: &Fonts, spec: &TextSpec, origin: (f64, f64)) -> (BezPath, Option<String>) {
+pub fn outline_block(
+    fonts: &Fonts,
+    spec: &TextSpec,
+    origin: (f64, f64),
+) -> (BezPath, Option<String>) {
     let (lines, sub) = outline_block_lines(fonts, spec, origin);
     let mut p = BezPath::new();
     for l in lines {
@@ -398,7 +411,9 @@ pub fn outline_on_path(
     let mut last = None;
     for g in &line.glyphs {
         let s = base + g.x;
-        let Some((pt, tan)) = walker.at(s) else { continue };
+        let Some((pt, tan)) = walker.at(s) else {
+            continue;
+        };
         let normal = Vec2::new(-tan.y, tan.x);
         let side = if right { -1.0 } else { 1.0 };
         // The baseline sits on the curve; glyphs stand on the normal side.
@@ -481,7 +496,11 @@ impl ArcWalker {
         let i = idx.min(self.pts.len() - 2);
         let (a, b) = (self.pts[i], self.pts[i + 1]);
         let seg = self.cum[i + 1] - self.cum[i];
-        let t = if seg > 0.0 { (s - self.cum[i]) / seg } else { 0.0 };
+        let t = if seg > 0.0 {
+            (s - self.cum[i]) / seg
+        } else {
+            0.0
+        };
         let dir = b - a;
         let dir = if dir.hypot() < 1e-12 {
             Vec2::new(1.0, 0.0)
@@ -561,7 +580,10 @@ pub fn flow_in_shape(
             let line = shape_run(face, s, scale, spec.tracking);
             for g in &line.glyphs {
                 let mut b = Builder::default();
-                if face.outline_glyph(ttf_parser::GlyphId(g.gid), &mut b).is_none() {
+                if face
+                    .outline_glyph(ttf_parser::GlyphId(g.gid), &mut b)
+                    .is_none()
+                {
                     continue;
                 }
                 let mut gp = b.path;
@@ -637,9 +659,15 @@ mod tests {
         let mut spec = TextSpec::new("H");
         spec.size = 100.0;
         let (p, sub) = outline_block(f, &spec, (0.0, 0.0));
-        assert!(sub.is_none(), "sans-serif maps to the embedded face without a warning");
+        assert!(
+            sub.is_none(),
+            "sans-serif maps to the embedded face without a warning"
+        );
         let b = geom::bbox(&p).expect("H has an outline");
-        assert!(b.height() > 50.0 && b.height() < 100.0, "cap height plausible: {b:?}");
+        assert!(
+            b.height() > 50.0 && b.height() < 100.0,
+            "cap height plausible: {b:?}"
+        );
         assert!(geom::area(&p) > 1000.0);
     }
 
@@ -660,7 +688,10 @@ mod tests {
         spec.r#box = Some(dpaint_core::doc::common::Rect::new(0.0, 0.0, 80.0, 200.0));
         let s = shape(f, &spec);
         assert!(s.lines.len() >= 3, "wrapped into {} lines", s.lines.len());
-        assert!(s.lines.iter().all(|l| l.width <= 80.0 || l.glyphs.len() <= 1));
+        assert!(s
+            .lines
+            .iter()
+            .all(|l| l.width <= 80.0 || l.glyphs.len() <= 1));
     }
 
     #[test]

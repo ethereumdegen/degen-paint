@@ -64,11 +64,16 @@ impl ModelDoc {
     pub fn roots(&self) -> Vec<&Node> {
         let children: std::collections::BTreeSet<&NodeId> =
             self.nodes.iter().flat_map(|n| n.children.iter()).collect();
-        self.nodes.iter().filter(|n| !children.contains(&n.id)).collect()
+        self.nodes
+            .iter()
+            .filter(|n| !children.contains(&n.id))
+            .collect()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum UpAxis {
     #[default]
@@ -99,8 +104,12 @@ pub struct Node {
     pub camera: Option<CameraId>,
 }
 
-fn unit_quat() -> [f32; 4] { [0.0, 0.0, 0.0, 1.0] }
-fn unit_scale() -> [f32; 3] { [1.0, 1.0, 1.0] }
+fn unit_quat() -> [f32; 4] {
+    [0.0, 0.0, 0.0, 1.0]
+}
+fn unit_scale() -> [f32; 3] {
+    [1.0, 1.0, 1.0]
+}
 
 impl Node {
     pub fn new(id: NodeId, name: impl Into<String>) -> Self {
@@ -164,15 +173,21 @@ pub enum MeshSource {
         flatten: f64,
     },
     /// Baked or imported geometry stored as a binary blob.
-    Buffer {
-        asset: AssetRef,
-    },
+    Buffer { asset: AssetRef },
 }
 
-fn unit_size() -> [f32; 3] { [1.0, 1.0, 1.0] }
-fn default_segments() -> u32 { 32 }
-fn default_flatten() -> f64 { 0.25 }
-fn full_turn() -> f32 { 360.0 }
+fn unit_size() -> [f32; 3] {
+    [1.0, 1.0, 1.0]
+}
+fn default_segments() -> u32 {
+    32
+}
+fn default_flatten() -> f64 {
+    0.25
+}
+fn full_turn() -> f32 {
+    360.0
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
@@ -200,9 +215,13 @@ pub struct Bevel {
     pub segments: u32,
 }
 
-fn three() -> u32 { 3 }
+fn three() -> u32 {
+    3
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum Caps {
     #[default]
@@ -235,8 +254,12 @@ pub struct Material {
     pub textures: Vec<TextureBinding>,
 }
 
-fn white() -> Color { Color::WHITE }
-fn half_f32() -> f32 { 0.5 }
+fn white() -> Color {
+    Color::WHITE
+}
+fn half_f32() -> f32 {
+    0.5
+}
 
 impl Material {
     pub fn new(id: MaterialId, name: impl Into<String>) -> Self {
@@ -274,7 +297,9 @@ pub struct TextureBinding {
     pub uv_set: u32,
 }
 
-fn one_f32() -> f32 { 1.0 }
+fn one_f32() -> f32 {
+    1.0
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
@@ -290,8 +315,12 @@ pub enum TextureSlot {
 #[serde(untagged)]
 pub enum TextureSource {
     /// A raster document in this project, rendered on demand.
-    Document { document: DocId },
-    Asset { asset: AssetRef },
+    Document {
+        document: DocId,
+    },
+    Asset {
+        asset: AssetRef,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -329,8 +358,12 @@ pub struct Camera {
     pub zfar: Option<f32>,
 }
 
-fn default_yfov() -> f32 { 0.6 }
-fn default_znear() -> f32 { 0.01 }
+fn default_yfov() -> f32 {
+    0.6
+}
+fn default_znear() -> f32 {
+    0.01
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Animation {
@@ -358,7 +391,9 @@ pub enum AnimPath {
     Scale,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Interpolation {
     #[default]
@@ -395,9 +430,15 @@ mod tests {
             id: MeshId::from("msh_body"),
             name: "body".into(),
             source: MeshSource::Extrude {
-                from: PathRef { document: DocId::from("doc_logo"), object: ObjectId::from("obj_mark") },
+                from: PathRef {
+                    document: DocId::from("doc_logo"),
+                    object: ObjectId::from("obj_mark"),
+                },
                 depth: 12.0,
-                bevel: Some(Bevel { size: 1.5, segments: 3 }),
+                bevel: Some(Bevel {
+                    size: 1.5,
+                    segments: 3,
+                }),
                 caps: Caps::Both,
                 flatten: 0.05,
             },
@@ -411,7 +452,8 @@ mod tests {
     #[test]
     fn model_documents_round_trip() {
         let mut d = ModelDoc::new(DocId::from("doc_badge"), "badge");
-        d.materials.push(Material::new(MaterialId::from("mat_gold"), "gold"));
+        d.materials
+            .push(Material::new(MaterialId::from("mat_gold"), "gold"));
         d.nodes.push(Node::new(NodeId::from("nd_root"), "root"));
         let s = serde_json::to_string(&d).unwrap();
         assert_eq!(serde_json::from_str::<ModelDoc>(&s).unwrap(), d);

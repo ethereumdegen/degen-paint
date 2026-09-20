@@ -50,7 +50,11 @@ impl Runtime {
         keys: Arc<dyn KeyStore>,
         config: Arc<AiConfig>,
     ) -> Self {
-        Self { transport, keys, config }
+        Self {
+            transport,
+            keys,
+            config,
+        }
     }
 
     /// The real thing: config from `~/.config/degen-paint/config.toml`, keys from the
@@ -67,9 +71,9 @@ impl Runtime {
 
 #[cfg(feature = "net")]
 fn default_transport(config: &AiConfig) -> Arc<dyn Transport> {
-    Arc::new(transport::ReqwestTransport::new(std::time::Duration::from_secs(
-        config.timeout_secs,
-    )))
+    Arc::new(transport::ReqwestTransport::new(
+        std::time::Duration::from_secs(config.timeout_secs),
+    ))
 }
 
 #[cfg(not(feature = "net"))]
@@ -99,7 +103,10 @@ pub fn providers_status() -> serde_json::Value {
 /// The same report for an injected key store, so a caller that passed `--api-key` sees the
 /// truth rather than the ambient environment.
 pub fn providers_status_of(rt: &Runtime) -> serde_json::Value {
-    status_value(&keys::providers_status(rt.keys.as_ref(), rt.config.as_ref()))
+    status_value(&keys::providers_status(
+        rt.keys.as_ref(),
+        rt.config.as_ref(),
+    ))
 }
 
 fn status_value(statuses: &[ProviderStatus]) -> serde_json::Value {

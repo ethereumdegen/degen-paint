@@ -60,7 +60,11 @@ fn a_generated_svg_lands_as_editable_vector_objects_not_as_an_image_blob() {
     // --- the document ---
     let doc = fx.vector();
     let objects = doc.walk();
-    assert_eq!(objects.len(), 2, "both SVG shapes became objects: {objects:?}");
+    assert_eq!(
+        objects.len(),
+        2,
+        "both SVG shapes became objects: {objects:?}"
+    );
 
     let path_d: Vec<String> = objects
         .iter()
@@ -75,7 +79,10 @@ fn a_generated_svg_lands_as_editable_vector_objects_not_as_an_image_blob() {
     );
 
     for o in &objects {
-        let p = o.provenance.as_ref().unwrap_or_else(|| panic!("{} has no provenance", o.id));
+        let p = o
+            .provenance
+            .as_ref()
+            .unwrap_or_else(|| panic!("{} has no provenance", o.id));
         assert_eq!(p.provider, "quiver");
         assert_eq!(p.model, "arrow-2");
         assert_eq!(p.prompt.as_deref(), Some("heraldic lion crest"));
@@ -84,13 +91,19 @@ fn a_generated_svg_lands_as_editable_vector_objects_not_as_an_image_blob() {
 
     // One artboard was added for the variant, beside the document's existing one.
     assert_eq!(doc.artboards.len(), 2);
-    assert!(doc.artboards[1].rect.x() >= 100.0, "variants sit side by side");
+    assert!(
+        doc.artboards[1].rect.x() >= 100.0,
+        "variants sit side by side"
+    );
     assert!(applied.effect.created.len() >= 3);
     assert_eq!(applied.effect.cost_usd, Some(0.05));
 
     // Nothing was stashed as an opaque image.
     let json = serde_json::to_string(fx.project()).unwrap();
-    assert!(!json.contains(".svg"), "the SVG is not referenced as a blob: {json}");
+    assert!(
+        !json.contains(".svg"),
+        "the SVG is not referenced as a blob: {json}"
+    );
 }
 
 #[test]
@@ -115,7 +128,11 @@ fn n_variants_become_one_artboard_each() {
     assert_eq!(doc.artboards.len(), 3, "one artboard per variant");
     assert_eq!(doc.artboards[1].name, "opt-1");
     assert_eq!(doc.artboards[2].name, "opt-2");
-    assert_eq!(doc.walk().len(), 3, "2 objects from the first + 1 from the second");
+    assert_eq!(
+        doc.walk().len(),
+        3,
+        "2 objects from the first + 1 from the second"
+    );
     // Variants do not overlap.
     assert!(doc.artboards[2].rect.x() >= doc.artboards[1].rect.right());
 }
@@ -138,17 +155,26 @@ fn vectorize_sends_the_raster_layer_and_imports_the_result() {
         .unwrap();
 
     let body = transport.calls()[0].json().unwrap();
-    assert_eq!(transport.calls()[0].url, "https://api.quiver.ai/v1/svgs/vectorizations");
+    assert_eq!(
+        transport.calls()[0].url,
+        "https://api.quiver.ai/v1/svgs/vectorizations"
+    );
     assert_eq!(body["auto_crop"], true);
     assert!(
-        body["image"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        body["image"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"),
         "the layer's pixels were sent"
     );
 
     let doc = fx.vector();
     assert_eq!(doc.walk().len(), 1);
     assert!(matches!(doc.walk()[0].kind, VKind::Path { .. }));
-    assert_eq!(doc.walk()[0].provenance.as_ref().unwrap().provider, "quiver");
+    assert_eq!(
+        doc.walk()[0].provenance.as_ref().unwrap().provider,
+        "quiver"
+    );
 }
 
 #[test]

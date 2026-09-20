@@ -117,10 +117,15 @@ fn resize(project: &mut Project, args: ResizeArgs, cx: &mut OpCx) -> Result<OpEf
     let (ow, oh) = (rd.width() as f64, rd.height() as f64);
     let had_selection = rd.selection.is_some();
     let map = match args.mode {
-        ResizeMode::Scale => Affine::scale_non_uniform(args.width as f64 / ow, args.height as f64 / oh),
+        ResizeMode::Scale => {
+            Affine::scale_non_uniform(args.width as f64 / ow, args.height as f64 / oh)
+        }
         ResizeMode::Extend => {
             let (fx, fy) = args.anchor.factors();
-            Affine::translate(((args.width as f64 - ow) * fx, (args.height as f64 - oh) * fy))
+            Affine::translate((
+                (args.width as f64 - ow) * fx,
+                (args.height as f64 - oh) * fy,
+            ))
         }
     };
     remap(project, &doc, cx, map, args.width, args.height)?;
@@ -162,13 +167,24 @@ fn crop(project: &mut Project, args: CropArgs, cx: &mut OpCx) -> Result<OpEffect
             }
             [b.x(), b.y(), b.w(), b.h()]
         }
-        (None, false) => return Err(Error::Invalid("crop needs either rect or to-selection".into())),
+        (None, false) => {
+            return Err(Error::Invalid(
+                "crop needs either rect or to-selection".into(),
+            ))
+        }
     };
     if rect[2] < 1.0 || rect[3] < 1.0 {
         return Err(Error::Invalid(format!("crop rect {rect:?} has no area")));
     }
     let (w, h) = (rect[2].round() as u32, rect[3].round() as u32);
-    remap(project, &doc, cx, Affine::translate((-rect[0], -rect[1])), w, h)?;
+    remap(
+        project,
+        &doc,
+        cx,
+        Affine::translate((-rect[0], -rect[1])),
+        w,
+        h,
+    )?;
     if !cx.dry_run {
         project.raster_mut(&doc)?.selection = None;
     }
@@ -189,7 +205,9 @@ fn trim(project: &mut Project, args: TrimArgs, cx: &mut OpCx) -> Result<OpEffect
     let doc = support::doc_id(project, cx)?;
     let flat = support::flatten_canvas(project, &doc, cx.assets)?;
     let Some((x, y, w, h)) = flat.opaque_bounds(args.threshold) else {
-        return Err(Error::Invalid("the document is empty; there is nothing to trim to".into()));
+        return Err(Error::Invalid(
+            "the document is empty; there is nothing to trim to".into(),
+        ));
     };
     let m = args.margin as i64;
     let x0 = (x as i64 - m).max(0);
@@ -286,7 +304,10 @@ pub struct DpiArgs {
 
 fn set_dpi(project: &mut Project, args: DpiArgs, cx: &mut OpCx) -> Result<OpEffect> {
     if !(args.dpi.is_finite() && args.dpi > 0.0) {
-        return Err(Error::Invalid(format!("dpi must be positive, got {}", args.dpi)));
+        return Err(Error::Invalid(format!(
+            "dpi must be positive, got {}",
+            args.dpi
+        )));
     }
     let doc = support::doc_id(project, cx)?;
     if !cx.dry_run {
@@ -336,20 +357,70 @@ fn set_guides(project: &mut Project, args: GuidesArgs, cx: &mut OpCx) -> Result<
         bleed: args.bleed.unwrap_or(rd.guides.bleed),
         safe: args.safe.unwrap_or(rd.guides.safe),
         vertical: args.vertical.unwrap_or_else(|| rd.guides.vertical.clone()),
-        horizontal: args.horizontal.unwrap_or_else(|| rd.guides.horizontal.clone()),
+        horizontal: args
+            .horizontal
+            .unwrap_or_else(|| rd.guides.horizontal.clone()),
     };
     rd.guides = g;
     Ok(OpEffect::changed(&doc))
 }
 
-raster_op!(Resize, "raster.canvas.resize", "Resize the document, scaling or extending its content", ResizeArgs, resize);
-raster_op!(Crop, "raster.canvas.crop", "Crop the document to a rectangle or to the selection", CropArgs, crop);
-raster_op!(Trim, "raster.canvas.trim", "Trim transparent margins away from the document", TrimArgs, trim);
-raster_op!(Rotate, "raster.canvas.rotate", "Rotate the whole document clockwise", RotateArgs, rotate);
-raster_op!(Flip, "raster.canvas.flip", "Mirror the document horizontally, vertically or both", FlipArgs, flip);
-raster_op!(SetDpi, "raster.canvas.set-dpi", "Set the document resolution in pixels per inch", DpiArgs, set_dpi);
-raster_op!(SetBackground, "raster.canvas.set-background", "Set or clear the document background color", BackgroundArgs, set_background);
-raster_op!(SetGuides, "raster.canvas.set-guides", "Set bleed, safe area and guide positions", GuidesArgs, set_guides);
+raster_op!(
+    Resize,
+    "raster.canvas.resize",
+    "Resize the document, scaling or extending its content",
+    ResizeArgs,
+    resize
+);
+raster_op!(
+    Crop,
+    "raster.canvas.crop",
+    "Crop the document to a rectangle or to the selection",
+    CropArgs,
+    crop
+);
+raster_op!(
+    Trim,
+    "raster.canvas.trim",
+    "Trim transparent margins away from the document",
+    TrimArgs,
+    trim
+);
+raster_op!(
+    Rotate,
+    "raster.canvas.rotate",
+    "Rotate the whole document clockwise",
+    RotateArgs,
+    rotate
+);
+raster_op!(
+    Flip,
+    "raster.canvas.flip",
+    "Mirror the document horizontally, vertically or both",
+    FlipArgs,
+    flip
+);
+raster_op!(
+    SetDpi,
+    "raster.canvas.set-dpi",
+    "Set the document resolution in pixels per inch",
+    DpiArgs,
+    set_dpi
+);
+raster_op!(
+    SetBackground,
+    "raster.canvas.set-background",
+    "Set or clear the document background color",
+    BackgroundArgs,
+    set_background
+);
+raster_op!(
+    SetGuides,
+    "raster.canvas.set-guides",
+    "Set bleed, safe area and guide positions",
+    GuidesArgs,
+    set_guides
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

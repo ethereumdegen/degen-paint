@@ -33,7 +33,10 @@ pub struct OpEffect {
 
 impl OpEffect {
     pub fn changed(doc: &DocId) -> Self {
-        Self { changed: vec![doc.clone()], ..Default::default() }
+        Self {
+            changed: vec![doc.clone()],
+            ..Default::default()
+        }
     }
 
     pub fn with_created(mut self, id: impl Into<String>) -> Self {
@@ -51,7 +54,12 @@ impl OpEffect {
         self
     }
 
-    pub fn warn(mut self, code: &str, target: impl Into<String>, detail: impl Into<String>) -> Self {
+    pub fn warn(
+        mut self,
+        code: &str,
+        target: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> Self {
         self.warnings.push(Warning {
             code: code.to_string(),
             target: target.into(),
@@ -79,7 +87,11 @@ pub struct OpCx<'a> {
 
 impl<'a> OpCx<'a> {
     pub fn new(assets: &'a AssetStore) -> Self {
-        Self { assets, doc_hint: None, dry_run: false }
+        Self {
+            assets,
+            doc_hint: None,
+            dry_run: false,
+        }
     }
 
     pub fn with_doc(mut self, doc: Option<String>) -> Self {
@@ -118,7 +130,12 @@ pub trait Op: Send + Sync {
         false
     }
 
-    fn apply(&self, project: &mut Project, args: serde_json::Value, cx: &mut OpCx) -> Result<OpEffect>;
+    fn apply(
+        &self,
+        project: &mut Project,
+        args: serde_json::Value,
+        cx: &mut OpCx,
+    ) -> Result<OpEffect>;
 }
 
 #[derive(Default, Clone)]
@@ -244,7 +261,12 @@ mod tests {
         fn modes(&self) -> &'static [DocKind] {
             &[DocKind::Raster]
         }
-        fn apply(&self, p: &mut Project, args: serde_json::Value, cx: &mut OpCx) -> Result<OpEffect> {
+        fn apply(
+            &self,
+            p: &mut Project,
+            args: serde_json::Value,
+            cx: &mut OpCx,
+        ) -> Result<OpEffect> {
             let a: SetDpiArgs = parse_args(self.id(), args)?;
             let doc = cx.target_doc(p)?;
             p.raster_mut(&doc)?.dpi = a.dpi;
@@ -270,7 +292,11 @@ mod tests {
         let effect = reg
             .get("raster.canvas.set-dpi")
             .unwrap()
-            .apply(&mut p, serde_json::json!({ "dpi": 300 }), &mut OpCx::new(&assets))
+            .apply(
+                &mut p,
+                serde_json::json!({ "dpi": 300 }),
+                &mut OpCx::new(&assets),
+            )
             .unwrap();
 
         assert_eq!(effect.changed, vec![DocId::from("doc_main")]);
@@ -287,7 +313,11 @@ mod tests {
         let err = reg
             .get("raster.canvas.set-dpi")
             .unwrap()
-            .apply(&mut p, serde_json::json!({ "dpi": "lots" }), &mut OpCx::new(&assets))
+            .apply(
+                &mut p,
+                serde_json::json!({ "dpi": "lots" }),
+                &mut OpCx::new(&assets),
+            )
             .unwrap_err();
         assert_eq!(err.code(), "schema_violation");
         assert_eq!(err.exit_code(), 2);
@@ -297,7 +327,10 @@ mod tests {
     #[test]
     fn unknown_ops_are_rejected_not_ignored() {
         let reg = Registry::new();
-        let err = reg.get("nope.at.all").err().expect("unknown op must not resolve");
+        let err = reg
+            .get("nope.at.all")
+            .err()
+            .expect("unknown op must not resolve");
         assert_eq!(err.code(), "unknown_op");
     }
 

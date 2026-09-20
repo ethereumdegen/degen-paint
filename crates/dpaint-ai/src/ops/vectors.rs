@@ -12,7 +12,9 @@ use crate::quiver::{generation_body, vectorization_body};
 use crate::Runtime;
 use dpaint_core::doc::vector::{Artboard, VKind, VObject};
 use dpaint_core::doc::{DocKind, Rect, Transform};
-use dpaint_core::{parse_args, resolve_one, schema_for, ArtboardId, DocId, ObjectId, Project, VectorDoc};
+use dpaint_core::{
+    parse_args, resolve_one, schema_for, ArtboardId, DocId, ObjectId, Project, VectorDoc,
+};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -21,7 +23,8 @@ use std::collections::{BTreeMap, BTreeSet};
 const ARTBOARD_GAP: f64 = 24.0;
 
 fn quiver_model(rt: &Runtime, over: &Option<String>) -> String {
-    over.clone().unwrap_or_else(|| rt.config.quiver.model.clone())
+    over.clone()
+        .unwrap_or_else(|| rt.config.quiver.model.clone())
 }
 
 /// Import one SVG and merge it into the target document as its own artboard.
@@ -41,7 +44,11 @@ fn merge_svg(
         .iter()
         .map(|a| a.rect.right())
         .fold(0.0_f64, f64::max);
-    let x0 = if target.artboards.is_empty() { 0.0 } else { x0 + ARTBOARD_GAP };
+    let x0 = if target.artboards.is_empty() {
+        0.0
+    } else {
+        x0 + ARTBOARD_GAP
+    };
 
     let mut used: BTreeSet<String> = target.walk().iter().map(|o| o.id.to_string()).collect();
     let mut renames: BTreeMap<String, String> = BTreeMap::new();
@@ -204,17 +211,14 @@ impl Op for VectorGenerate {
             return dry_run_effect(&self.rt, cx, self.id(), Provider::Quiver, &model, &body);
         }
 
-        let (gen, svgs) = quiver_call(
-            &self.rt,
-            cx,
-            self.id(),
+        let (gen, svgs) = quiver_call(&self.rt, cx, self.id(), &model, &url, &body, &body, &[])?;
+        let prov = provenance(
+            Provider::Quiver,
             &model,
-            &url,
-            &body,
-            &body,
-            &[],
-        )?;
-        let prov = provenance(Provider::Quiver, &model, Some(a.prompt.clone()), a.seed, &gen);
+            Some(a.prompt.clone()),
+            a.seed,
+            &gen,
+        );
 
         let base = a.name.clone().unwrap_or_else(|| "generated".into());
         let doc = project.vector_mut(&doc_id)?;
@@ -237,7 +241,11 @@ impl Op for VectorGenerate {
             effect = effect.warn(
                 "fewer-variants",
                 format!("#{doc_id}"),
-                format!("asked for {} variants, the provider returned {}", a.n, svgs.len()),
+                format!(
+                    "asked for {} variants, the provider returned {}",
+                    a.n,
+                    svgs.len()
+                ),
             );
         }
         Ok(effect.with_data(json!({
@@ -305,9 +313,9 @@ impl Op for Vectorize {
         let m = resolve_one(project, &a.from, Some(&source_doc))?;
         let raster = project.raster(&m.document)?;
         let layer_id = dpaint_core::LayerId::from(m.id.as_str());
-        let layer = raster
-            .layer(&layer_id)
-            .ok_or_else(|| Error::Invalid(format!("'{}' is not a layer of {}", m.id, m.document)))?;
+        let layer = raster.layer(&layer_id).ok_or_else(|| {
+            Error::Invalid(format!("'{}' is not a layer of {}", m.id, m.document))
+        })?;
         let asset = pixel_asset(self.id(), layer)?;
         let bytes = cx.assets.get(&asset)?;
 
@@ -321,7 +329,14 @@ impl Op for Vectorize {
         let url = crate::quiver::vectorizations_url(self.rt.config.as_ref());
 
         if cx.dry_run {
-            return dry_run_effect(&self.rt, cx, self.id(), Provider::Quiver, &model, &key_params);
+            return dry_run_effect(
+                &self.rt,
+                cx,
+                self.id(),
+                Provider::Quiver,
+                &model,
+                &key_params,
+            );
         }
 
         let (gen, svgs) = quiver_call(
@@ -337,7 +352,11 @@ impl Op for Vectorize {
         let prov = provenance(Provider::Quiver, &model, None, None, &gen);
 
         let label = a.name.clone().unwrap_or_else(|| layer.name.clone());
-        let label = if label.trim().is_empty() { "traced".to_string() } else { label };
+        let label = if label.trim().is_empty() {
+            "traced".to_string()
+        } else {
+            label
+        };
         let doc = project.vector_mut(&doc_id)?;
         let mut created = Vec::new();
         for svg in &svgs {

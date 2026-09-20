@@ -57,19 +57,40 @@ impl Rect {
     pub fn new(x: f64, y: f64, w: f64, h: f64) -> Self {
         Rect([x, y, w, h])
     }
-    pub fn x(&self) -> f64 { self.0[0] }
-    pub fn y(&self) -> f64 { self.0[1] }
-    pub fn w(&self) -> f64 { self.0[2] }
-    pub fn h(&self) -> f64 { self.0[3] }
-    pub fn right(&self) -> f64 { self.0[0] + self.0[2] }
-    pub fn bottom(&self) -> f64 { self.0[1] + self.0[3] }
-    pub fn is_empty(&self) -> bool { self.w() <= 0.0 || self.h() <= 0.0 }
+    pub fn x(&self) -> f64 {
+        self.0[0]
+    }
+    pub fn y(&self) -> f64 {
+        self.0[1]
+    }
+    pub fn w(&self) -> f64 {
+        self.0[2]
+    }
+    pub fn h(&self) -> f64 {
+        self.0[3]
+    }
+    pub fn right(&self) -> f64 {
+        self.0[0] + self.0[2]
+    }
+    pub fn bottom(&self) -> f64 {
+        self.0[1] + self.0[3]
+    }
+    pub fn is_empty(&self) -> bool {
+        self.w() <= 0.0 || self.h() <= 0.0
+    }
 
     pub fn union(self, other: Rect) -> Rect {
-        if self.is_empty() { return other; }
-        if other.is_empty() { return self; }
+        if self.is_empty() {
+            return other;
+        }
+        if other.is_empty() {
+            return self;
+        }
         let (x0, y0) = (self.x().min(other.x()), self.y().min(other.y()));
-        let (x1, y1) = (self.right().max(other.right()), self.bottom().max(other.bottom()));
+        let (x1, y1) = (
+            self.right().max(other.right()),
+            self.bottom().max(other.bottom()),
+        );
         Rect([x0, y0, x1 - x0, y1 - y0])
     }
 
@@ -99,11 +120,25 @@ impl Rect {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(remote = "Self", tag = "type", rename_all = "kebab-case")]
 pub enum Paint {
-    Solid { color: Color },
-    Linear { stops: Vec<GradientStop>, from: [f64; 2], to: [f64; 2] },
-    Radial { stops: Vec<GradientStop>, center: [f64; 2], radius: f64, #[serde(default, skip_serializing_if = "Option::is_none")] focal: Option<[f64; 2]> },
+    Solid {
+        color: Color,
+    },
+    Linear {
+        stops: Vec<GradientStop>,
+        from: [f64; 2],
+        to: [f64; 2],
+    },
+    Radial {
+        stops: Vec<GradientStop>,
+        center: [f64; 2],
+        radius: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        focal: Option<[f64; 2]>,
+    },
     /// A rendered document used as a fill — the raster→vector→3D bridge in fill form.
-    Document { document: DocId },
+    Document {
+        document: DocId,
+    },
     None,
 }
 
@@ -123,7 +158,10 @@ impl Paint {
                 let n = stops.len() as f32;
                 let acc = stops.iter().fold([0.0f32; 4], |mut a, s| {
                     let c = s.color;
-                    a[0] += c.r; a[1] += c.g; a[2] += c.b; a[3] += c.a;
+                    a[0] += c.r;
+                    a[1] += c.g;
+                    a[2] += c.b;
+                    a[3] += c.a;
                     a
                 });
                 Some(Color::rgba(acc[0] / n, acc[1] / n, acc[2] / n, acc[3] / n))
@@ -219,8 +257,7 @@ impl Stroke {
             }
             _ => (1.0, t),
         };
-        let color = Color::parse(paint)
-            .ok_or_else(|| format!("'{paint}' is not a hex color"))?;
+        let color = Color::parse(paint).ok_or_else(|| format!("'{paint}' is not a hex color"))?;
         Ok(Stroke::solid(color, width))
     }
 }
@@ -239,7 +276,9 @@ impl Stroke {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum LineCap {
     #[default]
@@ -248,7 +287,9 @@ pub enum LineCap {
     Square,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum LineJoin {
     #[default]
@@ -257,7 +298,9 @@ pub enum LineJoin {
     Bevel,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum FillRule {
     #[default]
@@ -289,10 +332,18 @@ pub struct TextSpec {
     pub r#box: Option<Rect>,
 }
 
-fn default_family() -> String { "sans-serif".into() }
-fn default_weight() -> u16 { 400 }
-fn default_size() -> f64 { 16.0 }
-fn default_leading() -> f64 { 1.2 }
+fn default_family() -> String {
+    "sans-serif".into()
+}
+fn default_weight() -> u16 {
+    400
+}
+fn default_size() -> f64 {
+    16.0
+}
+fn default_leading() -> f64 {
+    1.2
+}
 
 impl TextSpec {
     pub fn new(text: impl Into<String>) -> Self {
@@ -310,7 +361,9 @@ impl TextSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum TextAlign {
     #[default]
@@ -321,7 +374,9 @@ pub enum TextAlign {
 }
 
 /// Separable and non-separable blend modes, per the PDF/CSS compositing spec.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum BlendMode {
     #[default]
@@ -361,13 +416,33 @@ impl BlendMode {
     }
 
     pub const ALL: [BlendMode; 27] = [
-        BlendMode::Normal, BlendMode::Multiply, BlendMode::Screen, BlendMode::Overlay,
-        BlendMode::Darken, BlendMode::Lighten, BlendMode::ColorDodge, BlendMode::ColorBurn,
-        BlendMode::HardLight, BlendMode::SoftLight, BlendMode::Difference, BlendMode::Exclusion,
-        BlendMode::Hue, BlendMode::Saturation, BlendMode::Color, BlendMode::Luminosity,
-        BlendMode::LinearBurn, BlendMode::LinearDodge, BlendMode::VividLight,
-        BlendMode::LinearLight, BlendMode::PinLight, BlendMode::HardMix, BlendMode::Subtract,
-        BlendMode::Divide, BlendMode::DarkerColor, BlendMode::LighterColor, BlendMode::Dissolve,
+        BlendMode::Normal,
+        BlendMode::Multiply,
+        BlendMode::Screen,
+        BlendMode::Overlay,
+        BlendMode::Darken,
+        BlendMode::Lighten,
+        BlendMode::ColorDodge,
+        BlendMode::ColorBurn,
+        BlendMode::HardLight,
+        BlendMode::SoftLight,
+        BlendMode::Difference,
+        BlendMode::Exclusion,
+        BlendMode::Hue,
+        BlendMode::Saturation,
+        BlendMode::Color,
+        BlendMode::Luminosity,
+        BlendMode::LinearBurn,
+        BlendMode::LinearDodge,
+        BlendMode::VividLight,
+        BlendMode::LinearLight,
+        BlendMode::PinLight,
+        BlendMode::HardMix,
+        BlendMode::Subtract,
+        BlendMode::Divide,
+        BlendMode::DarkerColor,
+        BlendMode::LighterColor,
+        BlendMode::Dissolve,
     ];
 
     pub fn is_separable(self) -> bool {
@@ -409,26 +484,35 @@ mod tests {
     fn transform_composition_matches_kurbo_order() {
         let t = Transform::translate(10.0, 0.0).then(Transform::scale(2.0, 2.0));
         let p = t.to_kurbo() * kurbo::Point::new(0.0, 0.0);
-        assert_eq!((p.x, p.y), (20.0, 0.0), "translate then scale must scale the translation");
+        assert_eq!(
+            (p.x, p.y),
+            (20.0, 0.0),
+            "translate then scale must scale the translation"
+        );
     }
 
     #[test]
     fn rect_union_ignores_empty_operands() {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         assert_eq!(a.union(Rect::default()), a);
-        assert_eq!(a.union(Rect::new(10.0, 10.0, 5.0, 5.0)), Rect::new(0.0, 0.0, 15.0, 15.0));
+        assert_eq!(
+            a.union(Rect::new(10.0, 10.0, 5.0, 5.0)),
+            Rect::new(0.0, 0.0, 15.0, 15.0)
+        );
     }
 
     #[test]
     fn paint_accepts_a_hex_string_or_the_full_tagged_form() {
         let solid: Paint = serde_json::from_value(serde_json::json!("#fb8500")).unwrap();
         assert_eq!(solid, Paint::solid(Color::parse("#fb8500").unwrap()));
-        assert_eq!(serde_json::from_value::<Paint>(serde_json::json!("none")).unwrap(), Paint::None);
+        assert_eq!(
+            serde_json::from_value::<Paint>(serde_json::json!("none")).unwrap(),
+            Paint::None
+        );
 
-        let tagged: Paint = serde_json::from_value(
-            serde_json::json!({ "type": "solid", "color": "#112233" }),
-        )
-        .unwrap();
+        let tagged: Paint =
+            serde_json::from_value(serde_json::json!({ "type": "solid", "color": "#112233" }))
+                .unwrap();
         assert_eq!(tagged, Paint::solid(Color::parse("#112233").unwrap()));
 
         assert!(serde_json::from_value::<Paint>(serde_json::json!("chartreuse")).is_err());

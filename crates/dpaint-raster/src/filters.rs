@@ -232,7 +232,9 @@ pub fn convolve(
     bias: f32,
 ) -> Result<Canvas> {
     if kw == 0 || kh == 0 || kw % 2 == 0 || kh % 2 == 0 {
-        return Err(Error::Invalid("convolution kernel must have odd width and height".into()));
+        return Err(Error::Invalid(
+            "convolution kernel must have odd width and height".into(),
+        ));
     }
     if kernel.len() != kw * kh {
         return Err(Error::Invalid(format!(
@@ -302,7 +304,8 @@ pub fn add_noise(src: &Canvas, amount: f32, monochrome: bool, seed: u64) -> Canv
                 }
             } else {
                 for ch in 0..3 {
-                    let n = (hash01(x, y, seed ^ ((ch as u64 + 1) * 0x5DEE_CE66)) - 0.5) * 2.0 * amount;
+                    let n =
+                        (hash01(x, y, seed ^ ((ch as u64 + 1) * 0x5DEE_CE66)) - 0.5) * 2.0 * amount;
                     let d = linear_to_srgb(s[ch].clamp(0.0, 1.0)) + n;
                     c[ch] = srgb_to_linear(d.clamp(0.0, 1.0));
                 }
@@ -629,12 +632,20 @@ pub fn edge_detect(src: &Canvas, kernel: EdgeKernel, amount: f32) -> Canvas {
                 }
                 let mag = match kernel {
                     EdgeKernel::Sobel | EdgeKernel::Prewitt => {
-                        let c = if kernel == EdgeKernel::Sobel { 2.0 } else { 1.0 };
-                        let gx = (n[0][2] + c * n[1][2] + n[2][2]) - (n[0][0] + c * n[1][0] + n[2][0]);
-                        let gy = (n[2][0] + c * n[2][1] + n[2][2]) - (n[0][0] + c * n[0][1] + n[0][2]);
+                        let c = if kernel == EdgeKernel::Sobel {
+                            2.0
+                        } else {
+                            1.0
+                        };
+                        let gx =
+                            (n[0][2] + c * n[1][2] + n[2][2]) - (n[0][0] + c * n[1][0] + n[2][0]);
+                        let gy =
+                            (n[2][0] + c * n[2][1] + n[2][2]) - (n[0][0] + c * n[0][1] + n[0][2]);
                         (gx * gx + gy * gy).sqrt()
                     }
-                    EdgeKernel::Laplace => (4.0 * n[1][1] - n[0][1] - n[1][0] - n[1][2] - n[2][1]).abs(),
+                    EdgeKernel::Laplace => {
+                        (4.0 * n[1][1] - n[0][1] - n[1][0] - n[1][2] - n[2][1]).abs()
+                    }
                 };
                 let v = (mag * amount).clamp(0.0, 1.0);
                 let a = src.clamped(x, y)[3];
@@ -650,7 +661,9 @@ pub fn luma_variance(c: &Canvas) -> f32 {
     let mut vals = Vec::with_capacity(c.pixel_count());
     for i in (0..c.data.len()).step_by(4) {
         let s = c.straight(i);
-        vals.push(linear_to_srgb((0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]).clamp(0.0, 1.0)));
+        vals.push(linear_to_srgb(
+            (0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]).clamp(0.0, 1.0),
+        ));
     }
     let n = vals.len() as f32;
     let mean = vals.iter().sum::<f32>() / n;

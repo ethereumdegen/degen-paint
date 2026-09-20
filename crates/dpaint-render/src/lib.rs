@@ -67,7 +67,13 @@ pub fn render_document(
     assets: &AssetStore,
     opts: &RenderOptions,
 ) -> Result<Pixmap> {
-    render_inner(project, doc, assets, opts, &std::cell::RefCell::new(Vec::new()))
+    render_inner(
+        project,
+        doc,
+        assets,
+        opts,
+        &std::cell::RefCell::new(Vec::new()),
+    )
 }
 
 fn render_inner(
@@ -150,7 +156,9 @@ fn render_model(
                 normals: data.normals,
                 indices: data.indices,
                 world,
-                base_color: m.map(|m| m.base_color).unwrap_or(Color::parse("#cccccc").unwrap()),
+                base_color: m
+                    .map(|m| m.base_color)
+                    .unwrap_or(Color::parse("#cccccc").unwrap()),
                 metallic: m.map(|m| m.metallic).unwrap_or(0.0),
                 roughness: m.map(|m| m.roughness).unwrap_or(0.5),
             }
@@ -225,7 +233,12 @@ pub fn export_document(
         "svg" => {
             let svg = dpaint_vector::to_svg(project, doc)?;
             std::fs::write(path, svg.as_bytes())?;
-            Ok(Export { path: path.into(), bytes: svg.len(), format: "svg".into(), size: None })
+            Ok(Export {
+                path: path.into(),
+                bytes: svg.len(),
+                format: "svg".into(),
+                size: None,
+            })
         }
         "glb" | "gltf" => {
             let textures = |d: &DocId| -> Result<Vec<u8>> {
@@ -233,13 +246,22 @@ pub fn export_document(
                 encode::encode(&encode::to_rgba(&pm), ImageFormat::Png, 100)
             };
             let out = dpaint_model3d::export(project, doc, assets, &textures)?;
-            let bytes = if ext == "glb" { out.glb } else { out.json.into_bytes() };
+            let bytes = if ext == "glb" {
+                out.glb
+            } else {
+                out.json.into_bytes()
+            };
             std::fs::write(path, &bytes)?;
             if ext == "gltf" && !out.bin.is_empty() {
                 let bin_path = std::path::Path::new(path).with_extension("bin");
                 std::fs::write(bin_path, &out.bin)?;
             }
-            Ok(Export { path: path.into(), bytes: bytes.len(), format: ext, size: None })
+            Ok(Export {
+                path: path.into(),
+                bytes: bytes.len(),
+                format: ext,
+                size: None,
+            })
         }
         _ => {
             let format = ImageFormat::from_path(path)?;
@@ -334,8 +356,9 @@ impl Op for RenderImage {
         };
         if cx.dry_run {
             let (w, h) = natural_size(p.doc(&doc)?, &opts);
-            return Ok(OpEffect::default()
-                .with_data(serde_json::json!({ "path": a.path, "size": [w, h], "written": false })));
+            return Ok(OpEffect::default().with_data(
+                serde_json::json!({ "path": a.path, "size": [w, h], "written": false }),
+            ));
         }
         let out = export_document(p, &doc, cx.assets, &a.path, &opts, a.quality)?;
         Ok(OpEffect::default().with_data(serde_json::to_value(out)?))

@@ -61,7 +61,10 @@ fn a_desktop_op_is_journaled_as_human_and_undo_reverts_it() {
     assert_eq!(st["documents"][0]["objects"][0]["name"], "bg");
     assert_eq!(st["revision"], 1);
 
-    assert_eq!(sh.call("undo", &json!({})).unwrap()["op"], "raster.layer.add");
+    assert_eq!(
+        sh.call("undo", &json!({})).unwrap()["op"],
+        "raster.layer.add"
+    );
 
     let st = sh.call("state", &json!({})).unwrap();
     assert_eq!(st["documents"][0]["objects"].as_array().unwrap().len(), 0);
@@ -72,10 +75,7 @@ fn a_desktop_op_is_journaled_as_human_and_undo_reverts_it() {
 fn an_agents_write_shows_up_and_the_desktop_can_undo_it() {
     let (_t, sh) = shell();
     let root = sh.root().expect("project open");
-    let mut agent = Engine::new(
-        dpaint_studio::registry(),
-        Workspace::open(&root).unwrap(),
-    );
+    let mut agent = Engine::new(dpaint_studio::registry(), Workspace::open(&root).unwrap());
     agent
         .apply(
             "raster.layer.add",
@@ -87,7 +87,10 @@ fn an_agents_write_shows_up_and_the_desktop_can_undo_it() {
 
     let h = sh.call("history", &json!({})).unwrap();
     assert_eq!(h["entries"][0]["actor"], "agent");
-    assert_eq!(sh.call("undo", &json!({})).unwrap()["op"], "raster.layer.add");
+    assert_eq!(
+        sh.call("undo", &json!({})).unwrap()["op"],
+        "raster.layer.add"
+    );
     assert_eq!(
         sh.call("state", &json!({})).unwrap()["documents"][0]["objects"]
             .as_array()
@@ -133,7 +136,11 @@ fn the_native_edit_menu_drives_the_shared_journal() {
     // menu handler looks the id up with `menu_method` and hands the result to `Shell::call`.
     assert_eq!(menu_method(MENU_UNDO), Some("undo"));
     assert_eq!(menu_method(MENU_REDO), Some("redo"));
-    assert_eq!(menu_method(MENU_OPEN), None, "Open Project is not a journal method");
+    assert_eq!(
+        menu_method(MENU_OPEN),
+        None,
+        "Open Project is not a journal method"
+    );
     assert_eq!(menu_method("Edit"), None);
 
     let (_t, sh) = shell();
@@ -144,10 +151,12 @@ fn the_native_edit_menu_drives_the_shared_journal() {
     )
     .unwrap();
 
-    sh.call(menu_method(MENU_UNDO).unwrap(), &json!({})).unwrap();
+    sh.call(menu_method(MENU_UNDO).unwrap(), &json!({}))
+        .unwrap();
     assert_eq!(sh.call("state", &json!({})).unwrap()["canUndo"], false);
 
-    sh.call(menu_method(MENU_REDO).unwrap(), &json!({})).unwrap();
+    sh.call(menu_method(MENU_REDO).unwrap(), &json!({}))
+        .unwrap();
     assert_eq!(
         sh.call("state", &json!({})).unwrap()["documents"][0]["objects"][0]["name"],
         "bg"
@@ -173,7 +182,11 @@ fn render_hands_the_webview_a_png_data_uri() {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(b64)
         .expect("valid base64");
-    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "decoded payload must be a PNG");
+    assert_eq!(
+        &bytes[..8],
+        b"\x89PNG\r\n\x1a\n",
+        "decoded payload must be a PNG"
+    );
 }
 
 #[test]
@@ -201,13 +214,24 @@ fn with_no_project_open_both_commands_answer_like_the_engine_does() {
 #[test]
 fn the_project_flag_is_read_off_argv_in_both_spellings() {
     let a = |v: &[&str]| project_arg(v.iter().map(|s| s.to_string()));
-    assert_eq!(a(&["--project", "/tmp/x.dpaint"]).unwrap().to_str(), Some("/tmp/x.dpaint"));
-    assert_eq!(a(&["--project=/tmp/y.dpaint"]).unwrap().to_str(), Some("/tmp/y.dpaint"));
+    assert_eq!(
+        a(&["--project", "/tmp/x.dpaint"]).unwrap().to_str(),
+        Some("/tmp/x.dpaint")
+    );
+    assert_eq!(
+        a(&["--project=/tmp/y.dpaint"]).unwrap().to_str(),
+        Some("/tmp/y.dpaint")
+    );
     // macOS hands a bundle its own flags; they must not shadow the project.
     assert_eq!(
-        a(&["-NSDocumentRevisionsDebugMode", "YES", "--project", "/tmp/z.dpaint"])
-            .unwrap()
-            .to_str(),
+        a(&[
+            "-NSDocumentRevisionsDebugMode",
+            "YES",
+            "--project",
+            "/tmp/z.dpaint"
+        ])
+        .unwrap()
+        .to_str(),
         Some("/tmp/z.dpaint")
     );
     assert!(a(&[]).is_none());

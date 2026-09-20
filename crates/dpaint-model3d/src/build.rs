@@ -11,7 +11,9 @@ use crate::prim::primitive;
 use dpaint_core::doc::common::FillRule;
 use dpaint_core::doc::model::{MeshSource, ModelDoc, PathRef};
 use dpaint_core::kurbo::BezPath;
-use dpaint_core::{AssetRef, AssetStore, DocId, Error, MaterialId, MeshId, NodeId, Project, Result};
+use dpaint_core::{
+    AssetRef, AssetStore, DocId, Error, MaterialId, MeshId, NodeId, Project, Result,
+};
 
 /// Magic for the baked-mesh blob: `positions`, optional `normals`/`uvs`/`tangents`, `u32`
 /// indices, little-endian throughout, so a bake is byte-identical across runs and machines.
@@ -84,9 +86,17 @@ pub fn decode_blob(bytes: &[u8]) -> Result<(MeshData, Vec<[f32; 4]>)> {
     let icount = u32_at(12) as usize;
     let mut off = 16;
     let need = 12 * vcount
-        + if flags & FLAG_NORMALS != 0 { 12 * vcount } else { 0 }
+        + if flags & FLAG_NORMALS != 0 {
+            12 * vcount
+        } else {
+            0
+        }
         + if flags & FLAG_UVS != 0 { 8 * vcount } else { 0 }
-        + if flags & FLAG_TANGENTS != 0 { 16 * vcount } else { 0 }
+        + if flags & FLAG_TANGENTS != 0 {
+            16 * vcount
+        } else {
+            0
+        }
         + 4 * icount;
     if bytes.len() < off + need {
         return Err(Error::AssetDecode(format!(
@@ -96,7 +106,12 @@ pub fn decode_blob(bytes: &[u8]) -> Result<(MeshData, Vec<[f32; 4]>)> {
         )));
     }
     let f32_at = |off: &mut usize| -> f32 {
-        let v = f32::from_le_bytes([bytes[*off], bytes[*off + 1], bytes[*off + 2], bytes[*off + 3]]);
+        let v = f32::from_le_bytes([
+            bytes[*off],
+            bytes[*off + 1],
+            bytes[*off + 2],
+            bytes[*off + 3],
+        ]);
         *off += 4;
         v
     };
@@ -177,8 +192,18 @@ pub(crate) fn build_source(
     assets: &AssetStore,
 ) -> Result<MeshData> {
     match source {
-        MeshSource::Primitive { shape, size, segments } => primitive(*shape, *size, *segments),
-        MeshSource::Extrude { from, depth, bevel, caps, flatten } => {
+        MeshSource::Primitive {
+            shape,
+            size,
+            segments,
+        } => primitive(*shape, *size, *segments),
+        MeshSource::Extrude {
+            from,
+            depth,
+            bevel,
+            caps,
+            flatten,
+        } => {
             let (path, rule) = path_and_rule(project, from)?;
             crate::extrude::extrude_rings(
                 rings_of(&path, *flatten),
@@ -189,12 +214,18 @@ pub(crate) fn build_source(
                 *flatten,
             )
         }
-        MeshSource::Revolve { from, angle, segments, flatten } => {
+        MeshSource::Revolve {
+            from,
+            angle,
+            segments,
+            flatten,
+        } => {
             let (path, _) = path_and_rule(project, from)?;
             let profiles = polylines_of(&path, *flatten);
-            let profile = profiles.into_iter().next().ok_or_else(|| {
-                Error::DegenerateGeometry("revolve source path is empty".into())
-            })?;
+            let profile = profiles
+                .into_iter()
+                .next()
+                .ok_or_else(|| Error::DegenerateGeometry("revolve source path is empty".into()))?;
             revolve_profile(&profile, *angle, *segments)
         }
         MeshSource::Loft { sections, flatten } => {
@@ -239,17 +270,17 @@ pub fn mesh_tangents(
 /// and its world matrix in glTF's column-major `m[col][row]` order.
 pub type Drawable = (NodeId, MeshData, Option<MaterialId>, [[f32; 4]; 4]);
 
-pub fn scene_meshes(
-    project: &Project,
-    doc: &DocId,
-    assets: &AssetStore,
-) -> Result<Vec<Drawable>> {
+pub fn scene_meshes(project: &Project, doc: &DocId, assets: &AssetStore) -> Result<Vec<Drawable>> {
     let model = project.model(doc)?;
     let mut out = Vec::new();
     let mut cache: std::collections::HashMap<MeshId, MeshData> = std::collections::HashMap::new();
     for (node_id, world) in world_transforms(model) {
-        let Some(node) = model.node(&node_id) else { continue };
-        let Some(mesh_id) = node.mesh.clone() else { continue };
+        let Some(node) = model.node(&node_id) else {
+            continue;
+        };
+        let Some(mesh_id) = node.mesh.clone() else {
+            continue;
+        };
         let data = match cache.get(&mesh_id) {
             Some(d) => d.clone(),
             None => {
@@ -335,7 +366,9 @@ pub fn import_gltf(bytes: &[u8]) -> Result<MeshData> {
     for mesh in gltf.document.meshes() {
         for prim in mesh.primitives() {
             let reader = prim.reader(|b| buffers.get(b.index()).map(|v| v.as_slice()));
-            let Some(positions) = reader.read_positions() else { continue };
+            let Some(positions) = reader.read_positions() else {
+                continue;
+            };
             let mut part = MeshData {
                 positions: positions.collect(),
                 ..Default::default()
@@ -366,6 +399,10 @@ pub fn import_gltf(bytes: &[u8]) -> Result<MeshData> {
 }
 
 /// Bake geometry into the asset store and return the reference to store on the mesh.
-pub fn bake(assets: &AssetStore, mesh: &MeshData, tangents: Option<&[[f32; 4]]>) -> Result<AssetRef> {
+pub fn bake(
+    assets: &AssetStore,
+    mesh: &MeshData,
+    tangents: Option<&[[f32; 4]]>,
+) -> Result<AssetRef> {
     assets.put(&encode_blob(mesh, tangents), "dpm")
 }

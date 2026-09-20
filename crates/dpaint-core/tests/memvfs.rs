@@ -32,13 +32,22 @@ fn new_project() -> Project {
 /// touch every corner of `project.json` rather than one scalar.
 fn journey() -> Vec<(&'static str, serde_json::Value)> {
     vec![
-        ("doc.add", json!({ "name": "logo", "kind": "vector", "width": 128, "height": 128 })),
+        (
+            "doc.add",
+            json!({ "name": "logo", "kind": "vector", "width": 128, "height": 128 }),
+        ),
         ("doc.add", json!({ "name": "badge", "kind": "model" })),
-        ("palette.set", json!({ "name": "brand", "color": "#fb8500" })),
+        (
+            "palette.set",
+            json!({ "name": "brand", "color": "#fb8500" }),
+        ),
         ("palette.set", json!({ "name": "ink", "color": "#1d1d1f" })),
         ("doc.rename", json!({ "document": "logo", "name": "mark" })),
         ("doc.set-active", json!({ "document": "mark" })),
-        ("doc.resize", json!({ "document": "main", "width": 96, "height": 48 })),
+        (
+            "doc.resize",
+            json!({ "document": "main", "width": 96, "height": 48 }),
+        ),
         ("doc.duplicate", json!({ "document": "badge" })),
         ("palette.remove", json!({ "name": "ink" })),
         ("doc.set-active", json!({ "document": "main" })),
@@ -54,7 +63,9 @@ fn a_whole_project_life_cycle_runs_byte_identically_with_no_filesystem() {
 
     let mut states = vec![serde_json::to_value(&engine.workspace.project).unwrap()];
     for (op, args) in journey() {
-        engine.apply(op, args.clone(), None, false).unwrap_or_else(|e| panic!("{op}: {e}"));
+        engine
+            .apply(op, args.clone(), None, false)
+            .unwrap_or_else(|e| panic!("{op}: {e}"));
         states.push(serde_json::to_value(&engine.workspace.project).unwrap());
     }
     assert_eq!(states.len(), 11);
@@ -63,7 +74,10 @@ fn a_whole_project_life_cycle_runs_byte_identically_with_no_filesystem() {
     // Every state must be distinct, or "byte-identical at every step" proves nothing.
     for (i, s) in states.iter().enumerate() {
         for (j, t) in states.iter().enumerate().skip(i + 1) {
-            assert_ne!(s, t, "states {i} and {j} are the same; the walk is not exercising anything");
+            assert_ne!(
+                s, t,
+                "states {i} and {j} are the same; the walk is not exercising anything"
+            );
         }
     }
 
@@ -76,10 +90,16 @@ fn a_whole_project_life_cycle_runs_byte_identically_with_no_filesystem() {
             "state after undoing back to step {i} diverged"
         );
     }
-    assert!(engine.undo().unwrap().is_none(), "undo past the start must be a no-op");
+    assert!(
+        engine.undo().unwrap().is_none(),
+        "undo past the start must be a no-op"
+    );
 
     for (i, expect) in states.iter().enumerate().skip(1) {
-        assert!(engine.redo().unwrap().is_some(), "redo to {i} returned nothing");
+        assert!(
+            engine.redo().unwrap().is_some(),
+            "redo to {i} returned nothing"
+        );
         assert_eq!(
             &serde_json::to_value(&engine.workspace.project).unwrap(),
             expect,
@@ -94,13 +114,22 @@ fn a_whole_project_life_cycle_runs_byte_identically_with_no_filesystem() {
     assert_eq!(reopened.project, engine.workspace.project);
 
     // And nothing escaped to the host.
-    let files: Vec<String> =
-        vfs.snapshot().into_iter().map(|(p, _)| p.display().to_string()).collect();
+    let files: Vec<String> = vfs
+        .snapshot()
+        .into_iter()
+        .map(|(p, _)| p.display().to_string())
+        .collect();
     assert_eq!(
         files,
-        vec!["/browser/session.dpaint/history.jsonl", "/browser/session.dpaint/project.json"]
+        vec![
+            "/browser/session.dpaint/history.jsonl",
+            "/browser/session.dpaint/project.json"
+        ]
     );
-    assert!(!Path::new(ROOT).exists(), "the test must not have created a real directory");
+    assert!(
+        !Path::new(ROOT).exists(),
+        "the test must not have created a real directory"
+    );
 }
 
 #[test]
@@ -135,7 +164,11 @@ fn assets_written_in_memory_are_deduplicated_and_collected() {
     let b = ws.assets.put(b"\x89PNG fake two", "png").unwrap();
     assert_eq!(a, same, "content addressing deduplicates in memory too");
     assert_eq!(ws.assets.list().unwrap().len(), 2);
-    assert_eq!(vfs.snapshot().len(), 3, "project.json and exactly two blobs; no op ran");
+    assert_eq!(
+        vfs.snapshot().len(),
+        3,
+        "project.json and exactly two blobs; no op ran"
+    );
 
     // Nothing references either blob, so gc reclaims both and the tree shrinks.
     let keep = ws.project.referenced_assets();
@@ -145,5 +178,11 @@ fn assets_written_in_memory_are_deduplicated_and_collected() {
     assert_eq!(freed, 26);
     assert!(ws.assets.list().unwrap().is_empty());
     assert_eq!(ws.assets.get(&b).unwrap_err().code(), "asset_missing");
-    assert_eq!(vfs.bytes(), vfs.snapshot().iter().map(|(_, v)| v.len() as u64).sum::<u64>());
+    assert_eq!(
+        vfs.bytes(),
+        vfs.snapshot()
+            .iter()
+            .map(|(_, v)| v.len() as u64)
+            .sum::<u64>()
+    );
 }

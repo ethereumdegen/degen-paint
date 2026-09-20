@@ -103,7 +103,10 @@ fn different_arguments_are_a_different_request() {
         )
         .unwrap();
 
-    assert!(transport.call_count() > after_first, "a new prompt is a new call");
+    assert!(
+        transport.call_count() > after_first,
+        "a new prompt is a new call"
+    );
 }
 
 #[test]
@@ -128,7 +131,11 @@ fn a_request_that_would_cross_the_ceiling_fails_with_budget_exceeded() {
 
     assert_eq!(err.code(), "budget_exceeded");
     assert_eq!(err.exit_code(), 6);
-    assert_eq!(transport.call_count(), 0, "refused before the request was sent");
+    assert_eq!(
+        transport.call_count(),
+        0,
+        "refused before the request was sent"
+    );
     assert_eq!(fx.snapshot(), before);
 
     // Raising the ceiling lets the same call through.
@@ -197,14 +204,20 @@ fn provider_status_names_the_source_and_never_the_key() {
     assert_eq!(fal["configured"], true);
     assert_eq!(fal["source"], "explicit");
     assert_eq!(fal["models"]["inpaint"], "fal-ai/flux-general/inpainting");
-    let quiver = providers.iter().find(|p| p["provider"] == "quiver").unwrap();
+    let quiver = providers
+        .iter()
+        .find(|p| p["provider"] == "quiver")
+        .unwrap();
     assert_eq!(quiver["configured"], false);
     assert!(!data.to_string().contains("sk-test"));
 }
 
 #[test]
 fn a_selector_that_matches_nothing_never_reaches_the_provider() {
-    let transport = Arc::new(fal_job("fal-ai/flux-pro/kontext", png(8, 8, [0, 0, 0, 255])));
+    let transport = Arc::new(fal_job(
+        "fal-ai/flux-pro/kontext",
+        png(8, 8, [0, 0, 0, 255]),
+    ));
     let mut fx = Fixture::new(transport.clone(), fal_keys());
 
     let err = fx

@@ -111,7 +111,12 @@ where
         },
     )?;
 
-    Ok(Generated { assets, request_id, cost_usd: cost, cached: false })
+    Ok(Generated {
+        assets,
+        request_id,
+        cost_usd: cost,
+        cached: false,
+    })
 }
 
 /// A fal call: submit, poll, download, cache, account.
@@ -127,16 +132,22 @@ pub(crate) fn fal_call(
     key_params: &Value,
     inputs: &[Vec<u8>],
 ) -> Result<Generated> {
-    run_cached(rt, cx, op_id, Provider::Fal, model, key_params, inputs, |key| {
-        let client = crate::fal::FalClient::new(
-            rt.transport.as_ref(),
-            rt.config.as_ref(),
-            key.expose(),
-        );
-        let run = client.run(model, body)?;
-        let blobs = client.download_images(&run.payload)?;
-        Ok((Some(run.request_id), run.reported_cost, blobs))
-    })
+    run_cached(
+        rt,
+        cx,
+        op_id,
+        Provider::Fal,
+        model,
+        key_params,
+        inputs,
+        |key| {
+            let client =
+                crate::fal::FalClient::new(rt.transport.as_ref(), rt.config.as_ref(), key.expose());
+            let run = client.run(model, body)?;
+            let blobs = client.download_images(&run.payload)?;
+            Ok((Some(run.request_id), run.reported_cost, blobs))
+        },
+    )
 }
 
 // These are internal helpers whose parameters are genuinely independent; bundling them
@@ -155,24 +166,40 @@ pub(crate) fn quiver_call(
     inputs: &[Vec<u8>],
 ) -> Result<(Generated, Vec<String>)> {
     let keyed = json!({ "endpoint": url, "request": key_params });
-    let gen = run_cached(rt, cx, op_id, Provider::Quiver, model, &keyed, inputs, |key| {
-        let client = crate::quiver::QuiverClient::new(
-            rt.transport.as_ref(),
-            rt.config.as_ref(),
-            key.expose(),
-        );
-        let run = client.post(url, body)?;
-        let blobs = run
-            .svgs
-            .iter()
-            .map(|s| Blob { bytes: s.clone().into_bytes(), ext: "svg".into() })
-            .collect();
-        Ok((run.request_id, run.reported_cost, blobs))
-    })?;
+    let gen = run_cached(
+        rt,
+        cx,
+        op_id,
+        Provider::Quiver,
+        model,
+        &keyed,
+        inputs,
+        |key| {
+            let client = crate::quiver::QuiverClient::new(
+                rt.transport.as_ref(),
+                rt.config.as_ref(),
+                key.expose(),
+            );
+            let run = client.post(url, body)?;
+            let blobs = run
+                .svgs
+                .iter()
+                .map(|s| Blob {
+                    bytes: s.clone().into_bytes(),
+                    ext: "svg".into(),
+                })
+                .collect();
+            Ok((run.request_id, run.reported_cost, blobs))
+        },
+    )?;
     let svgs = gen
         .assets
         .iter()
-        .map(|a| cx.assets.get(a).map(|b| String::from_utf8_lossy(&b).into_owned()))
+        .map(|a| {
+            cx.assets
+                .get(a)
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        })
         .collect::<Result<Vec<_>>>()?;
     Ok((gen, svgs))
 }
@@ -230,10 +257,14 @@ pub(crate) fn parse_size(op: &str, s: &str) -> Result<(u32, u32)> {
             detail: format!("size '{s}' is not WIDTHxHEIGHT"),
         })?;
     let parse = |v: &str| {
-        v.trim().parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| Error::SchemaViolation {
-            op: op.to_string(),
-            detail: format!("size '{s}' is not WIDTHxHEIGHT"),
-        })
+        v.trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(|| Error::SchemaViolation {
+                op: op.to_string(),
+                detail: format!("size '{s}' is not WIDTHxHEIGHT"),
+            })
     };
     Ok((parse(w)?, parse(h)?))
 }
@@ -241,7 +272,9 @@ pub(crate) fn parse_size(op: &str, s: &str) -> Result<(u32, u32)> {
 /// Merge caller-supplied passthrough parameters, so an agent can drive an endpoint this
 /// crate has never heard of without waiting for a release.
 pub(crate) fn merge_extra(params: &mut Value, extra: Option<Value>) {
-    let Some(Value::Object(extra)) = extra else { return };
+    let Some(Value::Object(extra)) = extra else {
+        return;
+    };
     if let Some(obj) = params.as_object_mut() {
         for (k, v) in extra {
             obj.insert(k, v);

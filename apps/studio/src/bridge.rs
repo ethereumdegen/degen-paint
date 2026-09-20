@@ -38,7 +38,9 @@ pub fn no_project_payload() -> String {
 
 /// `state`, `op`, `undo`, … — the whole GUI surface, unwrapped result on success.
 pub fn call(studio: &Studio, method: &str, params: &Value) -> Result<Value, String> {
-    studio.dispatch(method, params).map_err(|e| error_payload(&e))
+    studio
+        .dispatch(method, params)
+        .map_err(|e| error_payload(&e))
 }
 
 /// Render for the viewport as a `data:image/png;base64,…` URI.
@@ -51,7 +53,11 @@ pub fn render_data_uri(
     scale: f64,
     max: u32,
 ) -> Result<String, String> {
-    let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
     let (png, _size) = studio
         .render_png(doc, scale, max.max(1))
         .map_err(|e| error_payload(&e))?;

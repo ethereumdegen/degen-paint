@@ -92,7 +92,10 @@ impl Error {
     pub fn exit_code(&self) -> i32 {
         use Error::*;
         match self {
-            SchemaViolation { .. } | UnknownOp(_) | SelectorSyntax(_) | WrongDocumentKind { .. } => 2,
+            SchemaViolation { .. }
+            | UnknownOp(_)
+            | SelectorSyntax(_)
+            | WrongDocumentKind { .. } => 2,
             SelectorNoMatch { .. } | SelectorAmbiguous { .. } => 3,
             ProviderUnconfigured(_) | ProviderError { .. } => 5,
             BudgetExceeded { .. } => 6,

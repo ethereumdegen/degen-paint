@@ -122,14 +122,22 @@ pub fn blend(mode: BlendMode, cb: [f32; 3], cs: [f32; 3]) -> [f32; 3] {
                 if s <= 0.5 {
                     let d = 2.0 * s;
                     if d <= 0.0 {
-                        if b >= 1.0 { 1.0 } else { 0.0 }
+                        if b >= 1.0 {
+                            1.0
+                        } else {
+                            0.0
+                        }
                     } else {
                         1.0 - ((1.0 - b) / d).min(1.0)
                     }
                 } else {
                     let d = 1.0 - (s - 0.5) * 2.0;
                     if d <= 0.0 {
-                        if b <= 0.0 { 0.0 } else { 1.0 }
+                        if b <= 0.0 {
+                            0.0
+                        } else {
+                            1.0
+                        }
                     } else {
                         (b / d).min(1.0)
                     }
@@ -165,7 +173,11 @@ pub fn blend(mode: BlendMode, cb: [f32; 3], cs: [f32; 3]) -> [f32; 3] {
         Divide => sep(
             |b, s| {
                 if s <= 0.0 {
-                    if b > 0.0 { 1.0 } else { 0.0 }
+                    if b > 0.0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
                 } else {
                     (b / s).min(1.0)
                 }
@@ -275,7 +287,11 @@ pub fn composite(
         if mode == BlendMode::Dissolve {
             // Dissolve is a per-pixel coin flip on coverage, not a color mix.
             let (x, y) = ((i as u32) % w, (i as u32) / w);
-            asrc = if hash01(x, y, seed) < asrc { sa_raw } else { 0.0 };
+            asrc = if hash01(x, y, seed) < asrc {
+                sa_raw
+            } else {
+                0.0
+            };
             if asrc <= 0.0 {
                 continue;
             }
@@ -290,7 +306,11 @@ pub fn composite(
         }
         let ab = dst.data[o + 3];
         let cs = if sa_raw > 0.0 {
-            [src.data[o] / sa_raw, src.data[o + 1] / sa_raw, src.data[o + 2] / sa_raw]
+            [
+                src.data[o] / sa_raw,
+                src.data[o + 1] / sa_raw,
+                src.data[o + 2] / sa_raw,
+            ]
         } else {
             [0.0; 3]
         };
@@ -302,7 +322,11 @@ pub fn composite(
             continue;
         }
         let cb = [dst.data[o] / ab, dst.data[o + 1] / ab, dst.data[o + 2] / ab];
-        let b = if mode == BlendMode::Normal { cs } else { blend(mode, cb, cs) };
+        let b = if mode == BlendMode::Normal {
+            cs
+        } else {
+            blend(mode, cb, cs)
+        };
         let ao = asrc + ab * (1.0 - asrc);
         for c in 0..3 {
             let co = asrc * (1.0 - ab) * cs[c] + asrc * ab * b[c] + (1.0 - asrc) * ab * cb[c];
@@ -344,7 +368,10 @@ mod tests {
     fn luminosity_takes_source_light_and_keeps_backdrop_chroma() {
         let cb = [0.8, 0.2, 0.2];
         let out = blend(BlendMode::Luminosity, cb, [0.5, 0.5, 0.5]);
-        assert!((lum(out) - 0.5).abs() < 1e-4, "luminosity must adopt source light: {out:?}");
+        assert!(
+            (lum(out) - 0.5).abs() < 1e-4,
+            "luminosity must adopt source light: {out:?}"
+        );
         // Red is still dominant: the hue/chroma of the backdrop survived.
         assert!(out[0] > out[1] && out[0] > out[2], "{out:?}");
     }

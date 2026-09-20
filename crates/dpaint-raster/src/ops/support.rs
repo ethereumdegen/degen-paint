@@ -58,17 +58,16 @@ pub fn doc_id(project: &dpaint_core::Project, cx: &OpCx) -> Result<DocId> {
     let id = cx.target_doc(project)?;
     let kind = project.doc(&id)?.kind();
     if kind != dpaint_core::DocKind::Raster {
-        return Err(Error::WrongDocumentKind { op: "raster.*".into(), kind: kind.to_string() });
+        return Err(Error::WrongDocumentKind {
+            op: "raster.*".into(),
+            kind: kind.to_string(),
+        });
     }
     Ok(id)
 }
 
 /// Resolve a selector to exactly one layer.
-pub fn one_layer(
-    project: &dpaint_core::Project,
-    cx: &OpCx,
-    sel: &str,
-) -> Result<(DocId, LayerId)> {
+pub fn one_layer(project: &dpaint_core::Project, cx: &OpCx, sel: &str) -> Result<(DocId, LayerId)> {
     let doc = doc_id(project, cx)?;
     let m = resolve_one(project, sel, Some(&doc))?;
     Ok((m.document, LayerId::from(m.id)))
@@ -160,7 +159,12 @@ pub fn edit_pixels(
             old.width, old.height, new.width, new.height
         )));
     }
-    let out = select::composite_through(&old, &new, sel.as_ref(), (offset[0] as i64, offset[1] as i64));
+    let out = select::composite_through(
+        &old,
+        &new,
+        sel.as_ref(),
+        (offset[0] as i64, offset[1] as i64),
+    );
     let asset = store_canvas(cx.assets, &out)?;
     if !cx.dry_run {
         let rd = project.raster_mut(doc)?;
@@ -260,7 +264,6 @@ pub fn flatten_canvas(
     let link = composite::raster_only_link(project, assets);
     composite::render_canvas(project, doc, assets, 1.0, &link)
 }
-
 
 /// Render exactly one layer at 1:1 with its mask and effects, but *without* its own opacity
 /// or blend mode — those belong to whoever composites it.

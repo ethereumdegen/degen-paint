@@ -7,9 +7,9 @@ use dpaint_core::doc::model::{
     UpAxis,
 };
 use dpaint_core::{AssetStore, Color, DocId, Error, MaterialId, MeshId, NodeId, Project, Result};
-use gltf_json as gj;
 use gj::validation::Checked::Valid;
 use gj::validation::USize64;
+use gltf_json as gj;
 use std::collections::BTreeMap;
 
 /// The three artifacts of an export. `json` references the buffer as `<doc-id>.bin`, so the
@@ -85,7 +85,12 @@ struct Ctx<'a> {
 }
 
 impl Ctx<'_> {
-    fn view(&mut self, off: usize, len: usize, target: Option<gj::buffer::Target>) -> gj::Index<gj::buffer::View> {
+    fn view(
+        &mut self,
+        off: usize,
+        len: usize,
+        target: Option<gj::buffer::Target>,
+    ) -> gj::Index<gj::buffer::View> {
         let view = gj::buffer::View {
             buffer: self.buffer,
             byte_length: USize64::from(len),
@@ -381,7 +386,9 @@ fn build_root(
                 _ => None,
             },
             type_: Valid(match light.kind {
-                LightKind::Directional => gj::extensions::scene::khr_lights_punctual::Type::Directional,
+                LightKind::Directional => {
+                    gj::extensions::scene::khr_lights_punctual::Type::Directional
+                }
                 LightKind::Point => gj::extensions::scene::khr_lights_punctual::Type::Point,
                 LightKind::Spot => gj::extensions::scene::khr_lights_punctual::Type::Spot,
             }),
@@ -412,7 +419,10 @@ fn build_root(
                         let idx = export_mesh(
                             &mut cx,
                             &data,
-                            node.material.as_ref().and_then(|m| material_index.get(m)).copied(),
+                            node.material
+                                .as_ref()
+                                .and_then(|m| material_index.get(m))
+                                .copied(),
                             tangents,
                             &model
                                 .mesh(mesh_id)
@@ -426,15 +436,17 @@ fn build_root(
             }
             None => None,
         };
-        let extensions = node.light.as_ref().and_then(|l| light_index.get(l.as_str())).map(|i| {
-            gj::extensions::scene::Node {
+        let extensions = node
+            .light
+            .as_ref()
+            .and_then(|l| light_index.get(l.as_str()))
+            .map(|i| gj::extensions::scene::Node {
                 khr_lights_punctual: Some(
                     gj::extensions::scene::khr_lights_punctual::KhrLightsPunctual {
                         light: gj::Index::new(*i),
                     },
                 ),
-            }
-        });
+            });
         let idx = cx.root.push(gj::Node {
             camera: node
                 .camera
@@ -558,7 +570,11 @@ fn export_mesh(
             "mesh '{name}' has no triangles to export"
         )));
     }
-    let flat: Vec<f32> = data.positions.iter().flat_map(|p| p.iter().copied()).collect();
+    let flat: Vec<f32> = data
+        .positions
+        .iter()
+        .flat_map(|p| p.iter().copied())
+        .collect();
     let pos = cx.f32_accessor(
         &flat,
         3,
@@ -570,7 +586,11 @@ fn export_mesh(
     let mut attributes = BTreeMap::new();
     attributes.insert(Valid(gj::mesh::Semantic::Positions), pos);
     if data.normals.len() == data.positions.len() {
-        let flat: Vec<f32> = data.normals.iter().flat_map(|p| p.iter().copied()).collect();
+        let flat: Vec<f32> = data
+            .normals
+            .iter()
+            .flat_map(|p| p.iter().copied())
+            .collect();
         let acc = cx.f32_accessor(
             &flat,
             3,
@@ -686,7 +706,11 @@ fn export_material(cx: &mut Ctx, m: &Material) -> Result<(gj::Index<gj::Material
     let e = linear(emissive);
     // A zero strength with an emissive colour means "just use the colour": glTF's own
     // default strength is 1.0, and 0.0 would silently switch the emission off.
-    let strength = if m.emissive_strength > 0.0 { m.emissive_strength } else { 1.0 };
+    let strength = if m.emissive_strength > 0.0 {
+        m.emissive_strength
+    } else {
+        1.0
+    };
     let extensions = if m.emissive.is_some() && (strength - 1.0).abs() > 1e-6 {
         cx.emissive_strength_used = true;
         Some(gj::extensions::material::Material {
@@ -774,7 +798,11 @@ fn export_animations(
             let output = cx.f32_accessor(
                 &values,
                 comps,
-                if comps == 4 { gj::accessor::Type::Vec4 } else { gj::accessor::Type::Vec3 },
+                if comps == 4 {
+                    gj::accessor::Type::Vec4
+                } else {
+                    gj::accessor::Type::Vec3
+                },
                 false,
                 None,
                 &format!("{}/output", anim.id),
@@ -814,7 +842,11 @@ fn export_animations(
             extensions: None,
             extras: Default::default(),
             channels,
-            name: Some(if anim.name.is_empty() { anim.id.to_string() } else { anim.name.clone() }),
+            name: Some(if anim.name.is_empty() {
+                anim.id.to_string()
+            } else {
+                anim.name.clone()
+            }),
             samplers,
         });
     }
@@ -850,7 +882,9 @@ pub fn scene_bounds(
     let mut hi = [f32::MIN; 3];
     let mut any = false;
     for (node_id, world) in world_transforms(model) {
-        let Some(node) = model.node(&node_id) else { continue };
+        let Some(node) = model.node(&node_id) else {
+            continue;
+        };
         let Some(mesh_id) = &node.mesh else { continue };
         let mut data = build_mesh(project, doc, mesh_id, assets)?;
         data.transform(&world);

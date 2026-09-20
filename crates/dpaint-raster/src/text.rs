@@ -10,8 +10,8 @@
 use crate::geom;
 use dpaint_core::doc::common::{Rect, TextAlign, TextSpec};
 use dpaint_core::kurbo::{BezPath, Shape};
-use rustybuzz::ttf_parser::OutlineBuilder;
 use dpaint_core::{AssetStore, Error, Project, Result};
+use rustybuzz::ttf_parser::OutlineBuilder;
 use std::collections::BTreeMap;
 
 /// The one canonical fallback face for the whole workspace, owned by `dpaint-core`.
@@ -51,7 +51,9 @@ impl FontSet {
 
         let mut aliases = BTreeMap::new();
         for entry in &project.fonts {
-            let Ok(bytes) = assets.get(&entry.asset) else { continue };
+            let Ok(bytes) = assets.get(&entry.asset) else {
+                continue;
+            };
             let before = db.len();
             db.load_font_data(bytes);
             if let Some(actual) = db
@@ -82,13 +84,14 @@ impl FontSet {
         // `resolved` owns the family string the query borrows, so nothing has to be leaked
         // to manufacture a 'static lifetime.
         let alias = self.aliases.get(&requested.to_ascii_lowercase()).cloned();
-        let (resolved, generic_family, fallback) = match alias.or_else(|| self.has_family(requested)) {
-            Some(actual) => (Some(actual), None, false),
-            None => match generic(requested) {
-                Some(g) => (None, Some(g), false),
-                None => (None, Some(fontdb::Family::SansSerif), true),
-            },
-        };
+        let (resolved, generic_family, fallback) =
+            match alias.or_else(|| self.has_family(requested)) {
+                Some(actual) => (Some(actual), None, false),
+                None => match generic(requested) {
+                    Some(g) => (None, Some(g), false),
+                    None => (None, Some(fontdb::Family::SansSerif), true),
+                },
+            };
         let family = match (&resolved, generic_family) {
             (Some(name), _) => fontdb::Family::Name(name.as_str()),
             (None, Some(g)) => g,
@@ -98,7 +101,11 @@ impl FontSet {
             families: &[family],
             weight: fontdb::Weight(spec.weight),
             stretch: fontdb::Stretch::Normal,
-            style: if spec.italic { fontdb::Style::Italic } else { fontdb::Style::Normal },
+            style: if spec.italic {
+                fontdb::Style::Italic
+            } else {
+                fontdb::Style::Normal
+            },
         };
         let id = self
             .db
@@ -148,7 +155,8 @@ impl rustybuzz::ttf_parser::OutlineBuilder for Outliner<'_> {
         self.path.quad_to(self.map(x1, y1), self.map(x, y));
     }
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
-        self.path.curve_to(self.map(x1, y1), self.map(x2, y2), self.map(x, y));
+        self.path
+            .curve_to(self.map(x1, y1), self.map(x2, y2), self.map(x, y));
     }
     fn close(&mut self) {
         if self.open {
@@ -162,7 +170,10 @@ impl Outliner<'_> {
     #[inline]
     fn map(&self, x: f32, y: f32) -> (f64, f64) {
         // Font space is y-up; document space is y-down.
-        (self.x + x as f64 * self.scale, self.y - y as f64 * self.scale)
+        (
+            self.x + x as f64 * self.scale,
+            self.y - y as f64 * self.scale,
+        )
     }
 }
 
@@ -187,7 +198,11 @@ fn shape_run(face: &rustybuzz::Face<'_>, text: &str, tracking: f64) -> Run {
         ));
         pen += pos.x_advance as f64 / upem + tracking;
     }
-    Run { glyphs, advance: pen, spaces: text.chars().filter(|c| *c == ' ').count() }
+    Run {
+        glyphs,
+        advance: pen,
+        spaces: text.chars().filter(|c| *c == ' ').count(),
+    }
 }
 
 /// Lay out a text spec into a single outline.
@@ -245,8 +260,11 @@ fn layout_with_face(spec: &TextSpec, face: &rustybuzz::Face<'_>) -> (BezPath, us
         }
         let mut current = String::new();
         for word in para.split(' ') {
-            let candidate =
-                if current.is_empty() { word.to_string() } else { format!("{current} {word}") };
+            let candidate = if current.is_empty() {
+                word.to_string()
+            } else {
+                format!("{current} {word}")
+            };
             let w = shape_run(face, &candidate, tracking).advance * size;
             if w > box_w && !current.is_empty() {
                 lines.push(std::mem::take(&mut current));
@@ -302,7 +320,9 @@ fn layout_with_face(spec: &TextSpec, face: &rustybuzz::Face<'_>) -> (BezPath, us
 /// Largest size not exceeding the box, for `text.fit` (shrink-to-box).
 pub fn fit_size(spec: &TextSpec, fonts: &FontSet, min: f64) -> Result<f64> {
     let Some(b) = spec.r#box else {
-        return Err(Error::Invalid("text.fit needs the layer to have a box".into()));
+        return Err(Error::Invalid(
+            "text.fit needs the layer to have a box".into(),
+        ));
     };
     let mut size = spec.size;
     let mut probe = spec.clone();
@@ -321,13 +341,21 @@ pub fn fit_size(spec: &TextSpec, fonts: &FontSet, min: f64) -> Result<f64> {
 pub fn outline_d(spec: &TextSpec, fonts: &FontSet) -> Result<(String, bool, String)> {
     let l = layout(spec, fonts)?;
     if l.outline.elements().is_empty() {
-        return Err(Error::DegenerateGeometry("text produced no glyph outlines".into()));
+        return Err(Error::DegenerateGeometry(
+            "text produced no glyph outlines".into(),
+        ));
     }
     Ok((l.outline.to_svg(), l.fallback, l.used_family))
 }
 
 /// Coverage of laid-out text at a device scale.
-pub fn text_coverage(spec: &TextSpec, fonts: &FontSet, w: u32, h: u32, scale: f64) -> Result<(Vec<f32>, TextLayout)> {
+pub fn text_coverage(
+    spec: &TextSpec,
+    fonts: &FontSet,
+    w: u32,
+    h: u32,
+    scale: f64,
+) -> Result<(Vec<f32>, TextLayout)> {
     let l = layout(spec, fonts)?;
     if l.outline.elements().is_empty() {
         return Ok((vec![0.0; w as usize * h as usize], l));
@@ -347,17 +375,31 @@ mod tests {
     fn fonts() -> FontSet {
         let doc = Document::Raster(RasterDoc::new(DocId::from("doc_t"), "t", 4, 4));
         let project = Project::new("t", doc);
-        FontSet::new(&project, &AssetStore::new(std::env::temp_dir().join("dpaint-fonts-test")))
+        FontSet::new(
+            &project,
+            &AssetStore::new(std::env::temp_dir().join("dpaint-fonts-test")),
+        )
     }
 
     #[test]
     fn missing_family_falls_back_and_still_produces_glyphs() {
         let f = fonts();
-        let spec = TextSpec { family: "NoSuchFaceHere".into(), size: 24.0, ..TextSpec::new("Hi") };
+        let spec = TextSpec {
+            family: "NoSuchFaceHere".into(),
+            size: 24.0,
+            ..TextSpec::new("Hi")
+        };
         let l = layout(&spec, &f).unwrap();
-        assert!(l.fallback, "a missing family must be reported as a fallback");
+        assert!(
+            l.fallback,
+            "a missing family must be reported as a fallback"
+        );
         assert_eq!(l.used_family, FALLBACK_FAMILY);
-        assert!(l.bounds.w() > 1.0 && l.bounds.h() > 1.0, "glyphs still rendered: {:?}", l.bounds);
+        assert!(
+            l.bounds.w() > 1.0 && l.bounds.h() > 1.0,
+            "glyphs still rendered: {:?}",
+            l.bounds
+        );
     }
 
     #[test]
@@ -374,12 +416,23 @@ mod tests {
         spec.size = 16.0;
         spec.r#box = Some(Rect::new(0.0, 0.0, 120.0, 400.0));
         let wrapped = layout(&spec, &f).unwrap();
-        assert!(wrapped.lines > 2, "long text in a narrow box must wrap: {}", wrapped.lines);
-        assert!(wrapped.bounds.w() <= 121.0, "wrapped text stays in the box: {:?}", wrapped.bounds);
+        assert!(
+            wrapped.lines > 2,
+            "long text in a narrow box must wrap: {}",
+            wrapped.lines
+        );
+        assert!(
+            wrapped.bounds.w() <= 121.0,
+            "wrapped text stays in the box: {:?}",
+            wrapped.bounds
+        );
 
         spec.leading = 3.0;
         let loose = layout(&spec, &f).unwrap();
-        assert!(loose.bounds.h() > wrapped.bounds.h(), "more leading must be taller");
+        assert!(
+            loose.bounds.h() > wrapped.bounds.h(),
+            "more leading must be taller"
+        );
     }
 
     #[test]
@@ -391,6 +444,11 @@ mod tests {
         let left = layout(&spec, &f).unwrap();
         spec.align = TextAlign::Center;
         let center = layout(&spec, &f).unwrap();
-        assert!(center.bounds.x() > left.bounds.x() + 50.0, "{:?} vs {:?}", left.bounds, center.bounds);
+        assert!(
+            center.bounds.x() > left.bounds.x() + 50.0,
+            "{:?} vs {:?}",
+            left.bounds,
+            center.bounds
+        );
     }
 }

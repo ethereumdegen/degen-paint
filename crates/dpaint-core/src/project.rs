@@ -47,7 +47,10 @@ pub struct FontEntry {
 impl Project {
     pub fn new(name: impl Into<String>, first: Document) -> Self {
         let now = now_iso();
-        let id = format!("prj_{}", ulid::Ulid::new().to_string()[10..].to_ascii_lowercase());
+        let id = format!(
+            "prj_{}",
+            ulid::Ulid::new().to_string()[10..].to_ascii_lowercase()
+        );
         let active = first.id().clone();
         let mut documents = IndexMap::new();
         documents.insert(active.clone(), first);
@@ -98,18 +101,25 @@ impl Project {
     }
 
     pub fn raster(&self, id: &DocId) -> Result<&RasterDoc> {
-        self.doc(id)?.as_raster().ok_or_else(|| Error::WrongDocumentKind {
-            op: "<raster>".into(),
-            kind: self.doc(id).map(|d| d.kind().to_string()).unwrap_or_default(),
-        })
+        self.doc(id)?
+            .as_raster()
+            .ok_or_else(|| Error::WrongDocumentKind {
+                op: "<raster>".into(),
+                kind: self
+                    .doc(id)
+                    .map(|d| d.kind().to_string())
+                    .unwrap_or_default(),
+            })
     }
 
     pub fn raster_mut(&mut self, id: &DocId) -> Result<&mut RasterDoc> {
         let kind = self.doc(id)?.kind();
-        self.doc_mut(id)?.as_raster_mut().ok_or(Error::WrongDocumentKind {
-            op: "<raster>".into(),
-            kind: kind.to_string(),
-        })
+        self.doc_mut(id)?
+            .as_raster_mut()
+            .ok_or(Error::WrongDocumentKind {
+                op: "<raster>".into(),
+                kind: kind.to_string(),
+            })
     }
 
     pub fn vector(&self, id: &DocId) -> Result<&VectorDoc> {
@@ -122,10 +132,12 @@ impl Project {
 
     pub fn vector_mut(&mut self, id: &DocId) -> Result<&mut VectorDoc> {
         let kind = self.doc(id)?.kind();
-        self.doc_mut(id)?.as_vector_mut().ok_or(Error::WrongDocumentKind {
-            op: "<vector>".into(),
-            kind: kind.to_string(),
-        })
+        self.doc_mut(id)?
+            .as_vector_mut()
+            .ok_or(Error::WrongDocumentKind {
+                op: "<vector>".into(),
+                kind: kind.to_string(),
+            })
     }
 
     pub fn model(&self, id: &DocId) -> Result<&ModelDoc> {
@@ -138,10 +150,12 @@ impl Project {
 
     pub fn model_mut(&mut self, id: &DocId) -> Result<&mut ModelDoc> {
         let kind = self.doc(id)?.kind();
-        self.doc_mut(id)?.as_model_mut().ok_or(Error::WrongDocumentKind {
-            op: "<model>".into(),
-            kind: kind.to_string(),
-        })
+        self.doc_mut(id)?
+            .as_model_mut()
+            .ok_or(Error::WrongDocumentKind {
+                op: "<model>".into(),
+                kind: kind.to_string(),
+            })
     }
 
     /// Every asset referenced from any document. The keep-set for `asset.gc`.
@@ -322,7 +336,8 @@ impl Workspace {
     /// truncate a project.
     pub fn save(&self) -> Result<()> {
         let text = serde_json::to_string_pretty(&self.project)?;
-        self.vfs.write(&self.root.join("project.json"), text.as_bytes())
+        self.vfs
+            .write(&self.root.join("project.json"), text.as_bytes())
     }
 }
 
@@ -355,7 +370,10 @@ mod tests {
         let order = p.render_order().unwrap();
         let logo = order.iter().position(|d| d.as_str() == "doc_logo").unwrap();
         let main = order.iter().position(|d| d.as_str() == "doc_main").unwrap();
-        assert!(logo < main, "a linked document must render before its consumer");
+        assert!(
+            logo < main,
+            "a linked document must render before its consumer"
+        );
     }
 
     #[test]
@@ -371,8 +389,14 @@ mod tests {
         let p = project_with_link();
         assert_eq!(p.resolve_doc(None).unwrap().as_str(), "doc_main");
         assert_eq!(p.resolve_doc(Some("logo")).unwrap().as_str(), "doc_logo");
-        assert_eq!(p.resolve_doc(Some("doc_logo")).unwrap().as_str(), "doc_logo");
-        assert_eq!(p.resolve_doc(Some("nope")).unwrap_err().code(), "no_such_document");
+        assert_eq!(
+            p.resolve_doc(Some("doc_logo")).unwrap().as_str(),
+            "doc_logo"
+        );
+        assert_eq!(
+            p.resolve_doc(Some("nope")).unwrap_err().code(),
+            "no_such_document"
+        );
     }
 
     #[test]
@@ -385,7 +409,10 @@ mod tests {
             .push(raster::Layer::new(
                 LayerId::from("lyr_px"),
                 "px",
-                raster::LayerKind::Pixel { asset: a.clone(), offset: [0, 0] },
+                raster::LayerKind::Pixel {
+                    asset: a.clone(),
+                    offset: [0, 0],
+                },
             ));
         assert!(p.referenced_assets().contains(&a));
     }
@@ -407,6 +434,9 @@ mod tests {
         let mut p = project_with_link();
         p.format = FORMAT_VERSION + 1;
         Workspace::create(&root, p).unwrap();
-        assert_eq!(Workspace::open(&root).unwrap_err().code(), "migration_required");
+        assert_eq!(
+            Workspace::open(&root).unwrap_err().code(),
+            "migration_required"
+        );
     }
 }

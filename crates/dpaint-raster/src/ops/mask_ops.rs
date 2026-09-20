@@ -50,8 +50,9 @@ fn build_mask_asset(
         MaskSource::White => vec![1.0; w as usize * h as usize],
         MaskSource::Black => vec![0.0; w as usize * h as usize],
         MaskSource::Selection => {
-            let sel = select::resolve(rd, cx.assets, w, h, 1.0)?
-                .ok_or_else(|| Error::Invalid("there is no selection to build a mask from".into()))?;
+            let sel = select::resolve(rd, cx.assets, w, h, 1.0)?.ok_or_else(|| {
+                Error::Invalid("there is no selection to build a mask from".into())
+            })?;
             sel.cov
         }
         MaskSource::Luminance => {
@@ -86,7 +87,12 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
     };
     if !cx.dry_run {
         if let Some(l) = project.raster_mut(&doc)?.layer_mut(&id) {
-            l.mask = Some(Mask { asset, enabled: true, inverted: args.inverted, offset: [0, 0] });
+            l.mask = Some(Mask {
+                asset,
+                enabled: true,
+                inverted: args.inverted,
+                offset: [0, 0],
+            });
         }
     }
     Ok(OpEffect::changed(&doc))
@@ -156,7 +162,11 @@ fn invert(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Result<OpEf
         return Err(Error::Invalid("that layer has no mask to invert".into()));
     }
     if !cx.dry_run {
-        if let Some(m) = project.raster_mut(&doc)?.layer_mut(&id).and_then(|l| l.mask.as_mut()) {
+        if let Some(m) = project
+            .raster_mut(&doc)?
+            .layer_mut(&id)
+            .and_then(|l| l.mask.as_mut())
+        {
             m.inverted = !m.inverted;
         }
     }
@@ -168,7 +178,12 @@ fn from_selection(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Res
     let asset = build_mask_asset(project, &doc, &id, MaskSource::Selection, cx)?;
     if !cx.dry_run {
         if let Some(l) = project.raster_mut(&doc)?.layer_mut(&id) {
-            l.mask = Some(Mask { asset, enabled: true, inverted: false, offset: [0, 0] });
+            l.mask = Some(Mask {
+                asset,
+                enabled: true,
+                inverted: false,
+                offset: [0, 0],
+            });
         }
     }
     Ok(OpEffect::changed(&doc))
@@ -186,7 +201,11 @@ pub struct FromLuminanceArgs {
     pub inverted: bool,
 }
 
-fn from_luminance(project: &mut Project, args: FromLuminanceArgs, cx: &mut OpCx) -> Result<OpEffect> {
+fn from_luminance(
+    project: &mut Project,
+    args: FromLuminanceArgs,
+    cx: &mut OpCx,
+) -> Result<OpEffect> {
     let (doc, id) = support::one_layer(project, cx, &args.target)?;
     let source = match &args.source {
         Some(sel) => support::one_layer(project, cx, sel)?.1,
@@ -195,7 +214,12 @@ fn from_luminance(project: &mut Project, args: FromLuminanceArgs, cx: &mut OpCx)
     let asset = build_mask_asset(project, &doc, &source, MaskSource::Luminance, cx)?;
     if !cx.dry_run {
         if let Some(l) = project.raster_mut(&doc)?.layer_mut(&id) {
-            l.mask = Some(Mask { asset, enabled: true, inverted: args.inverted, offset: [0, 0] });
+            l.mask = Some(Mask {
+                asset,
+                enabled: true,
+                inverted: args.inverted,
+                offset: [0, 0],
+            });
         }
     }
     Ok(OpEffect::changed(&doc))
@@ -222,7 +246,11 @@ fn clip_set(project: &mut Project, args: ClipArgs, cx: &mut OpCx) -> Result<OpEf
         let (path, index) = support::locate(rd, id)
             .ok_or_else(|| Error::Invalid(format!("layer {id} is not in the stack")))?;
         if args.clip && index == 0 {
-            let where_ = if path.is_empty() { "the stack" } else { "its group" };
+            let where_ = if path.is_empty() {
+                "the stack"
+            } else {
+                "its group"
+            };
             return Err(Error::Invalid(format!(
                 "'{}' is at the bottom of {where_}; there is no layer beneath it to clip to",
                 support::layer_of(rd, id)?.name
@@ -241,15 +269,55 @@ fn clip_set(project: &mut Project, args: ClipArgs, cx: &mut OpCx) -> Result<OpEf
     Ok(OpEffect::changed(&doc))
 }
 
-
-
-raster_op!(Add, "raster.mask.add", "Add a layer mask from white, black, the selection or luminance", AddArgs, add);
-raster_op!(Remove, "raster.mask.remove", "Remove a layer mask", TargetArgs, remove);
-raster_op!(Apply, "raster.mask.apply", "Bake a layer mask into the layer's pixels", TargetArgs, apply);
-raster_op!(Invert, "raster.mask.invert", "Invert a layer mask", TargetArgs, invert);
-raster_op!(FromSelection, "raster.mask.from-selection", "Replace a layer mask with the current selection", TargetArgs, from_selection);
-raster_op!(FromLuminance, "raster.mask.from-luminance", "Build a layer mask from a layer's luminance", FromLuminanceArgs, from_luminance);
-raster_op!(ClipSet, "raster.clip.set", "Clip a layer to the one beneath it, or release it", ClipArgs, clip_set);
+raster_op!(
+    Add,
+    "raster.mask.add",
+    "Add a layer mask from white, black, the selection or luminance",
+    AddArgs,
+    add
+);
+raster_op!(
+    Remove,
+    "raster.mask.remove",
+    "Remove a layer mask",
+    TargetArgs,
+    remove
+);
+raster_op!(
+    Apply,
+    "raster.mask.apply",
+    "Bake a layer mask into the layer's pixels",
+    TargetArgs,
+    apply
+);
+raster_op!(
+    Invert,
+    "raster.mask.invert",
+    "Invert a layer mask",
+    TargetArgs,
+    invert
+);
+raster_op!(
+    FromSelection,
+    "raster.mask.from-selection",
+    "Replace a layer mask with the current selection",
+    TargetArgs,
+    from_selection
+);
+raster_op!(
+    FromLuminance,
+    "raster.mask.from-luminance",
+    "Build a layer mask from a layer's luminance",
+    FromLuminanceArgs,
+    from_luminance
+);
+raster_op!(
+    ClipSet,
+    "raster.clip.set",
+    "Clip a layer to the one beneath it, or release it",
+    ClipArgs,
+    clip_set
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

@@ -32,12 +32,18 @@ pub struct Studio {
 impl Studio {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         let ws = Workspace::open(root.as_ref())?;
-        Ok(Self { root: ws.root().to_path_buf(), registry: registry() })
+        Ok(Self {
+            root: ws.root().to_path_buf(),
+            registry: registry(),
+        })
     }
 
     pub fn discover(start: impl AsRef<Path>) -> Result<Self> {
         let ws = Workspace::discover(start.as_ref())?;
-        Ok(Self { root: ws.root().to_path_buf(), registry: registry() })
+        Ok(Self {
+            root: ws.root().to_path_buf(),
+            registry: registry(),
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -113,7 +119,10 @@ impl Studio {
         let id = str_param(params, "op")?;
         let args = params.get("args").cloned().unwrap_or(json!({}));
         let doc = params.get("doc").and_then(|d| d.as_str()).map(String::from);
-        let dry = params.get("dryRun").and_then(|d| d.as_bool()).unwrap_or(false);
+        let dry = params
+            .get("dryRun")
+            .and_then(|d| d.as_bool())
+            .unwrap_or(false);
         let mut e = self.engine()?;
         let applied = e.apply(&id, args, doc, dry)?;
         Ok(serde_json::to_value(applied)?)
@@ -121,16 +130,22 @@ impl Studio {
 
     fn digest(&self, params: &Value) -> Result<Value> {
         let ws = Workspace::open(&self.root)?;
-        let doc = ws.project.resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
+        let doc = ws
+            .project
+            .resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
         let opts = DigestOptions {
-            per_object: !params.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+            per_object: !params
+                .get("fast")
+                .and_then(|f| f.as_bool())
+                .unwrap_or(false),
             render: RenderOptions {
                 scale: params.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0),
                 ..Default::default()
             },
             ..Default::default()
         };
-        let d = dpaint_inspect::digest::digest(&ws.project, &doc, &AssetStore::new(&self.root), &opts)?;
+        let d =
+            dpaint_inspect::digest::digest(&ws.project, &doc, &AssetStore::new(&self.root), &opts)?;
         Ok(serde_json::to_value(d)?)
     }
 
@@ -141,10 +156,21 @@ impl Studio {
         let report = match params.get("doc").and_then(|d| d.as_str()) {
             Some(d) => {
                 let id = ws.project.resolve_doc(Some(d))?;
-                let findings = dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
-                let errors = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Error).count();
-                let warnings = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Warn).count();
-                dpaint_inspect::Report { findings, errors, warnings }
+                let findings =
+                    dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
+                let errors = findings
+                    .iter()
+                    .filter(|f| f.severity == dpaint_inspect::Severity::Error)
+                    .count();
+                let warnings = findings
+                    .iter()
+                    .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
+                    .count();
+                dpaint_inspect::Report {
+                    findings,
+                    errors,
+                    warnings,
+                }
             }
             None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
         };
@@ -174,13 +200,24 @@ impl Studio {
 
     fn select(&self, params: &Value) -> Result<Value> {
         let ws = Workspace::open(&self.root)?;
-        let doc = ws.project.resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
+        let doc = ws
+            .project
+            .resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
         let sel = str_param(params, "selector")?;
-        Ok(serde_json::to_value(dpaint_core::selector::resolve(&ws.project, &sel, Some(&doc))?)?)
+        Ok(serde_json::to_value(dpaint_core::selector::resolve(
+            &ws.project,
+            &sel,
+            Some(&doc),
+        )?)?)
     }
 
     /// Render a document to PNG bytes for the viewport.
-    pub fn render_png(&self, doc: Option<&str>, scale: f64, max_side: u32) -> Result<(Vec<u8>, [u32; 2])> {
+    pub fn render_png(
+        &self,
+        doc: Option<&str>,
+        scale: f64,
+        max_side: u32,
+    ) -> Result<(Vec<u8>, [u32; 2])> {
         let ws = Workspace::open(&self.root)?;
         let id = ws.project.resolve_doc(doc)?;
         // Fit the viewport request to a sane pixel budget so a 300 DPI poster does not
@@ -189,13 +226,20 @@ impl Studio {
             Some((w, h)) if w.max(h) * scale > max_side as f64 => {
                 let k = max_side as f64 / w.max(h);
                 RenderOptions {
-                    size: Some(((w * k).round().max(1.0) as u32, (h * k).round().max(1.0) as u32)),
+                    size: Some((
+                        (w * k).round().max(1.0) as u32,
+                        (h * k).round().max(1.0) as u32,
+                    )),
                     ..Default::default()
                 }
             }
-            _ => RenderOptions { scale, ..Default::default() },
+            _ => RenderOptions {
+                scale,
+                ..Default::default()
+            },
         };
-        let pm = dpaint_render::render_document(&ws.project, &id, &AssetStore::new(&self.root), &opts)?;
+        let pm =
+            dpaint_render::render_document(&ws.project, &id, &AssetStore::new(&self.root), &opts)?;
         let size = [pm.width(), pm.height()];
         let png = dpaint_render::encode::encode(
             &dpaint_render::encode::to_rgba(&pm),
@@ -265,7 +309,10 @@ mod tests {
         let st = s.dispatch("state", &json!({})).unwrap();
         assert_eq!(st["documents"][0]["objects"][0]["name"], "bg");
         assert_eq!(st["canUndo"], true);
-        assert_eq!(st["revision"], 1, "the revision must advance so the UI notices writes");
+        assert_eq!(
+            st["revision"], 1,
+            "the revision must advance so the UI notices writes"
+        );
     }
 
     #[test]
@@ -275,10 +322,16 @@ mod tests {
             .unwrap();
 
         let h = s.dispatch("history", &json!({})).unwrap();
-        assert_eq!(h["entries"][0]["actor"], "human", "GUI edits must be attributable");
+        assert_eq!(
+            h["entries"][0]["actor"], "human",
+            "GUI edits must be attributable"
+        );
         assert_eq!(h["entries"][0]["op"], "raster.layer.add");
 
-        assert_eq!(s.dispatch("undo", &json!({})).unwrap()["op"], "raster.layer.add");
+        assert_eq!(
+            s.dispatch("undo", &json!({})).unwrap()["op"],
+            "raster.layer.add"
+        );
         let st = s.dispatch("state", &json!({})).unwrap();
         assert_eq!(st["documents"][0]["objects"].as_array().unwrap().len(), 0);
         assert_eq!(st["canRedo"], true);
@@ -297,17 +350,27 @@ mod tests {
     #[test]
     fn oversized_documents_are_fitted_to_the_viewport_budget() {
         let (_t, s) = studio();
-        s.dispatch("op", &json!({ "op": "doc.resize", "args": { "width": 4000, "height": 2000 } }))
-            .unwrap();
+        s.dispatch(
+            "op",
+            &json!({ "op": "doc.resize", "args": { "width": 4000, "height": 2000 } }),
+        )
+        .unwrap();
         let (_png, size) = s.render_png(None, 1.0, 800).unwrap();
-        assert_eq!(size, [800, 400], "aspect must be preserved while fitting the budget");
+        assert_eq!(
+            size,
+            [800, 400],
+            "aspect must be preserved while fitting the budget"
+        );
     }
 
     #[test]
     fn a_failed_op_returns_a_structured_error_and_changes_nothing() {
         let (_t, s) = studio();
         let err = s
-            .dispatch("op", &json!({ "op": "raster.layer.set", "args": { "target": "#nope", "opacity": 0.5 } }))
+            .dispatch(
+                "op",
+                &json!({ "op": "raster.layer.set", "args": { "target": "#nope", "opacity": 0.5 } }),
+            )
             .unwrap_err();
         assert_eq!(err.code(), "selector_no_match");
         assert_eq!(s.dispatch("state", &json!({})).unwrap()["revision"], 0);
@@ -318,7 +381,9 @@ mod tests {
         let (_t, s) = studio();
         let cat = s.dispatch("catalog", &json!({})).unwrap();
         assert!(cat.as_array().unwrap().len() > 150);
-        let sc = s.dispatch("schema", &json!({ "op": "raster.filter.gaussian-blur" })).unwrap();
+        let sc = s
+            .dispatch("schema", &json!({ "op": "raster.filter.gaussian-blur" }))
+            .unwrap();
         assert_eq!(sc["schema"]["properties"]["sigma"]["type"], "number");
     }
 
@@ -328,7 +393,12 @@ mod tests {
         // Simulate an agent writing through its own Engine against the same directory.
         let mut agent = Engine::new(registry(), Workspace::open(s.root()).unwrap());
         agent
-            .apply("raster.layer.add", json!({ "type": "fill", "color": "#123456", "name": "agent-bg" }), None, false)
+            .apply(
+                "raster.layer.add",
+                json!({ "type": "fill", "color": "#123456", "name": "agent-bg" }),
+                None,
+                false,
+            )
             .unwrap();
 
         let st = s.dispatch("state", &json!({})).unwrap();

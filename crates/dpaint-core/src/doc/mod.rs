@@ -127,7 +127,9 @@ impl Document {
                 for m in &d.meshes {
                     match &m.source {
                         model::MeshSource::Extrude { from, .. }
-                        | model::MeshSource::Revolve { from, .. } => out.push(from.document.clone()),
+                        | model::MeshSource::Revolve { from, .. } => {
+                            out.push(from.document.clone())
+                        }
                         model::MeshSource::Loft { sections, .. } => {
                             out.extend(sections.iter().map(|s| s.document.clone()))
                         }
@@ -206,7 +208,10 @@ mod tests {
                 r#box: Rect::new(0.0, 0.0, 10.0, 10.0),
             },
         ));
-        assert_eq!(Document::Raster(r).dependencies(), vec![DocId::from("doc_logo")]);
+        assert_eq!(
+            Document::Raster(r).dependencies(),
+            vec![DocId::from("doc_logo")]
+        );
 
         let mut m = ModelDoc::new(DocId::from("doc_badge"), "badge");
         m.meshes.push(model::Mesh {
@@ -223,7 +228,10 @@ mod tests {
                 flatten: 0.25,
             },
         });
-        assert_eq!(Document::Model(m).dependencies(), vec![DocId::from("doc_logo")]);
+        assert_eq!(
+            Document::Model(m).dependencies(),
+            vec![DocId::from("doc_logo")]
+        );
     }
 
     #[test]

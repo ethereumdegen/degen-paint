@@ -63,7 +63,10 @@ impl Budget {
         };
         let spent = self.spent();
         if spent + estimate > ceiling + f64::EPSILON {
-            return Err(Error::BudgetExceeded { spent: spent + estimate, ceiling });
+            return Err(Error::BudgetExceeded {
+                spent: spent + estimate,
+                ceiling,
+            });
         }
         Ok(())
     }

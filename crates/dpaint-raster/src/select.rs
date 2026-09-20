@@ -22,7 +22,11 @@ pub struct SelMask {
 
 impl SelMask {
     pub fn new(width: u32, height: u32, fill: f32) -> Self {
-        Self { width, height, cov: vec![fill; width as usize * height as usize] }
+        Self {
+            width,
+            height,
+            cov: vec![fill; width as usize * height as usize],
+        }
     }
 
     pub fn from_cov(width: u32, height: u32, cov: Vec<f32>) -> Self {
@@ -120,7 +124,12 @@ impl SelMask {
         if x0 == u32::MAX {
             Rect::default()
         } else {
-            Rect::new(x0 as f64, y0 as f64, (x1 - x0 + 1) as f64, (y1 - y0 + 1) as f64)
+            Rect::new(
+                x0 as f64,
+                y0 as f64,
+                (x1 - x0 + 1) as f64,
+                (y1 - y0 + 1) as f64,
+            )
         }
     }
 
@@ -160,7 +169,11 @@ pub fn mask_from_d(d: &str, w: u32, h: u32, scale: f64) -> Result<SelMask> {
     let path = geom::parse_d(d)?;
     let sk = geom::to_sk(&path, Affine::scale(scale))
         .ok_or_else(|| Error::DegenerateGeometry("selection path is empty".into()))?;
-    Ok(SelMask::from_cov(w, h, geom::fill_coverage(&sk, w, h, FillRule::Nonzero)))
+    Ok(SelMask::from_cov(
+        w,
+        h,
+        geom::fill_coverage(&sk, w, h, FillRule::Nonzero),
+    ))
 }
 
 /// Build the effective selection mask for a document at a given device size.
@@ -172,7 +185,9 @@ pub fn resolve(
     h: u32,
     scale: f64,
 ) -> Result<Option<SelMask>> {
-    let Some(sel) = &doc.selection else { return Ok(None) };
+    let Some(sel) = &doc.selection else {
+        return Ok(None);
+    };
     let mut mask = match (&sel.mask, &sel.d) {
         (Some(asset), _) => {
             let (mw, mh, cov) = decode_gray_png(&assets.get(asset)?)?;
@@ -190,10 +205,15 @@ pub fn resolve(
     Ok(Some(mask))
 }
 
-
 /// Store a vector outline as the current selection, keeping it resolution-independent.
 pub fn store_outline(doc: &mut RasterDoc, d: String, bounds: Rect, feather: f64) {
-    doc.selection = Some(Selection { d: Some(d), mask: None, feather, inverted: false, bounds });
+    doc.selection = Some(Selection {
+        d: Some(d),
+        mask: None,
+        feather,
+        inverted: false,
+        bounds,
+    });
 }
 
 /// Blend `new` over `old` through the selection. Pixels with zero coverage are copied
@@ -360,7 +380,9 @@ pub fn to_path_d(mask: &SelMask) -> String {
         let mut ring = vec![start];
         let mut cur = start;
         loop {
-            let Some(nexts) = starts.get_mut(&cur) else { break };
+            let Some(nexts) = starts.get_mut(&cur) else {
+                break;
+            };
             let Some(next) = nexts.pop() else {
                 starts.remove(&cur);
                 break;
@@ -438,7 +460,11 @@ mod tests {
         }
         let d = to_path_d(&m);
         assert_eq!(d.matches('Z').count(), 1, "one ring: {d}");
-        assert_eq!(d.matches('L').count(), 3, "a rectangle has four corners: {d}");
+        assert_eq!(
+            d.matches('L').count(),
+            3,
+            "a rectangle has four corners: {d}"
+        );
         let path = geom::parse_d(&d).unwrap();
         let bb = dpaint_core::kurbo::Shape::bounding_box(&path);
         assert_eq!((bb.x0, bb.y0, bb.x1, bb.y1), (2.0, 2.0, 6.0, 6.0));

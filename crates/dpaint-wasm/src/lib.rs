@@ -69,8 +69,12 @@ impl DpaintEngine {
         console_error_panic_hook::set_once();
         let doc = first_document(name, kind, width, height).map_err(to_js)?;
         let engine = DpaintEngine::blank();
-        Workspace::create_with_vfs(&engine.root, Project::new(name, doc), Arc::clone(&engine.vfs))
-            .map_err(to_js)?;
+        Workspace::create_with_vfs(
+            &engine.root,
+            Project::new(name, doc),
+            Arc::clone(&engine.vfs),
+        )
+        .map_err(to_js)?;
         Ok(engine)
     }
 
@@ -107,7 +111,11 @@ impl DpaintEngine {
 
 impl DpaintEngine {
     fn blank() -> Self {
-        Self { root: PathBuf::from(ROOT), vfs: MemVfs::shared(), registry: registry() }
+        Self {
+            root: PathBuf::from(ROOT),
+            vfs: MemVfs::shared(),
+            registry: registry(),
+        }
     }
 
     /// Reopened per call, exactly like the native `Studio`: the journal and the project are
@@ -127,7 +135,9 @@ impl DpaintEngine {
 
 fn first_document(name: &str, kind: &str, width: f64, height: f64) -> Result<Document> {
     if width <= 0.0 || height <= 0.0 {
-        return Err(Error::Invalid(format!("size must be positive, got {width}x{height}")));
+        return Err(Error::Invalid(format!(
+            "size must be positive, got {width}x{height}"
+        )));
     }
     let id = DocId::from_name(name);
     Ok(match kind {
@@ -147,9 +157,8 @@ fn first_document(name: &str, kind: &str, width: f64, height: f64) -> Result<Doc
 /// The error object the UI already knows: `{code, message, candidates?, suggestion?}`,
 /// byte-for-byte what the HTTP bridge puts in its `error` field.
 fn to_js(e: Error) -> JsValue {
-    let detail = serde_json::to_string(&e.detail()).unwrap_or_else(|_| {
-        json!({ "code": "invalid", "message": e.to_string() }).to_string()
-    });
+    let detail = serde_json::to_string(&e.detail())
+        .unwrap_or_else(|_| json!({ "code": "invalid", "message": e.to_string() }).to_string());
     js_sys::JSON::parse(&detail).unwrap_or_else(|_| JsValue::from_str(&e.to_string()))
 }
 
@@ -176,11 +185,7 @@ fn to_js_value(v: &Value) -> std::result::Result<JsValue, JsValue> {
 impl DpaintEngine {
     /// `window.__DPAINT_INVOKE__`. The methods are the studio API's: `state`, `catalog`,
     /// `schema`, `op`, `undo`, `redo`, `digest`, `lint`, `history`, `select`.
-    pub fn dispatch(
-        &self,
-        method: &str,
-        params: JsValue,
-    ) -> std::result::Result<JsValue, JsValue> {
+    pub fn dispatch(&self, method: &str, params: JsValue) -> std::result::Result<JsValue, JsValue> {
         let params = from_js(&params).map_err(to_js)?;
         let value = self.dispatch_json(method, &params).map_err(to_js)?;
         to_js_value(&value)
@@ -194,7 +199,9 @@ impl DpaintEngine {
         scale: f64,
         max: u32,
     ) -> std::result::Result<String, JsValue> {
-        let (png, _size) = self.render_bytes(doc.as_deref(), scale, max).map_err(to_js)?;
+        let (png, _size) = self
+            .render_bytes(doc.as_deref(), scale, max)
+            .map_err(to_js)?;
         let mut uri = String::from("data:image/png;base64,");
         base64::engine::general_purpose::STANDARD.encode_string(&png, &mut uri);
         Ok(uri)
@@ -202,7 +209,10 @@ impl DpaintEngine {
 
     /// The canonical document, for the page to persist.
     pub fn project_json(&self) -> std::result::Result<String, JsValue> {
-        let bytes = self.vfs.read(&self.root.join("project.json")).map_err(to_js)?;
+        let bytes = self
+            .vfs
+            .read(&self.root.join("project.json"))
+            .map_err(to_js)?;
         String::from_utf8(bytes)
             .map_err(|_| to_js(Error::Invalid("project.json is not utf-8".into())))
     }
@@ -226,11 +236,19 @@ impl DpaintEngine {
 
     /// Every blob in the store, so the page knows what to write out.
     pub fn asset_refs(&self) -> std::result::Result<Vec<String>, JsValue> {
-        Ok(self.assets().list().map_err(to_js)?.into_iter().map(|r| r.0).collect())
+        Ok(self
+            .assets()
+            .list()
+            .map_err(to_js)?
+            .into_iter()
+            .map(|r| r.0)
+            .collect())
     }
 
     pub fn asset_bytes(&self, asset: &str) -> std::result::Result<Vec<u8>, JsValue> {
-        self.assets().get(&AssetRef(asset.to_string())).map_err(to_js)
+        self.assets()
+            .get(&AssetRef(asset.to_string()))
+            .map_err(to_js)
     }
 
     /// Bytes currently held in memory — the page shows this next to its storage notice.
@@ -238,7 +256,9 @@ impl DpaintEngine {
         self.assets()
             .list()
             .map(|refs| {
-                refs.iter().filter_map(|r| self.assets().size_of(r).ok()).sum::<u64>() as f64
+                refs.iter()
+                    .filter_map(|r| self.assets().size_of(r).ok())
+                    .sum::<u64>() as f64
             })
             .unwrap_or(0.0)
     }
@@ -306,16 +326,24 @@ impl DpaintEngine {
         let id = str_param(params, "op")?;
         let args = params.get("args").cloned().unwrap_or(json!({}));
         let doc = params.get("doc").and_then(|d| d.as_str()).map(String::from);
-        let dry = params.get("dryRun").and_then(|d| d.as_bool()).unwrap_or(false);
+        let dry = params
+            .get("dryRun")
+            .and_then(|d| d.as_bool())
+            .unwrap_or(false);
         let applied = self.engine()?.apply(&id, args, doc, dry)?;
         Ok(serde_json::to_value(applied)?)
     }
 
     fn digest(&self, params: &Value) -> Result<Value> {
         let ws = self.workspace()?;
-        let doc = ws.project.resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
+        let doc = ws
+            .project
+            .resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
         let opts = DigestOptions {
-            per_object: !params.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+            per_object: !params
+                .get("fast")
+                .and_then(|f| f.as_bool())
+                .unwrap_or(false),
             render: RenderOptions {
                 scale: params.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0),
                 ..Default::default()
@@ -333,10 +361,21 @@ impl DpaintEngine {
         let report = match params.get("doc").and_then(|d| d.as_str()) {
             Some(d) => {
                 let id = ws.project.resolve_doc(Some(d))?;
-                let findings = dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
-                let errors = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Error).count();
-                let warnings = findings.iter().filter(|f| f.severity == dpaint_inspect::Severity::Warn).count();
-                dpaint_inspect::Report { findings, errors, warnings }
+                let findings =
+                    dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
+                let errors = findings
+                    .iter()
+                    .filter(|f| f.severity == dpaint_inspect::Severity::Error)
+                    .count();
+                let warnings = findings
+                    .iter()
+                    .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
+                    .count();
+                dpaint_inspect::Report {
+                    findings,
+                    errors,
+                    warnings,
+                }
             }
             None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
         };
@@ -365,23 +404,40 @@ impl DpaintEngine {
 
     fn select(&self, params: &Value) -> Result<Value> {
         let ws = self.workspace()?;
-        let doc = ws.project.resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
+        let doc = ws
+            .project
+            .resolve_doc(params.get("doc").and_then(|d| d.as_str()))?;
         let sel = str_param(params, "selector")?;
-        Ok(serde_json::to_value(dpaint_core::selector::resolve(&ws.project, &sel, Some(&doc))?)?)
+        Ok(serde_json::to_value(dpaint_core::selector::resolve(
+            &ws.project,
+            &sel,
+            Some(&doc),
+        )?)?)
     }
 
-    fn render_bytes(&self, doc: Option<&str>, scale: f64, max_side: u32) -> Result<(Vec<u8>, [u32; 2])> {
+    fn render_bytes(
+        &self,
+        doc: Option<&str>,
+        scale: f64,
+        max_side: u32,
+    ) -> Result<(Vec<u8>, [u32; 2])> {
         let ws = self.workspace()?;
         let id = ws.project.resolve_doc(doc)?;
         let opts = match ws.project.doc(&id)?.size() {
             Some((w, h)) if w.max(h) * scale > max_side as f64 => {
                 let k = max_side as f64 / w.max(h);
                 RenderOptions {
-                    size: Some(((w * k).round().max(1.0) as u32, (h * k).round().max(1.0) as u32)),
+                    size: Some((
+                        (w * k).round().max(1.0) as u32,
+                        (h * k).round().max(1.0) as u32,
+                    )),
                     ..Default::default()
                 }
             }
-            _ => RenderOptions { scale, ..Default::default() },
+            _ => RenderOptions {
+                scale,
+                ..Default::default()
+            },
         };
         let pm = dpaint_render::render_document(&ws.project, &id, &self.assets(), &opts)?;
         let size = [pm.width(), pm.height()];
@@ -458,7 +514,10 @@ mod tests {
                 .map(|o| o["id"].as_str().unwrap().to_string())
                 .collect()
         };
-        assert_eq!(ids(&registry().catalog()), ids(&dpaint_studio::api::registry().catalog()));
+        assert_eq!(
+            ids(&registry().catalog()),
+            ids(&dpaint_studio::api::registry().catalog())
+        );
     }
 
     #[test]
@@ -478,19 +537,33 @@ mod tests {
         assert_eq!(after["revision"], json!(1));
         assert_eq!(after["documents"][0]["objects"][0]["name"], json!("bg"));
 
-        assert_eq!(e.call("undo", json!({})).unwrap()["op"], json!("raster.layer.add"));
+        assert_eq!(
+            e.call("undo", json!({})).unwrap()["op"],
+            json!("raster.layer.add")
+        );
         let undone = e.call("state", json!({})).unwrap();
-        assert_eq!(undone["documents"][0]["objects"].as_array().unwrap().len(), 0);
+        assert_eq!(
+            undone["documents"][0]["objects"].as_array().unwrap().len(),
+            0
+        );
         assert_eq!(undone["canRedo"], json!(true));
 
-        assert_eq!(e.call("redo", json!({})).unwrap()["op"], json!("raster.layer.add"));
-        assert_eq!(e.call("state", json!({})).unwrap()["documents"][0]["objects"][0]["name"], json!("bg"));
+        assert_eq!(
+            e.call("redo", json!({})).unwrap()["op"],
+            json!("raster.layer.add")
+        );
+        assert_eq!(
+            e.call("state", json!({})).unwrap()["documents"][0]["objects"][0]["name"],
+            json!("bg")
+        );
     }
 
     #[test]
     fn a_failing_op_reports_the_same_structured_error_the_http_bridge_does() {
         let e = engine();
-        let err = e.call("op", json!({ "op": "raster.layer.nope" })).unwrap_err();
+        let err = e
+            .call("op", json!({ "op": "raster.layer.nope" }))
+            .unwrap_err();
         assert_eq!(err.code(), "unknown_op");
 
         let miss = e
@@ -516,42 +589,76 @@ mod tests {
         )
         .unwrap();
         let (filled, _) = e.render_bytes(None, 1.0, 1600).unwrap();
-        assert_ne!(blank, filled, "the viewport must change when the document does");
+        assert_ne!(
+            blank, filled,
+            "the viewport must change when the document does"
+        );
     }
 
     #[test]
     fn a_project_round_trips_through_the_text_and_blobs_the_page_persists() {
         let e = engine();
         let asset = e.assets().put(b"\x89PNG not really", "png").unwrap();
-        e.call("op", json!({ "op": "palette.set", "args": { "name": "brand", "color": "#fb8500" } }))
-            .unwrap();
-
-        let json_text = String::from_utf8(
-            e.vfs.read(&e.root.join("project.json")).unwrap(),
+        e.call(
+            "op",
+            json!({ "op": "palette.set", "args": { "name": "brand", "color": "#fb8500" } }),
         )
         .unwrap();
-        let history = String::from_utf8(e.vfs.read(&e.root.join("history.jsonl")).unwrap()).unwrap();
+
+        let json_text =
+            String::from_utf8(e.vfs.read(&e.root.join("project.json")).unwrap()).unwrap();
+        let history =
+            String::from_utf8(e.vfs.read(&e.root.join("history.jsonl")).unwrap()).unwrap();
         let blob = e.assets().get(&asset).unwrap();
 
         // What a reload does: adopt the JSON, replay the blobs, restore the journal.
         let back = DpaintEngine::blank();
         back.vfs.create_dir_all(&back.root.join("assets")).unwrap();
-        back.vfs.write(&back.root.join("project.json"), json_text.as_bytes()).unwrap();
-        back.vfs.write(&back.root.join("history.jsonl"), history.as_bytes()).unwrap();
-        assert_eq!(back.assets().put(&blob, "png").unwrap(), asset, "the ref is the content");
+        back.vfs
+            .write(&back.root.join("project.json"), json_text.as_bytes())
+            .unwrap();
+        back.vfs
+            .write(&back.root.join("history.jsonl"), history.as_bytes())
+            .unwrap();
+        assert_eq!(
+            back.assets().put(&blob, "png").unwrap(),
+            asset,
+            "the ref is the content"
+        );
 
-        assert_eq!(back.call("state", json!({})).unwrap(), e.call("state", json!({})).unwrap());
-        assert_eq!(back.call("history", json!({})).unwrap(), e.call("history", json!({})).unwrap());
-        assert_eq!(back.call("undo", json!({})).unwrap()["op"], json!("palette.set"));
+        assert_eq!(
+            back.call("state", json!({})).unwrap(),
+            e.call("state", json!({})).unwrap()
+        );
+        assert_eq!(
+            back.call("history", json!({})).unwrap(),
+            e.call("history", json!({})).unwrap()
+        );
+        assert_eq!(
+            back.call("undo", json!({})).unwrap()["op"],
+            json!("palette.set")
+        );
     }
 
     #[test]
     fn every_document_kind_can_start_a_project() {
-        for (kind, expect) in [("raster", "raster"), ("vector", "vector"), ("model", "model")] {
+        for (kind, expect) in [
+            ("raster", "raster"),
+            ("vector", "vector"),
+            ("model", "model"),
+        ] {
             let d = first_document("start", kind, 32.0, 32.0).unwrap();
             assert_eq!(d.kind().as_str(), expect);
         }
-        assert_eq!(first_document("x", "raster", 0.0, 10.0).unwrap_err().code(), "invalid");
-        assert_eq!(first_document("x", "sculpt", 10.0, 10.0).unwrap_err().code(), "invalid");
+        assert_eq!(
+            first_document("x", "raster", 0.0, 10.0).unwrap_err().code(),
+            "invalid"
+        );
+        assert_eq!(
+            first_document("x", "sculpt", 10.0, 10.0)
+                .unwrap_err()
+                .code(),
+            "invalid"
+        );
     }
 }

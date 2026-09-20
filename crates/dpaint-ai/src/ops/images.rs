@@ -35,10 +35,13 @@ fn source_layer(
 }
 
 fn first_asset(gen: &Generated, op: &str) -> Result<AssetRef> {
-    gen.assets.first().cloned().ok_or_else(|| Error::ProviderError {
-        provider: "fal".into(),
-        detail: format!("{op} produced no image"),
-    })
+    gen.assets
+        .first()
+        .cloned()
+        .ok_or_else(|| Error::ProviderError {
+            provider: "fal".into(),
+            detail: format!("{op} produced no image"),
+        })
 }
 
 // ---------------------------------------------------------------------------------------
@@ -122,7 +125,10 @@ impl Op for Generate {
         let mut layer = Layer::new(
             layer_id.clone(),
             name,
-            LayerKind::Pixel { asset: asset.clone(), offset: [0, 0] },
+            LayerKind::Pixel {
+                asset: asset.clone(),
+                offset: [0, 0],
+            },
         );
         layer.provenance = Some(prov);
         doc.layers.push(layer);
@@ -245,18 +251,28 @@ impl Op for Edit {
                 LayerKind::Pixel { offset, .. } => offset,
                 _ => [0, 0],
             };
-            layer.kind = LayerKind::Pixel { asset: asset.clone(), offset };
+            layer.kind = LayerKind::Pixel {
+                asset: asset.clone(),
+                offset,
+            };
             layer.provenance = Some(prov);
         } else {
-            let name = a
-                .name
-                .clone()
-                .unwrap_or_else(|| format!("{} edit", doc.layer(&src_id).map(|l| l.name.clone()).unwrap_or_default()));
+            let name = a.name.clone().unwrap_or_else(|| {
+                format!(
+                    "{} edit",
+                    doc.layer(&src_id)
+                        .map(|l| l.name.clone())
+                        .unwrap_or_default()
+                )
+            });
             let layer_id = unique_layer_id(doc, name.trim());
             let mut layer = Layer::new(
                 layer_id.clone(),
                 name.trim().to_string(),
-                LayerKind::Pixel { asset: asset.clone(), offset: [0, 0] },
+                LayerKind::Pixel {
+                    asset: asset.clone(),
+                    offset: [0, 0],
+                },
             );
             layer.provenance = Some(prov);
             if !insert_above(&mut doc.layers, &src_id, layer) {
@@ -368,13 +384,21 @@ impl Op for Inpaint {
 
         let doc = project.raster_mut(&doc_id)?;
         let name = a.name.clone().unwrap_or_else(|| {
-            format!("{} inpaint", doc.layer(&src_id).map(|l| l.name.clone()).unwrap_or_default())
+            format!(
+                "{} inpaint",
+                doc.layer(&src_id)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default()
+            )
         });
         let layer_id = unique_layer_id(doc, name.trim());
         let mut layer = Layer::new(
             layer_id.clone(),
             name.trim().to_string(),
-            LayerKind::Pixel { asset: asset.clone(), offset: [0, 0] },
+            LayerKind::Pixel {
+                asset: asset.clone(),
+                offset: [0, 0],
+            },
         );
         layer.provenance = Some(prov);
         if !insert_above(&mut doc.layers, &src_id, layer) {
@@ -503,7 +527,10 @@ impl Op for Outpaint {
         let prov = provenance(Provider::Fal, &model, Some(a.prompt.clone()), a.seed, &gen);
 
         let doc = project.raster_mut(&doc_id)?;
-        doc.size = [doc.size[0] + a.left + a.right, doc.size[1] + a.top + a.bottom];
+        doc.size = [
+            doc.size[0] + a.left + a.right,
+            doc.size[1] + a.top + a.bottom,
+        ];
         // Existing content keeps its position relative to the original canvas.
         if a.left > 0 || a.top > 0 {
             let shift = Transform::translate(a.left as f64, a.top as f64);
@@ -514,13 +541,21 @@ impl Op for Outpaint {
         let had_selection = doc.selection.take().is_some();
 
         let name = a.name.clone().unwrap_or_else(|| {
-            format!("{} outpaint", doc.layer(&src_id).map(|l| l.name.clone()).unwrap_or_default())
+            format!(
+                "{} outpaint",
+                doc.layer(&src_id)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default()
+            )
         });
         let layer_id = unique_layer_id(doc, name.trim());
         let mut layer = Layer::new(
             layer_id.clone(),
             name.trim().to_string(),
-            LayerKind::Pixel { asset: asset.clone(), offset: [0, 0] },
+            LayerKind::Pixel {
+                asset: asset.clone(),
+                offset: [0, 0],
+            },
         );
         layer.provenance = Some(prov);
         doc.layers.push(layer);
@@ -634,7 +669,10 @@ impl Op for Upscale {
             LayerKind::Pixel { offset, .. } => offset,
             _ => [0, 0],
         };
-        layer.kind = LayerKind::Pixel { asset: asset.clone(), offset };
+        layer.kind = LayerKind::Pixel {
+            asset: asset.clone(),
+            offset,
+        };
         layer.provenance = Some(prov);
         // The layer now holds more pixels for the same document space.
         layer.transform = layer

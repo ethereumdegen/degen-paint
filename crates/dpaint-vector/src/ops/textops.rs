@@ -23,10 +23,7 @@ pub fn ops() -> Vec<Box<dyn Op>> {
     ]
 }
 
-fn text_of<'a>(
-    v: &'a mut dpaint_core::VectorDoc,
-    id: &ObjectId,
-) -> Result<&'a mut VKind> {
+fn text_of<'a>(v: &'a mut dpaint_core::VectorDoc, id: &ObjectId) -> Result<&'a mut VKind> {
     let o = v
         .object_mut(id)
         .ok_or_else(|| Error::Invalid(format!("object '{id}' vanished")))?;
@@ -70,7 +67,12 @@ pub struct SetArgs {
     pub clear_box: bool,
 }
 
-vop!(Set, SetArgs, "vector.text.set", "Change a text object's string, position, alignment, leading, tracking or box");
+vop!(
+    Set,
+    SetArgs,
+    "vector.text.set",
+    "Change a text object's string, position, alignment, leading, tracking or box"
+);
 
 impl Set {
     fn run(project: &mut Project, a: SetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -135,7 +137,12 @@ pub struct SetFontArgs {
     pub italic: Option<bool>,
 }
 
-vop!(SetFont, SetFontArgs, "vector.text.set-font", "Change family, size, weight or slant, reporting any font substitution");
+vop!(
+    SetFont,
+    SetFontArgs,
+    "vector.text.set-font",
+    "Change family, size, weight or slant, reporting any font substitution"
+);
 
 impl SetFont {
     fn run(project: &mut Project, a: SetFontArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -206,7 +213,12 @@ pub struct OnPathArgs {
     pub release: bool,
 }
 
-vop!(OnPath, OnPathArgs, "vector.text.on-path", "Bind text to a path so each glyph follows its tangent, or release it");
+vop!(
+    OnPath,
+    OnPathArgs,
+    "vector.text.on-path",
+    "Bind text to a path so each glyph follows its tangent, or release it"
+);
 
 impl OnPath {
     fn run(project: &mut Project, a: OnPathArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -271,7 +283,12 @@ pub struct ToOutlinesArgs {
     pub target: String,
 }
 
-vop!(ToOutlines, ToOutlinesArgs, "vector.text.to-outlines", "Replace text objects with real paths of their glyph outlines");
+vop!(
+    ToOutlines,
+    ToOutlinesArgs,
+    "vector.text.to-outlines",
+    "Replace text objects with real paths of their glyph outlines"
+);
 
 impl ToOutlines {
     fn run(project: &mut Project, a: ToOutlinesArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -280,8 +297,12 @@ impl ToOutlines {
         check_unlocked(project.vector(&doc)?, &ids)?;
         let fonts = shaping::Fonts::for_project(project, cx.assets);
         let v = project.vector(&doc)?;
-        let mut plan: Vec<(ObjectId, VObject, Vec<dpaint_core::kurbo::BezPath>, Option<String>)> =
-            Vec::new();
+        let mut plan: Vec<(
+            ObjectId,
+            VObject,
+            Vec<dpaint_core::kurbo::BezPath>,
+            Option<String>,
+        )> = Vec::new();
         for id in &ids {
             let o = v
                 .object(id)
@@ -392,7 +413,12 @@ fn yes() -> bool {
     true
 }
 
-vop!(FlowInShape, FlowArgs, "vector.text.flow-in-shape", "Lay text out inside an arbitrary shape, line by line");
+vop!(
+    FlowInShape,
+    FlowArgs,
+    "vector.text.flow-in-shape",
+    "Lay text out inside an arbitrary shape, line by line"
+);
 
 impl FlowInShape {
     fn run(project: &mut Project, a: FlowArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -452,12 +478,13 @@ impl FlowInShape {
             };
             v.remove_object(&id);
             insert_at_path(v, &at, o);
-            eff = eff.with_removed(id.to_string()).with_created(nid.to_string());
+            eff = eff
+                .with_removed(id.to_string())
+                .with_created(nid.to_string());
         } else {
             // Keep it editable: adopt the shape's bounding box as the layout box.
-            let b = geom::bbox(&shape).ok_or_else(|| {
-                Error::DegenerateGeometry(format!("'{shape_id}' has no extent"))
-            })?;
+            let b = geom::bbox(&shape)
+                .ok_or_else(|| Error::DegenerateGeometry(format!("'{shape_id}' has no extent")))?;
             let VKind::Text { spec, origin, .. } = text_of(v, &id)? else {
                 unreachable!("checked above")
             };
@@ -468,7 +495,11 @@ impl FlowInShape {
             eff = eff.warn(
                 "text-overflow",
                 id.to_string(),
-                format!("{} word(s) did not fit: {}", leftover.len(), leftover.join(" ")),
+                format!(
+                    "{} word(s) did not fit: {}",
+                    leftover.len(),
+                    leftover.join(" ")
+                ),
             );
         }
         if let Some(actual) = sub {

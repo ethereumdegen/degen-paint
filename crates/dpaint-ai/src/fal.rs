@@ -10,9 +10,9 @@
 
 use crate::config::AiConfig;
 use crate::image;
-use crate::Blob;
 use crate::keys::Provider;
 use crate::transport::{HttpRequest, Transport};
+use crate::Blob;
 use dpaint_core::{Error, Result};
 use serde_json::Value;
 
@@ -32,7 +32,11 @@ pub struct FalRun {
 
 impl<'a> FalClient<'a> {
     pub fn new(transport: &'a dyn Transport, cfg: &'a AiConfig, key: &str) -> Self {
-        Self { transport, cfg, key: key.to_string() }
+        Self {
+            transport,
+            cfg,
+            key: key.to_string(),
+        }
     }
 
     fn auth(&self, req: HttpRequest) -> HttpRequest {
@@ -40,7 +44,10 @@ impl<'a> FalClient<'a> {
     }
 
     fn err(detail: impl Into<String>) -> Error {
-        Error::ProviderError { provider: "fal".into(), detail: detail.into() }
+        Error::ProviderError {
+            provider: "fal".into(),
+            detail: detail.into(),
+        }
     }
 
     /// Submit, poll until `COMPLETED`, fetch the result.
@@ -79,7 +86,9 @@ impl<'a> FalClient<'a> {
         let mut reported_cost = value_cost(&queued);
         let mut attempt = 0;
         loop {
-            let st = self.transport.request(self.auth(HttpRequest::get(&status_url)))?;
+            let st = self
+                .transport
+                .request(self.auth(HttpRequest::get(&status_url)))?;
             if !st.is_success() {
                 return Err(Self::err(format!(
                     "status check failed with HTTP {}: {}",
@@ -89,7 +98,11 @@ impl<'a> FalClient<'a> {
             }
             let body = st.parse_json()?;
             reported_cost = reported_cost.or_else(|| value_cost(&body));
-            match body.get("status").and_then(Value::as_str).unwrap_or_default() {
+            match body
+                .get("status")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+            {
                 "COMPLETED" => break,
                 "IN_QUEUE" | "IN_PROGRESS" => {}
                 other => {
@@ -97,7 +110,9 @@ impl<'a> FalClient<'a> {
                         .get("error")
                         .map(|e| e.to_string())
                         .unwrap_or_else(|| other.to_string());
-                    return Err(Self::err(format!("job {request_id} reported '{other}': {detail}")));
+                    return Err(Self::err(format!(
+                        "job {request_id} reported '{other}': {detail}"
+                    )));
                 }
             }
             attempt += 1;
@@ -111,7 +126,9 @@ impl<'a> FalClient<'a> {
             }
         }
 
-        let result = self.transport.request(self.auth(HttpRequest::get(&response_url)))?;
+        let result = self
+            .transport
+            .request(self.auth(HttpRequest::get(&response_url)))?;
         if !result.is_success() {
             return Err(Self::err(format!(
                 "result fetch failed with HTTP {}: {}",
@@ -151,7 +168,10 @@ impl<'a> FalClient<'a> {
             )));
         }
         let ext = image::ext_for(resp.header_value("content-type"), url);
-        Ok(Blob { bytes: resp.body, ext })
+        Ok(Blob {
+            bytes: resp.body,
+            ext,
+        })
     }
 }
 
@@ -174,7 +194,10 @@ fn decode_data_uri(rest: &str) -> Result<Blob> {
         "image/tiff" => "tiff",
         _ => "png",
     };
-    Ok(Blob { bytes, ext: ext.to_string() })
+    Ok(Blob {
+        bytes,
+        ext: ext.to_string(),
+    })
 }
 
 /// Image URLs in a fal result, covering the `images[]`, `image{}` and bare-`url` shapes the
@@ -225,7 +248,10 @@ mod tests {
     use serde_json::json;
 
     fn cfg() -> AiConfig {
-        AiConfig { poll_interval_ms: 0, ..AiConfig::default() }
+        AiConfig {
+            poll_interval_ms: 0,
+            ..AiConfig::default()
+        }
     }
 
     #[test]
@@ -240,9 +266,21 @@ mod tests {
                     "response_url": "https://queue.fal.run/fal-ai/flux/dev/requests/req-1"
                 }),
             )
-            .on_json(Method::Get, "/requests/req-1/status", json!({"status": "IN_QUEUE"}))
-            .on_json(Method::Get, "/requests/req-1/status", json!({"status": "IN_PROGRESS"}))
-            .on_json(Method::Get, "/requests/req-1/status", json!({"status": "COMPLETED"}))
+            .on_json(
+                Method::Get,
+                "/requests/req-1/status",
+                json!({"status": "IN_QUEUE"}),
+            )
+            .on_json(
+                Method::Get,
+                "/requests/req-1/status",
+                json!({"status": "IN_PROGRESS"}),
+            )
+            .on_json(
+                Method::Get,
+                "/requests/req-1/status",
+                json!({"status": "COMPLETED"}),
+            )
             .on(
                 Method::Get,
                 "https://queue.fal.run/fal-ai/flux/dev/requests/req-1",
@@ -251,10 +289,15 @@ mod tests {
 
         let cfg = cfg();
         let client = FalClient::new(&t, &cfg, "sk-test");
-        let run = client.run("fal-ai/flux/dev", &json!({"prompt": "a barn"})).unwrap();
+        let run = client
+            .run("fal-ai/flux/dev", &json!({"prompt": "a barn"}))
+            .unwrap();
 
         assert_eq!(run.request_id, "req-1");
-        assert_eq!(image_urls(&run.payload), vec!["https://cdn/x.png".to_string()]);
+        assert_eq!(
+            image_urls(&run.payload),
+            vec!["https://cdn/x.png".to_string()]
+        );
 
         let calls = t.calls();
         assert_eq!(calls[0].url, "https://queue.fal.run/fal-ai/flux/dev");
@@ -268,7 +311,11 @@ mod tests {
     #[test]
     fn a_failed_job_surfaces_the_provider_message() {
         let t = RecordedTransport::new()
-            .on_json(Method::Post, "queue.fal.run", json!({"request_id": "req-2"}))
+            .on_json(
+                Method::Post,
+                "queue.fal.run",
+                json!({"request_id": "req-2"}),
+            )
             .on_json(
                 Method::Get,
                 "/status",

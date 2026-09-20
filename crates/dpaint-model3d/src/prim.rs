@@ -74,7 +74,8 @@ fn plane(size: [f32; 3], seg: u32) -> MeshData {
     for i in 0..=seg {
         for j in 0..=seg {
             let (u, v) = (j as f32 / seg as f32, i as f32 / seg as f32);
-            m.positions.push([-hx + u * size[0], 0.0, -hz + v * size[2]]);
+            m.positions
+                .push([-hx + u * size[0], 0.0, -hz + v * size[2]]);
             m.normals.push([0.0, 1.0, 0.0]);
             m.uvs.push([u, v]);
         }
@@ -107,8 +108,11 @@ fn sphere(size: [f32; 3], seg: u32) -> MeshData {
             let (st, ct) = (theta.sin(), theta.cos());
             let p = [rx * cp * ct, ry * sp, rz * cp * st];
             m.positions.push(p);
-            m.normals
-                .push(normalize([p[0] / (rx * rx), p[1] / (ry * ry), p[2] / (rz * rz)]));
+            m.normals.push(normalize([
+                p[0] / (rx * rx),
+                p[1] / (ry * ry),
+                p[2] / (rz * rz),
+            ]));
             m.uvs.push([u, v]);
         }
     }
@@ -156,7 +160,11 @@ fn cylinder(size: [f32; 3], seg: u32) -> MeshData {
 
 fn disc(m: &mut MeshData, rx: f32, rz: f32, y: f32, seg: u32, up: bool) {
     let base = m.positions.len() as u32;
-    let n = if up { [0.0, 1.0, 0.0] } else { [0.0, -1.0, 0.0] };
+    let n = if up {
+        [0.0, 1.0, 0.0]
+    } else {
+        [0.0, -1.0, 0.0]
+    };
     m.positions.push([0.0, y, 0.0]);
     m.normals.push(n);
     m.uvs.push([0.5, 0.5]);

@@ -24,7 +24,12 @@ pub fn fixture(w: u32, h: u32) -> Fixture {
     let project = Project::new("test", Document::Raster(doc));
     let mut registry = Registry::new();
     registry.extend(dpaint_raster::ops());
-    Fixture { dir, project, assets, registry }
+    Fixture {
+        dir,
+        project,
+        assets,
+        registry,
+    }
 }
 
 impl Fixture {
@@ -37,11 +42,7 @@ impl Fixture {
     }
 
     /// Add a pixel layer whose content comes from `f(x, y) -> straight linear RGBA`.
-    pub fn pixel_layer(
-        &mut self,
-        id: &str,
-        f: impl Fn(u32, u32) -> [f32; 4],
-    ) -> LayerId {
+    pub fn pixel_layer(&mut self, id: &str, f: impl Fn(u32, u32) -> [f32; 4]) -> LayerId {
         let (w, h) = (self.doc().width(), self.doc().height());
         let mut c = Canvas::new(w, h);
         for y in 0..h {
@@ -54,9 +55,19 @@ impl Fixture {
     }
 
     pub fn pixel_layer_from(&mut self, id: &str, c: &Canvas) -> LayerId {
-        let asset = self.assets.put(&c.to_png().expect("encode"), "png").expect("put");
+        let asset = self
+            .assets
+            .put(&c.to_png().expect("encode"), "png")
+            .expect("put");
         let lid = LayerId::from(id);
-        let layer = Layer::new(lid.clone(), id, LayerKind::Pixel { asset, offset: [0, 0] });
+        let layer = Layer::new(
+            lid.clone(),
+            id,
+            LayerKind::Pixel {
+                asset,
+                offset: [0, 0],
+            },
+        );
         self.doc_mut().layers.push(layer);
         lid
     }
@@ -96,13 +107,17 @@ impl Fixture {
     /// A layer's stored pixels, decoded.
     pub fn layer_pixels(&self, id: &LayerId) -> Canvas {
         let layer = self.doc().layer(id).expect("layer exists");
-        let LayerKind::Pixel { asset, .. } = &layer.kind else { panic!("not a pixel layer") };
+        let LayerKind::Pixel { asset, .. } = &layer.kind else {
+            panic!("not a pixel layer")
+        };
         Canvas::from_png(&self.assets.get(asset).expect("blob")).expect("decode")
     }
 
     pub fn layer_asset(&self, id: &LayerId) -> dpaint_core::AssetRef {
         let layer = self.doc().layer(id).expect("layer exists");
-        let LayerKind::Pixel { asset, .. } = &layer.kind else { panic!("not a pixel layer") };
+        let LayerKind::Pixel { asset, .. } = &layer.kind else {
+            panic!("not a pixel layer")
+        };
         asset.clone()
     }
 }

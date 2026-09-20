@@ -114,10 +114,15 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
                 }
                 None => support::store_canvas(cx.assets, &Canvas::new(w, h))?,
             };
-            LayerKind::Pixel { asset, offset: args.offset.unwrap_or([0, 0]) }
+            LayerKind::Pixel {
+                asset,
+                offset: args.offset.unwrap_or([0, 0]),
+            }
         }
         NewLayerKind::Fill => LayerKind::Fill {
-            color: args.color.ok_or_else(|| Error::Invalid("a fill layer needs a color".into()))?,
+            color: args
+                .color
+                .ok_or_else(|| Error::Invalid("a fill layer needs a color".into()))?,
         },
         NewLayerKind::Gradient => LayerKind::Gradient {
             paint: args
@@ -136,21 +141,33 @@ fn add(project: &mut Project, args: AddArgs, cx: &mut OpCx) -> Result<OpEffect> 
                 warnings.push((
                     "font-fallback".into(),
                     spec.family.clone(),
-                    format!("'{}' is not available; used '{}'", spec.family, layout.used_family),
+                    format!(
+                        "'{}' is not available; used '{}'",
+                        spec.family, layout.used_family
+                    ),
                 ));
             }
             LayerKind::Text {
                 spec,
-                fill: args.fill.clone().unwrap_or_else(|| Paint::solid(Color::BLACK)),
+                fill: args
+                    .fill
+                    .clone()
+                    .unwrap_or_else(|| Paint::solid(Color::BLACK)),
                 stroke: args.stroke.clone(),
             }
         }
         NewLayerKind::Shape => {
-            let d = args.d.clone().ok_or_else(|| Error::Invalid("a shape layer needs path data in 'd'".into()))?;
+            let d = args
+                .d
+                .clone()
+                .ok_or_else(|| Error::Invalid("a shape layer needs path data in 'd'".into()))?;
             crate::geom::parse_d(&d)?;
             LayerKind::Shape {
                 d,
-                fill: args.fill.clone().unwrap_or_else(|| Paint::solid(Color::BLACK)),
+                fill: args
+                    .fill
+                    .clone()
+                    .unwrap_or_else(|| Paint::solid(Color::BLACK)),
                 stroke: args.stroke.clone(),
                 fill_rule: args.fill_rule.unwrap_or_default(),
             }
@@ -301,14 +318,16 @@ fn reorder(project: &mut Project, args: ReorderArgs, cx: &mut OpCx) -> Result<Op
     let (path, index) = support::locate(rd, &id)
         .ok_or_else(|| Error::Invalid(format!("layer {id} is not in the stack")))?;
     if args.to.is_none() && args.index.is_none() {
-        return Err(Error::Invalid("reorder needs either 'to' or 'index'".into()));
+        return Err(Error::Invalid(
+            "reorder needs either 'to' or 'index'".into(),
+        ));
     }
     if cx.dry_run {
         return Ok(OpEffect::changed(&doc));
     }
     let rd = project.raster_mut(&doc)?;
-    let list =
-        support::list_at(rd, &path).ok_or_else(|| Error::Invalid("layer parent vanished".into()))?;
+    let list = support::list_at(rd, &path)
+        .ok_or_else(|| Error::Invalid("layer parent vanished".into()))?;
     let last = list.len().saturating_sub(1);
     let dest = match (args.to, args.index) {
         (Some(ReorderTo::Front), _) => last,
@@ -436,7 +455,9 @@ fn transform(project: &mut Project, args: TransformArgs, cx: &mut OpCx) -> Resul
     }
     if let Some(s) = args.scale {
         if s[0] == 0.0 || s[1] == 0.0 {
-            return Err(Error::DegenerateGeometry("scale by zero collapses the layer".into()));
+            return Err(Error::DegenerateGeometry(
+                "scale by zero collapses the layer".into(),
+            ));
         }
         delta = about(Affine::scale_non_uniform(s[0], s[1])) * delta;
         any = true;
@@ -504,7 +525,10 @@ fn transform(project: &mut Project, args: TransformArgs, cx: &mut OpCx) -> Resul
             l.transform = Transform::IDENTITY;
             l.mask = None;
             l.effects.clear();
-            l.kind = LayerKind::Pixel { asset, offset: [0, 0] };
+            l.kind = LayerKind::Pixel {
+                asset,
+                offset: [0, 0],
+            };
         }
     }
     Ok(OpEffect::changed(&doc))
@@ -542,8 +566,8 @@ fn group(project: &mut Project, args: GroupArgs, cx: &mut OpCx) -> Result<OpEffe
         return Ok(OpEffect::changed(&doc).with_created(gid.to_string()));
     }
     let rd = project.raster_mut(&doc)?;
-    let list =
-        support::list_at(rd, &first_path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
+    let list = support::list_at(rd, &first_path)
+        .ok_or_else(|| Error::Invalid("parent vanished".into()))?;
     let mut taken = Vec::new();
     for (_, index, _) in located.iter().rev() {
         taken.push(list.remove(*index));
@@ -559,7 +583,10 @@ fn ungroup(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Result<OpE
     let rd = project.raster(&doc)?;
     let layer = support::layer_of(rd, &id)?;
     let LayerKind::Group { .. } = &layer.kind else {
-        return Err(Error::Invalid(format!("'{}' is not a group layer", layer.name)));
+        return Err(Error::Invalid(format!(
+            "'{}' is not a group layer",
+            layer.name
+        )));
     };
     let has_decoration = layer.mask.is_some() || !layer.effects.is_empty();
     let (path, index) = support::locate(rd, &id)
@@ -572,7 +599,9 @@ fn ungroup(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Result<OpE
         support::list_at(rd, &path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
     let group = list.remove(index);
     let (gt, go) = (group.transform, group.opacity);
-    let LayerKind::Group { layers } = group.kind else { unreachable!("checked above") };
+    let LayerKind::Group { layers } = group.kind else {
+        unreachable!("checked above")
+    };
     for (offset, mut child) in layers.into_iter().enumerate() {
         // The group's transform and opacity have to survive on each child.
         child.transform = child.transform.then(gt);
@@ -596,30 +625,44 @@ fn merge_down(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Result<
     let (path, index) = support::locate(rd, &id)
         .ok_or_else(|| Error::Invalid(format!("layer {id} is not in the stack")))?;
     if index == 0 {
-        return Err(Error::Invalid("the bottom layer has nothing beneath it to merge into".into()));
+        return Err(Error::Invalid(
+            "the bottom layer has nothing beneath it to merge into".into(),
+        ));
     }
     let below_id = {
         let mut probe = project.clone();
         let rd = probe.raster_mut(&doc)?;
-        let list = support::list_at(rd, &path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
+        let list =
+            support::list_at(rd, &path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
         list[index - 1].id.clone()
     };
     let top = support::layer_of(rd, &id)?.clone();
     let bottom = support::layer_of(rd, &below_id)?.clone();
     let mut acc = support::layer_canvas(project, &doc, &below_id, cx.assets)?;
     let top_content = support::layer_content(project, &doc, &id, cx.assets)?;
-    composite(&mut acc, &top_content, top.blend, top.opacity, &Coverage::Full, 0);
+    composite(
+        &mut acc,
+        &top_content,
+        top.blend,
+        top.opacity,
+        &Coverage::Full,
+        0,
+    );
     let asset = support::store_canvas(cx.assets, &acc)?;
     let name = bottom.name.clone();
     if cx.dry_run {
         return Ok(OpEffect::changed(&doc).with_removed(id.to_string()));
     }
     let rd = project.raster_mut(&doc)?;
-    let list = support::list_at(rd, &path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
+    let list =
+        support::list_at(rd, &path).ok_or_else(|| Error::Invalid("parent vanished".into()))?;
     list.remove(index);
     let merged = &mut list[index - 1];
     merged.name = name;
-    merged.kind = LayerKind::Pixel { asset, offset: [0, 0] };
+    merged.kind = LayerKind::Pixel {
+        asset,
+        offset: [0, 0],
+    };
     merged.transform = Transform::IDENTITY;
     merged.opacity = 1.0;
     merged.blend = BlendMode::Normal;
@@ -641,7 +684,10 @@ fn rasterize(project: &mut Project, args: TargetArgs, cx: &mut OpCx) -> Result<O
     let rd = project.raster_mut(&doc)?;
     for (id, asset) in baked {
         if let Some(l) = rd.layer_mut(&id) {
-            l.kind = LayerKind::Pixel { asset, offset: [0, 0] };
+            l.kind = LayerKind::Pixel {
+                asset,
+                offset: [0, 0],
+            };
             l.transform = Transform::IDENTITY;
             l.mask = None;
             l.effects.clear();
@@ -663,7 +709,11 @@ pub struct FromSelectionArgs {
     pub cut: bool,
 }
 
-fn from_selection(project: &mut Project, args: FromSelectionArgs, cx: &mut OpCx) -> Result<OpEffect> {
+fn from_selection(
+    project: &mut Project,
+    args: FromSelectionArgs,
+    cx: &mut OpCx,
+) -> Result<OpEffect> {
     let doc = support::doc_id(project, cx)?;
     let source = match &args.source {
         Some(sel) => Some(support::one_layer(project, cx, sel)?.1),
@@ -688,7 +738,7 @@ fn from_selection(project: &mut Project, args: FromSelectionArgs, cx: &mut OpCx)
     // Cutting the source is a pixel edit, so it goes through the same blob-replacing path.
     let cut_asset = if args.cut {
         let Some(sid) = &source else {
-            return Err(Error::Invalid("cut needs an explicit source layer".into()))
+            return Err(Error::Invalid("cut needs an explicit source layer".into()));
         };
         let (old, offset) = support::load_pixel(rd, sid, cx.assets)?;
         let mut out = old.clone();
@@ -720,7 +770,14 @@ fn from_selection(project: &mut Project, args: FromSelectionArgs, cx: &mut OpCx)
     if let Some((sid, asset)) = cut_asset {
         support::set_pixels(rd, &sid, asset, [0, 0])?;
     }
-    let layer = Layer::new(id.clone(), name, LayerKind::Pixel { asset, offset: [0, 0] });
+    let layer = Layer::new(
+        id.clone(),
+        name,
+        LayerKind::Pixel {
+            asset,
+            offset: [0, 0],
+        },
+    );
     rd.layers.push(layer);
     Ok(OpEffect::changed(&doc).with_created(id.to_string()))
 }
@@ -744,7 +801,14 @@ fn flatten(project: &mut Project, args: FlattenArgs, cx: &mut OpCx) -> Result<Op
         return Ok(OpEffect::changed(&doc).with_created(id.to_string()));
     }
     let rd = project.raster_mut(&doc)?;
-    rd.layers = vec![Layer::new(id.clone(), name, LayerKind::Pixel { asset, offset: [0, 0] })];
+    rd.layers = vec![Layer::new(
+        id.clone(),
+        name,
+        LayerKind::Pixel {
+            asset,
+            offset: [0, 0],
+        },
+    )];
     // The background is now baked into the pixels; keeping it would double it.
     rd.background = None;
     let mut effect = OpEffect::changed(&doc).with_created(id.to_string());
@@ -754,20 +818,97 @@ fn flatten(project: &mut Project, args: FlattenArgs, cx: &mut OpCx) -> Result<Op
     Ok(effect)
 }
 
-
-raster_op!(Add, "raster.layer.add", "Add a layer of any kind to the stack", AddArgs, add);
-raster_op!(Remove, "raster.layer.remove", "Remove the matching layers", TargetArgs, remove);
-raster_op!(Duplicate, "raster.layer.duplicate", "Duplicate a layer above itself", TargetArgs, duplicate);
-raster_op!(Reorder, "raster.layer.reorder", "Move a layer within its siblings", ReorderArgs, reorder);
-raster_op!(Rename, "raster.layer.rename", "Rename a layer", RenameArgs, rename);
-raster_op!(Set, "raster.layer.set", "Set opacity, blend mode, visibility or lock", SetArgs, set);
-raster_op!(TransformOp, "raster.layer.transform", "Translate, scale, rotate, skew, flip or replace a layer transform", TransformArgs, transform);
-raster_op!(Group, "raster.layer.group", "Gather sibling layers into a new group", GroupArgs, group);
-raster_op!(Ungroup, "raster.layer.ungroup", "Dissolve a group, keeping its children", TargetArgs, ungroup);
-raster_op!(MergeDown, "raster.layer.merge-down", "Merge a layer into the layer beneath it", TargetArgs, merge_down);
-raster_op!(Rasterize, "raster.layer.rasterize", "Bake a layer (and its mask, transform and effects) to pixels", TargetArgs, rasterize);
-raster_op!(FromSelection, "raster.layer.from-selection", "Lift the current selection into a new pixel layer", FromSelectionArgs, from_selection);
-raster_op!(Flatten, "raster.doc.flatten", "Flatten the whole document into one pixel layer", FlattenArgs, flatten);
+raster_op!(
+    Add,
+    "raster.layer.add",
+    "Add a layer of any kind to the stack",
+    AddArgs,
+    add
+);
+raster_op!(
+    Remove,
+    "raster.layer.remove",
+    "Remove the matching layers",
+    TargetArgs,
+    remove
+);
+raster_op!(
+    Duplicate,
+    "raster.layer.duplicate",
+    "Duplicate a layer above itself",
+    TargetArgs,
+    duplicate
+);
+raster_op!(
+    Reorder,
+    "raster.layer.reorder",
+    "Move a layer within its siblings",
+    ReorderArgs,
+    reorder
+);
+raster_op!(
+    Rename,
+    "raster.layer.rename",
+    "Rename a layer",
+    RenameArgs,
+    rename
+);
+raster_op!(
+    Set,
+    "raster.layer.set",
+    "Set opacity, blend mode, visibility or lock",
+    SetArgs,
+    set
+);
+raster_op!(
+    TransformOp,
+    "raster.layer.transform",
+    "Translate, scale, rotate, skew, flip or replace a layer transform",
+    TransformArgs,
+    transform
+);
+raster_op!(
+    Group,
+    "raster.layer.group",
+    "Gather sibling layers into a new group",
+    GroupArgs,
+    group
+);
+raster_op!(
+    Ungroup,
+    "raster.layer.ungroup",
+    "Dissolve a group, keeping its children",
+    TargetArgs,
+    ungroup
+);
+raster_op!(
+    MergeDown,
+    "raster.layer.merge-down",
+    "Merge a layer into the layer beneath it",
+    TargetArgs,
+    merge_down
+);
+raster_op!(
+    Rasterize,
+    "raster.layer.rasterize",
+    "Bake a layer (and its mask, transform and effects) to pixels",
+    TargetArgs,
+    rasterize
+);
+raster_op!(
+    FromSelection,
+    "raster.layer.from-selection",
+    "Lift the current selection into a new pixel layer",
+    FromSelectionArgs,
+    from_selection
+);
+raster_op!(
+    Flatten,
+    "raster.doc.flatten",
+    "Flatten the whole document into one pixel layer",
+    FlattenArgs,
+    flatten
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

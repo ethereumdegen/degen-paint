@@ -136,7 +136,10 @@ impl Vfs for FsVfs {
     fn append(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         use std::io::Write;
         ensure_parent(path)?;
-        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
         f.write_all(bytes)?;
         Ok(())
     }
@@ -197,7 +200,10 @@ impl MemVfs {
     /// this to flush the whole tree to OPFS, and tests use it to assert on the exact shape.
     pub fn snapshot(&self) -> Vec<(PathBuf, Vec<u8>)> {
         let g = self.inner.read().expect("mem vfs poisoned");
-        g.files.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        g.files
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     /// Total bytes held, for the browser shell's storage budget reporting.
@@ -300,7 +306,8 @@ mod tests {
         fn aliased_fs_path(code: &str) -> bool {
             let b = code.as_bytes();
             code.match_indices("fs::").any(|(i, _)| {
-                i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b':')
+                i == 0
+                    || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_' || b[i - 1] == b':')
             })
         }
         let mut out = Vec::new();
@@ -319,16 +326,30 @@ mod tests {
     #[test]
     fn the_filesystem_guard_actually_detects_a_reintroduced_call() {
         let bad = "fn save(p: &Path) {\n    std::fs::write(p, b\"x\").unwrap();\n}\n";
-        assert_eq!(direct_fs_calls(bad).len(), 1, "a direct std::fs call must be caught");
+        assert_eq!(
+            direct_fs_calls(bad).len(),
+            1,
+            "a direct std::fs call must be caught"
+        );
 
         let aliased = "use std::fs;\nfn load() { let _ = fs::read(\"a\"); }\n";
-        assert_eq!(direct_fs_calls(aliased).len(), 2, "`use std::fs` and `fs::read` are both hits");
+        assert_eq!(
+            direct_fs_calls(aliased).len(),
+            2,
+            "`use std::fs` and `fs::read` are both hits"
+        );
 
         let in_tests = "fn ok() {}\n#[cfg(test)]\nmod tests {\n    std::fs::read(\"x\");\n}\n";
-        assert!(direct_fs_calls(in_tests).is_empty(), "test code may use the real filesystem");
+        assert!(
+            direct_fs_calls(in_tests).is_empty(),
+            "test code may use the real filesystem"
+        );
 
         let commented = "// std::fs::read is what this replaces\nfn ok() {}\n";
-        assert!(direct_fs_calls(commented).is_empty(), "a doc reference is not a call");
+        assert!(
+            direct_fs_calls(commented).is_empty(),
+            "a doc reference is not a call"
+        );
     }
 
     /// The hard requirement of the WASM build: the only route from engine code to the host
@@ -359,7 +380,10 @@ mod tests {
                 }
             }
         }
-        assert!(scanned > 5, "the scanner found almost no sources: {scanned}");
+        assert!(
+            scanned > 5,
+            "the scanner found almost no sources: {scanned}"
+        );
         assert!(
             offenders.is_empty(),
             "dpaint-core must reach storage only through vfs::Vfs, but found:\n{}",
@@ -381,16 +405,31 @@ mod tests {
 
         vfs.append(&root.join("history.jsonl"), b"one\n").unwrap();
         vfs.append(&root.join("history.jsonl"), b"two\n").unwrap();
-        assert_eq!(vfs.read(&root.join("history.jsonl")).unwrap(), b"one\ntwo\n");
+        assert_eq!(
+            vfs.read(&root.join("history.jsonl")).unwrap(),
+            b"one\ntwo\n"
+        );
 
         vfs.write(&root.join("assets/ab/x.png"), b"px").unwrap();
-        assert_eq!(vfs.list(&root.join("assets")).unwrap(), vec![root.join("assets/ab")]);
-        assert_eq!(vfs.list(&root.join("assets/ab")).unwrap(), vec![root.join("assets/ab/x.png")]);
+        assert_eq!(
+            vfs.list(&root.join("assets")).unwrap(),
+            vec![root.join("assets/ab")]
+        );
+        assert_eq!(
+            vfs.list(&root.join("assets/ab")).unwrap(),
+            vec![root.join("assets/ab/x.png")]
+        );
 
         vfs.remove(&root.join("assets/ab/x.png")).unwrap();
         assert!(!vfs.exists(&root.join("assets/ab/x.png")));
-        assert_eq!(vfs.remove(&root.join("nope")).unwrap_err().code(), "io_error");
-        assert!(vfs.list(&root.join("project.json")).is_err(), "a file is not a directory");
+        assert_eq!(
+            vfs.remove(&root.join("nope")).unwrap_err().code(),
+            "io_error"
+        );
+        assert!(
+            vfs.list(&root.join("project.json")).is_err(),
+            "a file is not a directory"
+        );
     }
 
     #[test]
@@ -403,23 +442,42 @@ mod tests {
         ];
         for (name, root, vfs) in backends {
             vfs.create_dir_all(&root.join("assets")).unwrap();
-            assert!(vfs.exists(&root.join("assets")), "{name}: created dir must exist");
+            assert!(
+                vfs.exists(&root.join("assets")),
+                "{name}: created dir must exist"
+            );
             assert!(!vfs.exists(&root.join("assets/none.png")), "{name}");
 
             // write is a replace, not an append, and is visible immediately.
             vfs.write(&root.join("assets/a.bin"), b"first").unwrap();
             vfs.write(&root.join("assets/a.bin"), b"second").unwrap();
-            assert_eq!(vfs.read(&root.join("assets/a.bin")).unwrap(), b"second", "{name}");
+            assert_eq!(
+                vfs.read(&root.join("assets/a.bin")).unwrap(),
+                b"second",
+                "{name}"
+            );
 
             // write creates missing parents, which is what the sharded asset store relies on.
             vfs.write(&root.join("assets/de/ep/b.bin"), b"x").unwrap();
-            assert_eq!(vfs.read(&root.join("assets/de/ep/b.bin")).unwrap(), b"x", "{name}");
+            assert_eq!(
+                vfs.read(&root.join("assets/de/ep/b.bin")).unwrap(),
+                b"x",
+                "{name}"
+            );
 
             assert_eq!(vfs.size(&root.join("assets/a.bin")).unwrap(), 6, "{name}");
-            assert_eq!(vfs.read(&root.join("missing")).unwrap_err().code(), "io_error", "{name}");
+            assert_eq!(
+                vfs.read(&root.join("missing")).unwrap_err().code(),
+                "io_error",
+                "{name}"
+            );
 
             let listed = vfs.list(&root.join("assets")).unwrap();
-            assert_eq!(listed, vec![root.join("assets/a.bin"), root.join("assets/de")], "{name}");
+            assert_eq!(
+                listed,
+                vec![root.join("assets/a.bin"), root.join("assets/de")],
+                "{name}"
+            );
         }
     }
 

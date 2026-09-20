@@ -16,16 +16,36 @@ pub struct Color {
 }
 
 impl Color {
-    pub const TRANSPARENT: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
-    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const TRANSPARENT: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
+    pub const BLACK: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const WHITE: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
 
     pub fn rgb8(r: u8, g: u8, b: u8) -> Self {
-        Self { r: r as f32 / 255.0, g: g as f32 / 255.0, b: b as f32 / 255.0, a: 1.0 }
+        Self {
+            r: r as f32 / 255.0,
+            g: g as f32 / 255.0,
+            b: b as f32 / 255.0,
+            a: 1.0,
+        }
     }
 
     /// Accepts `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, with or without the `#`.
@@ -34,13 +54,37 @@ impl Color {
         let n = |i: usize, w: usize| -> Option<f32> {
             let part = h.get(i..i + w)?;
             let v = u8::from_str_radix(part, 16).ok()?;
-            Some(if w == 1 { (v * 17) as f32 / 255.0 } else { v as f32 / 255.0 })
+            Some(if w == 1 {
+                (v * 17) as f32 / 255.0
+            } else {
+                v as f32 / 255.0
+            })
         };
         match h.len() {
-            3 => Some(Self { r: n(0, 1)?, g: n(1, 1)?, b: n(2, 1)?, a: 1.0 }),
-            4 => Some(Self { r: n(0, 1)?, g: n(1, 1)?, b: n(2, 1)?, a: n(3, 1)? }),
-            6 => Some(Self { r: n(0, 2)?, g: n(2, 2)?, b: n(4, 2)?, a: 1.0 }),
-            8 => Some(Self { r: n(0, 2)?, g: n(2, 2)?, b: n(4, 2)?, a: n(6, 2)? }),
+            3 => Some(Self {
+                r: n(0, 1)?,
+                g: n(1, 1)?,
+                b: n(2, 1)?,
+                a: 1.0,
+            }),
+            4 => Some(Self {
+                r: n(0, 1)?,
+                g: n(1, 1)?,
+                b: n(2, 1)?,
+                a: n(3, 1)?,
+            }),
+            6 => Some(Self {
+                r: n(0, 2)?,
+                g: n(2, 2)?,
+                b: n(4, 2)?,
+                a: 1.0,
+            }),
+            8 => Some(Self {
+                r: n(0, 2)?,
+                g: n(2, 2)?,
+                b: n(4, 2)?,
+                a: n(6, 2)?,
+            }),
             _ => None,
         }
     }
@@ -50,7 +94,13 @@ impl Color {
         if self.a >= 1.0 {
             format!("#{:02x}{:02x}{:02x}", q(self.r), q(self.g), q(self.b))
         } else {
-            format!("#{:02x}{:02x}{:02x}{:02x}", q(self.r), q(self.g), q(self.b), q(self.a))
+            format!(
+                "#{:02x}{:02x}{:02x}{:02x}",
+                q(self.r),
+                q(self.g),
+                q(self.b),
+                q(self.a)
+            )
         }
     }
 
@@ -61,7 +111,12 @@ impl Color {
 
     /// sRGB -> linear light, per IEC 61966-2-1.
     pub fn to_linear(self) -> [f32; 4] {
-        [srgb_to_linear(self.r), srgb_to_linear(self.g), srgb_to_linear(self.b), self.a]
+        [
+            srgb_to_linear(self.r),
+            srgb_to_linear(self.g),
+            srgb_to_linear(self.b),
+            self.a,
+        ]
     }
 
     pub fn from_linear(v: [f32; 4]) -> Self {
@@ -194,9 +249,10 @@ pub fn delta_e2000(lab1: [f32; 3], lab2: [f32; 3]) -> f32 {
     let sh = 1.0 + 0.015 * cbarp * t;
     let rt = -2.0
         * (cbarp.powi(7) / (cbarp.powi(7) + 25f64.powi(7))).sqrt()
-        * (60.0 * (-((hbarp - 275.0) / 25.0).powi(2)).exp()).to_radians().sin();
-    (((dlp / sl).powi(2) + (dcp / sc).powi(2) + (dhp / sh).powi(2))
-        + rt * (dcp / sc) * (dhp / sh))
+        * (60.0 * (-((hbarp - 275.0) / 25.0).powi(2)).exp())
+            .to_radians()
+            .sin();
+    (((dlp / sl).powi(2) + (dcp / sc).powi(2) + (dhp / sh).powi(2)) + rt * (dcp / sc) * (dhp / sh))
         .max(0.0)
         .sqrt() as f32
 }
@@ -227,7 +283,9 @@ impl schemars::JsonSchema for Color {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum ColorSpace {
     #[default]
@@ -251,7 +309,10 @@ mod tests {
     #[test]
     fn contrast_ratio_matches_wcag_anchors() {
         let r = Color::WHITE.contrast_ratio(Color::BLACK);
-        assert!((r - 21.0).abs() < 0.01, "white on black must be 21:1, got {r}");
+        assert!(
+            (r - 21.0).abs() < 0.01,
+            "white on black must be 21:1, got {r}"
+        );
         assert!((Color::WHITE.contrast_ratio(Color::WHITE) - 1.0).abs() < 1e-6);
     }
 

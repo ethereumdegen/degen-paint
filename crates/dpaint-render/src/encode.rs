@@ -5,7 +5,9 @@ use dpaint_core::{Error, Result};
 use image::{ImageEncoder, RgbaImage};
 use tiny_skia::Pixmap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageFormat {
     Png,
@@ -142,7 +144,10 @@ mod tests {
         let rgba = to_rgba(&checker());
         let px = rgba.get_pixel(1, 1);
         assert_eq!(px.0[3], 128);
-        assert!(px.0[0] > 250, "red must come back near full after unpremultiply, got {px:?}");
+        assert!(
+            px.0[0] > 250,
+            "red must come back near full after unpremultiply, got {px:?}"
+        );
     }
 
     #[test]
@@ -151,25 +156,43 @@ mod tests {
         let flat = flatten(&rgba, dpaint_core::Color::WHITE);
         let px = flat.get_pixel(1, 1);
         assert_eq!(px.0[3], 255);
-        assert!(px.0[1] > 100 && px.0[1] < 160, "half-alpha red on white is pink, got {px:?}");
+        assert!(
+            px.0[1] > 100 && px.0[1] < 160,
+            "half-alpha red on white is pink, got {px:?}"
+        );
     }
 
     #[test]
     fn every_format_encodes_to_a_decodable_file_of_the_right_size() {
         let rgba = to_rgba(&checker());
-        for f in [ImageFormat::Png, ImageFormat::Jpeg, ImageFormat::Webp, ImageFormat::Tiff] {
+        for f in [
+            ImageFormat::Png,
+            ImageFormat::Jpeg,
+            ImageFormat::Webp,
+            ImageFormat::Tiff,
+        ] {
             let bytes = encode(&rgba, f, 90).unwrap();
             assert!(!bytes.is_empty(), "{f:?} produced no bytes");
             let decoded = image::load_from_memory(&bytes)
                 .unwrap_or_else(|e| panic!("{f:?} output did not decode: {e}"));
-            assert_eq!((decoded.width(), decoded.height()), (8, 8), "{f:?} changed dimensions");
+            assert_eq!(
+                (decoded.width(), decoded.height()),
+                (8, 8),
+                "{f:?} changed dimensions"
+            );
         }
     }
 
     #[test]
     fn format_is_inferred_from_the_path_and_unknown_ones_are_rejected() {
-        assert_eq!(ImageFormat::from_path("out/poster.PNG").unwrap(), ImageFormat::Png);
+        assert_eq!(
+            ImageFormat::from_path("out/poster.PNG").unwrap(),
+            ImageFormat::Png
+        );
         assert_eq!(ImageFormat::from_path("a.jpeg").unwrap(), ImageFormat::Jpeg);
-        assert_eq!(ImageFormat::from_path("a.xcf").unwrap_err().code(), "unsupported_format");
+        assert_eq!(
+            ImageFormat::from_path("a.xcf").unwrap_err().code(),
+            "unsupported_format"
+        );
     }
 }

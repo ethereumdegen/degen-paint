@@ -16,7 +16,9 @@ pub mod prim;
 pub mod uv;
 pub mod validate;
 
-pub use build::{build_mesh, decode_blob, encode_blob, mesh_tangents, scene_meshes, world_transforms};
+pub use build::{
+    build_mesh, decode_blob, encode_blob, mesh_tangents, scene_meshes, world_transforms,
+};
 pub use export::{export, GltfOut, TextureResolver};
 pub use geom::MeshData;
 pub use ops::ops;

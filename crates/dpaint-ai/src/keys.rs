@@ -79,7 +79,10 @@ pub struct ApiKey {
 
 impl ApiKey {
     pub fn new(secret: impl Into<String>, source: KeySource) -> Self {
-        Self { secret: secret.into(), source }
+        Self {
+            secret: secret.into(),
+            source,
+        }
     }
 
     pub fn expose(&self) -> &str {
@@ -161,7 +164,10 @@ impl KeyStore for SystemKeys {
             return Some(ApiKey::new(k.clone(), KeySource::Explicit));
         }
         if self.use_env {
-            if let Some(v) = std::env::var(provider.env_var()).ok().filter(|v| !v.trim().is_empty()) {
+            if let Some(v) = std::env::var(provider.env_var())
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+            {
                 return Some(ApiKey::new(v.trim().to_string(), KeySource::Env));
             }
         }
@@ -377,7 +383,9 @@ mod tests {
     fn env_is_consulted_after_an_explicit_key_and_before_the_file() {
         // Uses a provider-specific variable set only for this process.
         std::env::set_var("FAL_KEY", "env-key");
-        let store = SystemKeys::new().without_keychain().with_config_path("/nonexistent");
+        let store = SystemKeys::new()
+            .without_keychain()
+            .with_config_path("/nonexistent");
         let k = store.key(Provider::Fal).unwrap();
         assert_eq!(k.source(), KeySource::Env);
         assert_eq!(k.expose(), "env-key");

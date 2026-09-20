@@ -99,14 +99,7 @@ fn stroke(project: &mut Project, a: StrokeArgs, cx: &mut OpCx) -> Result<OpEffec
 }
 
 /// Move a document-space coverage buffer into a layer's local pixel space.
-fn shift_cov(
-    cov: &[f32],
-    dw: u32,
-    dh: u32,
-    lw: u32,
-    lh: u32,
-    offset: [i32; 2],
-) -> Vec<f32> {
+fn shift_cov(cov: &[f32], dw: u32, dh: u32, lw: u32, lh: u32, offset: [i32; 2]) -> Vec<f32> {
     if offset == [0, 0] && dw == lw && dh == lh {
         return cov.to_vec();
     }
@@ -121,7 +114,8 @@ fn shift_cov(
             if sx < 0 || sx >= dw as i64 {
                 continue;
             }
-            out[y as usize * lw as usize + x as usize] = cov[sy as usize * dw as usize + sx as usize];
+            out[y as usize * lw as usize + x as usize] =
+                cov[sy as usize * dw as usize + sx as usize];
         }
     }
     out
@@ -331,7 +325,13 @@ fn pattern(project: &mut Project, a: PatternArgs, cx: &mut OpCx) -> Result<OpEff
     let (w, h) = (rd.width(), rd.height());
     let (_, offset) = support::load_pixel(rd, &id, cx.assets)?;
     let region = match &a.d {
-        Some(d) => Some(paint::shape_cov(&geom::parse_d(d)?, w, h, 1.0, FillRule::Nonzero)?),
+        Some(d) => Some(paint::shape_cov(
+            &geom::parse_d(d)?,
+            w,
+            h,
+            1.0,
+            FillRule::Nonzero,
+        )?),
         None => None,
     };
     support::edit_pixels(project, &doc, &id, cx, a.scope, |c| {
@@ -344,7 +344,10 @@ fn pattern(project: &mut Project, a: PatternArgs, cx: &mut OpCx) -> Result<OpEff
             &mut out,
             &cov,
             &tile,
-            (a.offset[0] as i64 - offset[0] as i64, a.offset[1] as i64 - offset[1] as i64),
+            (
+                a.offset[0] as i64 - offset[0] as i64,
+                a.offset[1] as i64 - offset[1] as i64,
+            ),
             a.opacity as f32,
         );
         Ok(out)
@@ -352,11 +355,41 @@ fn pattern(project: &mut Project, a: PatternArgs, cx: &mut OpCx) -> Result<OpEff
     Ok(OpEffect::changed(&doc))
 }
 
-raster_op!(PaintStroke, "raster.paint.stroke", "Paint a brush stroke along a path", StrokeArgs, stroke);
-raster_op!(FillBucket, "raster.paint.fill-bucket", "Flood fill from a seed pixel or fill the selection", BucketArgs, fill_bucket);
-raster_op!(PaintGradient, "raster.paint.gradient", "Paint a linear, radial, angular or diamond gradient", GradientArgs, gradient);
-raster_op!(PaintErase, "raster.paint.erase", "Erase along a path or within the selection", EraseArgs, erase);
-raster_op!(PaintPattern, "raster.paint.pattern", "Tile an image across a region", PatternArgs, pattern);
+raster_op!(
+    PaintStroke,
+    "raster.paint.stroke",
+    "Paint a brush stroke along a path",
+    StrokeArgs,
+    stroke
+);
+raster_op!(
+    FillBucket,
+    "raster.paint.fill-bucket",
+    "Flood fill from a seed pixel or fill the selection",
+    BucketArgs,
+    fill_bucket
+);
+raster_op!(
+    PaintGradient,
+    "raster.paint.gradient",
+    "Paint a linear, radial, angular or diamond gradient",
+    GradientArgs,
+    gradient
+);
+raster_op!(
+    PaintErase,
+    "raster.paint.erase",
+    "Erase along a path or within the selection",
+    EraseArgs,
+    erase
+);
+raster_op!(
+    PaintPattern,
+    "raster.paint.pattern",
+    "Tile an image across a region",
+    PatternArgs,
+    pattern
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

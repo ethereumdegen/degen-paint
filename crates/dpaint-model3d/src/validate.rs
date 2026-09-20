@@ -26,8 +26,18 @@ pub struct Finding {
 }
 
 impl Finding {
-    fn new(code: &'static str, severity: Severity, target: impl Into<String>, detail: impl Into<String>) -> Self {
-        Self { code, severity, target: target.into(), detail: detail.into() }
+    fn new(
+        code: &'static str,
+        severity: Severity,
+        target: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self {
+            code,
+            severity,
+            target: target.into(),
+            detail: detail.into(),
+        }
     }
 }
 
@@ -137,7 +147,11 @@ pub fn validate(
     let mut textured_meshes: std::collections::BTreeSet<String> = Default::default();
     for node in &model.nodes {
         if let (Some(mesh), Some(mat)) = (&node.mesh, &node.material) {
-            if model.material(mat).map(|m| !m.textures.is_empty()).unwrap_or(false) {
+            if model
+                .material(mat)
+                .map(|m| !m.textures.is_empty())
+                .unwrap_or(false)
+            {
                 textured_meshes.insert(mesh.to_string());
             }
         }
@@ -224,7 +238,10 @@ pub fn validate(
                 "open-surface",
                 Severity::Info,
                 mesh.id.to_string(),
-                format!("{} boundary edge(s); the mesh is not a closed solid", topo.boundary_edges),
+                format!(
+                    "{} boundary edge(s); the mesh is not a closed solid",
+                    topo.boundary_edges
+                ),
             ));
         }
         let degenerate = degenerate_triangles(&data, 1e-12);
@@ -339,7 +356,10 @@ pub fn validate(
                     "missing-node",
                     Severity::Error,
                     anim.id.to_string(),
-                    format!("animation channel targets node '{}', which does not exist", ch.node),
+                    format!(
+                        "animation channel targets node '{}', which does not exist",
+                        ch.node
+                    ),
                 ));
             }
         }

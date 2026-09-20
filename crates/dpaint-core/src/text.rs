@@ -17,7 +17,11 @@ mod tests {
 
     #[test]
     fn the_fallback_face_is_embedded_and_is_a_truetype_file() {
-        assert!(FALLBACK_FONT.len() > 100_000, "font looks truncated: {} bytes", FALLBACK_FONT.len());
+        assert!(
+            FALLBACK_FONT.len() > 100_000,
+            "font looks truncated: {} bytes",
+            FALLBACK_FONT.len()
+        );
         // sfnt version 0x00010000 for TrueType outlines.
         assert_eq!(&FALLBACK_FONT[0..4], &[0x00, 0x01, 0x00, 0x00]);
     }

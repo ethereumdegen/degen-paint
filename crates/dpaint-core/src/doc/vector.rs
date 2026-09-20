@@ -105,7 +105,9 @@ pub struct Artboard {
     pub background: Option<Color>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum Units {
     #[default]
@@ -160,12 +162,24 @@ pub struct VObject {
     pub provenance: Option<Provenance>,
 }
 
-fn one() -> f32 { 1.0 }
-fn yes() -> bool { true }
-fn is_one(v: &f32) -> bool { *v == 1.0 }
-fn is_true(v: &bool) -> bool { *v }
-fn is_false(v: &bool) -> bool { !*v }
-fn no_paint() -> Paint { Paint::None }
+fn one() -> f32 {
+    1.0
+}
+fn yes() -> bool {
+    true
+}
+fn is_one(v: &f32) -> bool {
+    *v == 1.0
+}
+fn is_true(v: &bool) -> bool {
+    *v
+}
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+fn no_paint() -> Paint {
+    Paint::None
+}
 
 impl Paint {
     pub fn is_none(&self) -> bool {
@@ -275,7 +289,9 @@ pub struct TextOnPath {
     pub side: PathSide,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum PathSide {
     #[default]
@@ -297,7 +313,9 @@ mod tests {
                 objects: vec![VObject::new(
                     ObjectId::from("obj_mark"),
                     "mark",
-                    VKind::Path { d: "M0 0 L10 0 L5 10 Z".into() },
+                    VKind::Path {
+                        d: "M0 0 L10 0 L5 10 Z".into(),
+                    },
                 )
                 .with_fill(Paint::solid(Color::parse("#fb8500").unwrap()))],
             },
@@ -324,8 +342,14 @@ mod tests {
     fn vector_documents_round_trip() {
         let mut d = VectorDoc::new(DocId::from("doc_logo"), "logo", 512.0, 512.0);
         d.objects.push(
-            VObject::new(ObjectId::from("obj_1"), "mark", VKind::Path { d: "M0 0 H10".into() })
-                .with_fill(Paint::solid(Color::BLACK)),
+            VObject::new(
+                ObjectId::from("obj_1"),
+                "mark",
+                VKind::Path {
+                    d: "M0 0 H10".into(),
+                },
+            )
+            .with_fill(Paint::solid(Color::BLACK)),
         );
         let s = serde_json::to_string(&d).unwrap();
         assert_eq!(serde_json::from_str::<VectorDoc>(&s).unwrap(), d);

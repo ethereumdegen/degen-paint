@@ -101,7 +101,10 @@ impl Recorder {
             .with(
                 "dpaint_apply",
                 Box::new(move |args| {
-                    batch.calls.lock().push(json!({ "kind": "apply", "args": args }));
+                    batch
+                        .calls
+                        .lock()
+                        .push(json!({ "kind": "apply", "args": args }));
                     Ok(json!({ "applied": args["ops"].as_array().map(|o| o.len()).unwrap_or(0) }))
                 }),
             )
@@ -125,7 +128,11 @@ fn tools_list_has_one_tool_per_op_plus_the_injected_loop_tools() {
     let tools = resp["result"]["tools"].as_array().unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
 
-    assert_eq!(tools.len(), r.len() + 3, "two ops plus three registered loop tools");
+    assert_eq!(
+        tools.len(),
+        r.len() + 3,
+        "two ops plus three registered loop tools"
+    );
     assert!(names.contains(&"raster_filter_gaussian_blur"));
     assert!(names.contains(&"vector_measure_bbox"));
     assert!(names.contains(&"dpaint_render"));
@@ -152,7 +159,10 @@ fn tools_list_has_one_tool_per_op_plus_the_injected_loop_tools() {
     // Plus the two the protocol needs to target a document.
     assert_eq!(props["doc"]["type"], "string");
     assert_eq!(props["dryRun"]["type"], "boolean");
-    assert!(blur["description"].as_str().unwrap().contains("raster.filter.gaussian-blur"));
+    assert!(blur["description"]
+        .as_str()
+        .unwrap()
+        .contains("raster.filter.gaussian-blur"));
 }
 
 #[test]
@@ -178,14 +188,19 @@ fn calling_an_op_tool_dispatches_the_op_with_its_document_and_dry_run_flag() {
     assert_eq!(resp["result"]["isError"], false);
     assert_eq!(resp["result"]["structuredContent"]["ok"], true);
     // The text block mirrors the structured payload, for clients that only read text.
-    let text: Value = serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let text: Value =
+        serde_json::from_str(resp["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(text, resp["result"]["structuredContent"]);
 
     let call = &rec.calls()[0];
     assert_eq!(call["op"], "raster.filter.gaussian-blur");
     assert_eq!(call["doc"], "poster");
     assert_eq!(call["dryRun"], true);
-    assert_eq!(call["args"], json!({"layer": "#sky", "radius": 12}), "steering keys are not passed to the op");
+    assert_eq!(
+        call["args"],
+        json!({"layer": "#sky", "radius": 12}),
+        "steering keys are not passed to the op"
+    );
 }
 
 #[test]
@@ -220,7 +235,11 @@ fn dpaint_apply_forwards_the_whole_batch_to_its_injected_handler() {
     let resp = handle_message(
         &registry(),
         &handlers,
-        &req(3, "tools/call", json!({"name": "dpaint_apply", "arguments": batch.clone()})),
+        &req(
+            3,
+            "tools/call",
+            json!({"name": "dpaint_apply", "arguments": batch.clone()}),
+        ),
     )
     .unwrap();
 
@@ -254,7 +273,10 @@ fn an_op_failure_comes_back_as_a_tool_error_carrying_the_machine_code() {
     let payload = &resp["result"]["structuredContent"];
     assert_eq!(payload["error"]["code"], "schema_violation");
     assert_eq!(payload["error"]["exitCode"], 2);
-    assert!(payload["error"]["message"].as_str().unwrap().contains("radius must be positive"));
+    assert!(payload["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("radius must be positive"));
 }
 
 #[test]
@@ -274,7 +296,11 @@ fn op_tools_are_hidden_when_the_server_cannot_run_them() {
     let handlers = Handlers::new().with("dpaint_render", Box::new(|_| Ok(json!({}))));
     let resp = handle_message(&registry(), &handlers, &req(6, "tools/list", json!({}))).unwrap();
     let tools = resp["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 1, "no project, no op tools — nothing lies to the agent");
+    assert_eq!(
+        tools.len(),
+        1,
+        "no project, no op tools — nothing lies to the agent"
+    );
     assert_eq!(tools[0]["name"], "dpaint_render");
 }
 
@@ -296,7 +322,13 @@ fn a_full_session_runs_over_a_stream() {
     .join("\n");
 
     let mut out = Vec::new();
-    serve(&registry(), &handlers, std::io::Cursor::new(session), &mut out).unwrap();
+    serve(
+        &registry(),
+        &handlers,
+        std::io::Cursor::new(session),
+        &mut out,
+    )
+    .unwrap();
 
     let responses: Vec<Value> = String::from_utf8(out)
         .unwrap()
@@ -306,7 +338,10 @@ fn a_full_session_runs_over_a_stream() {
     assert_eq!(responses.len(), 3, "the notification produced no reply");
     assert_eq!(responses[0]["result"]["serverInfo"]["name"], "degen-paint");
     assert_eq!(responses[1]["result"]["tools"].as_array().unwrap().len(), 3);
-    assert_eq!(responses[2]["result"]["structuredContent"]["op"], "vector.measure.bbox");
+    assert_eq!(
+        responses[2]["result"]["structuredContent"]["op"],
+        "vector.measure.bbox"
+    );
 }
 
 #[test]
@@ -372,12 +407,22 @@ fn the_built_in_loop_tools_read_and_write_a_real_project() {
     )
     .unwrap();
     assert_eq!(applied["result"]["isError"], false, "{applied}");
-    assert_eq!(applied["result"]["structuredContent"]["applied"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        applied["result"]["structuredContent"]["applied"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
 
     let overview = handle_message(
         &reg,
         &handlers,
-        &req(2, "tools/call", json!({"name": "dpaint_overview", "arguments": {}})),
+        &req(
+            2,
+            "tools/call",
+            json!({"name": "dpaint_overview", "arguments": {}}),
+        ),
     )
     .unwrap();
     let doc = &overview["result"]["structuredContent"]["documents"][0];
@@ -387,11 +432,21 @@ fn the_built_in_loop_tools_read_and_write_a_real_project() {
     let history = handle_message(
         &reg,
         &handlers,
-        &req(3, "tools/call", json!({"name": "dpaint_history", "arguments": {"limit": 5}})),
+        &req(
+            3,
+            "tools/call",
+            json!({"name": "dpaint_history", "arguments": {"limit": 5}}),
+        ),
     )
     .unwrap();
-    let entries = history["result"]["structuredContent"]["entries"].as_array().unwrap();
-    assert_eq!(entries.len(), 1, "one transactional batch, one journal entry");
+    let entries = history["result"]["structuredContent"]["entries"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        entries.len(),
+        1,
+        "one transactional batch, one journal entry"
+    );
     assert!(entries[0]["op"].as_str().unwrap().starts_with("batch["));
 
     // A failing batch leaves the committed state alone.
@@ -406,15 +461,25 @@ fn the_built_in_loop_tools_read_and_write_a_real_project() {
     )
     .unwrap();
     assert_eq!(failed["result"]["isError"], true);
-    assert_eq!(failed["result"]["structuredContent"]["error"]["code"], "unknown_op");
+    assert_eq!(
+        failed["result"]["structuredContent"]["error"]["code"],
+        "unknown_op"
+    );
 
     let after = handle_message(
         &reg,
         &handlers,
-        &req(5, "tools/call", json!({"name": "dpaint_overview", "arguments": {}})),
+        &req(
+            5,
+            "tools/call",
+            json!({"name": "dpaint_overview", "arguments": {}}),
+        ),
     )
     .unwrap();
-    assert_eq!(after["result"]["structuredContent"]["documents"][0]["layers"], 2);
+    assert_eq!(
+        after["result"]["structuredContent"]["documents"][0]["layers"],
+        2
+    );
 }
 
 #[test]
@@ -432,7 +497,12 @@ fn serve_project_discovers_the_workspace_and_answers_over_streams() {
     // does when an agent runs it from the repository root.
     let session = [
         req(1, "initialize", json!({"protocolVersion": "2025-06-18"})).to_string(),
-        req(2, "tools/call", json!({"name": "dpaint_overview", "arguments": {}})).to_string(),
+        req(
+            2,
+            "tools/call",
+            json!({"name": "dpaint_overview", "arguments": {}}),
+        )
+        .to_string(),
     ]
     .join("\n");
     let mut out = Vec::new();

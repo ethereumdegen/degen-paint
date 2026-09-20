@@ -7,7 +7,15 @@ use std::fmt;
 macro_rules! id_type {
     ($name:ident, $prefix:literal) => {
         #[derive(
-            Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+            Debug,
+            Clone,
+            PartialEq,
+            Eq,
+            Hash,
+            PartialOrd,
+            Ord,
+            Serialize,
+            Deserialize,
             schemars::JsonSchema,
         )]
         #[serde(transparent)]
@@ -29,7 +37,13 @@ macro_rules! id_type {
             pub fn from_name(name: &str) -> Self {
                 let slug: String = name
                     .chars()
-                    .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() {
+                            c.to_ascii_lowercase()
+                        } else {
+                            '-'
+                        }
+                    })
                     .collect();
                 let slug = slug.trim_matches('-').to_string();
                 if slug.is_empty() {
@@ -81,7 +95,10 @@ mod tests {
 
     #[test]
     fn name_ids_are_readable_and_generated_ids_are_unique() {
-        assert_eq!(LayerId::from_name("Sky Gradient").as_str(), "lyr_sky-gradient");
+        assert_eq!(
+            LayerId::from_name("Sky Gradient").as_str(),
+            "lyr_sky-gradient"
+        );
         assert_eq!(LayerId::from_name("  ").as_str().len() > 4, true);
         assert_ne!(LayerId::generate(), LayerId::generate());
     }

@@ -4,8 +4,8 @@
 //! asset store, so a filter writes a new blob and repoints the layer: undo is instant and
 //! `project.json` stays small and diffable.
 
-use super::common::*;
 pub use super::common::BlendMode;
+use super::common::*;
 use crate::asset::AssetRef;
 use crate::color::{Color, ColorSpace};
 use crate::ids::{DocId, LayerId};
@@ -32,8 +32,12 @@ pub struct RasterDoc {
     pub guides: Guides,
 }
 
-fn default_dpi() -> f32 { 72.0 }
-fn default_depth() -> u8 { 8 }
+fn default_dpi() -> f32 {
+    72.0
+}
+fn default_depth() -> u8 {
+    8
+}
 
 impl RasterDoc {
     pub fn new(id: DocId, name: impl Into<String>, w: u32, h: u32) -> Self {
@@ -51,8 +55,12 @@ impl RasterDoc {
         }
     }
 
-    pub fn width(&self) -> u32 { self.size[0] }
-    pub fn height(&self) -> u32 { self.size[1] }
+    pub fn width(&self) -> u32 {
+        self.size[0]
+    }
+    pub fn height(&self) -> u32 {
+        self.size[1]
+    }
 
     pub fn bounds(&self) -> Rect {
         Rect::new(0.0, 0.0, self.size[0] as f64, self.size[1] as f64)
@@ -141,11 +149,21 @@ pub struct Layer {
     pub provenance: Option<Provenance>,
 }
 
-fn one() -> f32 { 1.0 }
-fn yes() -> bool { true }
-fn is_one(v: &f32) -> bool { *v == 1.0 }
-fn is_true(v: &bool) -> bool { *v }
-fn is_false(v: &bool) -> bool { !*v }
+fn one() -> f32 {
+    1.0
+}
+fn yes() -> bool {
+    true
+}
+fn is_one(v: &f32) -> bool {
+    *v == 1.0
+}
+fn is_true(v: &bool) -> bool {
+    *v
+}
+fn is_false(v: &bool) -> bool {
+    !*v
+}
 
 impl Layer {
     pub fn new(id: LayerId, name: impl Into<String>, kind: LayerKind) -> Self {
@@ -232,7 +250,9 @@ fn black_paint() -> Paint {
     Paint::solid(Color::BLACK)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum Fit {
     #[default]
@@ -306,26 +326,74 @@ pub enum Adjustment {
         #[serde(default = "one_f64")]
         out_white: f64,
     },
-    BrightnessContrast { #[serde(default)] brightness: f64, #[serde(default)] contrast: f64 },
-    Hsl { #[serde(default)] hue: f64, #[serde(default)] saturation: f64, #[serde(default)] lightness: f64 },
-    ColorBalance { #[serde(default)] shadows: [f64; 3], #[serde(default)] midtones: [f64; 3], #[serde(default)] highlights: [f64; 3] },
-    Exposure { #[serde(default)] stops: f64, #[serde(default)] offset: f64 },
-    ChannelMixer { #[serde(default = "identity_matrix")] matrix: [[f64; 3]; 3] },
-    Threshold { #[serde(default = "half")] level: f64 },
-    Posterize { #[serde(default = "four")] levels: u32 },
+    BrightnessContrast {
+        #[serde(default)]
+        brightness: f64,
+        #[serde(default)]
+        contrast: f64,
+    },
+    Hsl {
+        #[serde(default)]
+        hue: f64,
+        #[serde(default)]
+        saturation: f64,
+        #[serde(default)]
+        lightness: f64,
+    },
+    ColorBalance {
+        #[serde(default)]
+        shadows: [f64; 3],
+        #[serde(default)]
+        midtones: [f64; 3],
+        #[serde(default)]
+        highlights: [f64; 3],
+    },
+    Exposure {
+        #[serde(default)]
+        stops: f64,
+        #[serde(default)]
+        offset: f64,
+    },
+    ChannelMixer {
+        #[serde(default = "identity_matrix")]
+        matrix: [[f64; 3]; 3],
+    },
+    Threshold {
+        #[serde(default = "half")]
+        level: f64,
+    },
+    Posterize {
+        #[serde(default = "four")]
+        levels: u32,
+    },
     Invert,
-    Desaturate { #[serde(default)] mode: DesaturateMode },
-    Lut { asset: AssetRef, #[serde(default = "one_f64")] amount: f64 },
+    Desaturate {
+        #[serde(default)]
+        mode: DesaturateMode,
+    },
+    Lut {
+        asset: AssetRef,
+        #[serde(default = "one_f64")]
+        amount: f64,
+    },
 }
 
-fn one_f64() -> f64 { 1.0 }
-fn half() -> f64 { 0.5 }
-fn four() -> u32 { 4 }
+fn one_f64() -> f64 {
+    1.0
+}
+fn half() -> f64 {
+    0.5
+}
+fn four() -> u32 {
+    4
+}
 fn identity_matrix() -> [[f64; 3]; 3] {
     [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum Channel {
     #[default]
@@ -336,7 +404,9 @@ pub enum Channel {
     Alpha,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum DesaturateMode {
     #[default]
@@ -348,14 +418,43 @@ pub enum DesaturateMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Effect {
-    DropShadow { #[serde(default)] dx: f64, #[serde(default)] dy: f64, #[serde(default)] blur: f64, color: Color },
-    InnerShadow { #[serde(default)] dx: f64, #[serde(default)] dy: f64, #[serde(default)] blur: f64, color: Color },
-    Stroke { width: f64, color: Color, #[serde(default)] align: StrokeAlign },
-    OuterGlow { #[serde(default)] blur: f64, color: Color },
-    Blur { radius: f64 },
+    DropShadow {
+        #[serde(default)]
+        dx: f64,
+        #[serde(default)]
+        dy: f64,
+        #[serde(default)]
+        blur: f64,
+        color: Color,
+    },
+    InnerShadow {
+        #[serde(default)]
+        dx: f64,
+        #[serde(default)]
+        dy: f64,
+        #[serde(default)]
+        blur: f64,
+        color: Color,
+    },
+    Stroke {
+        width: f64,
+        color: Color,
+        #[serde(default)]
+        align: StrokeAlign,
+    },
+    OuterGlow {
+        #[serde(default)]
+        blur: f64,
+        color: Color,
+    },
+    Blur {
+        radius: f64,
+    },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum StrokeAlign {
     #[default]
@@ -373,7 +472,9 @@ mod tests {
         d.layers.push(Layer::new(
             LayerId::from("lyr_bg"),
             "bg",
-            LayerKind::Fill { color: Color::WHITE },
+            LayerKind::Fill {
+                color: Color::WHITE,
+            },
         ));
         d.layers.push(Layer::new(
             LayerId::from("grp_fg"),
@@ -430,7 +531,13 @@ mod tests {
     fn every_blend_mode_has_a_distinct_kebab_name() {
         let names: std::collections::BTreeSet<String> = BlendMode::ALL
             .iter()
-            .map(|b| serde_json::to_value(b).unwrap().as_str().unwrap().to_string())
+            .map(|b| {
+                serde_json::to_value(b)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
             .collect();
         assert_eq!(names.len(), BlendMode::ALL.len());
         assert!(names.contains("color-dodge"));

@@ -18,7 +18,11 @@ fn render_at_scale_two_doubles_both_dimensions_exactly() {
     assert_eq!((one.width(), one.height()), (37, 11));
     assert_eq!((two.width(), two.height()), (74, 22));
     let half = f.render(0.5);
-    assert_eq!((half.width(), half.height()), (19, 6), "rounds, never collapses to zero");
+    assert_eq!(
+        (half.width(), half.height()),
+        (19, 6),
+        "rounds, never collapses to zero"
+    );
 }
 
 #[test]
@@ -29,7 +33,10 @@ fn multiply_over_white_is_identity_and_over_black_is_black() {
     let top = f.pixel_layer("lyr_top", |_, _| gray(0.25));
     f.doc_mut().layer_mut(&top).unwrap().blend = BlendMode::Multiply;
     let out = at(&f.render(1.0), 2, 2);
-    assert!((out[0] - 0.25).abs() < 0.01, "multiply over white must be identity: {out:?}");
+    assert!(
+        (out[0] - 0.25).abs() < 0.01,
+        "multiply over white must be identity: {out:?}"
+    );
 
     // Backdrop black -> black, whatever the source is.
     let mut f = fixture(4, 4);
@@ -37,7 +44,10 @@ fn multiply_over_white_is_identity_and_over_black_is_black() {
     let top = f.pixel_layer("lyr_top", |_, _| gray(0.8));
     f.doc_mut().layer_mut(&top).unwrap().blend = BlendMode::Multiply;
     let out = at(&f.render(1.0), 2, 2);
-    assert!(out[0] < 0.005, "multiply over black must stay black: {out:?}");
+    assert!(
+        out[0] < 0.005,
+        "multiply over black must stay black: {out:?}"
+    );
 }
 
 #[test]
@@ -56,8 +66,14 @@ fn screen_is_the_dual_of_multiply() {
     // screen(a,b) == 1 - multiply(1-a, 1-b)
     let expected_screen = 1.0 - (1.0 - backdrop) * (1.0 - source);
     assert!((mul - backdrop * source).abs() < 0.01, "multiply: {mul}");
-    assert!((scr - expected_screen).abs() < 0.01, "screen: {scr} vs {expected_screen}");
-    assert!(scr > backdrop && mul < backdrop, "screen lightens, multiply darkens");
+    assert!(
+        (scr - expected_screen).abs() < 0.01,
+        "screen: {scr} vs {expected_screen}"
+    );
+    assert!(
+        scr > backdrop && mul < backdrop,
+        "screen lightens, multiply darkens"
+    );
 }
 
 #[test]
@@ -68,9 +84,15 @@ fn luminosity_takes_the_source_light_and_keeps_the_backdrop_hue() {
     let top = f.pixel_layer("lyr_top", |_, _| gray(0.2));
     f.doc_mut().layer_mut(&top).unwrap().blend = BlendMode::Luminosity;
     let out = at(&f.render(1.0), 2, 2);
-    assert!(out[0] > out[1] * 3.0, "backdrop hue (red-dominant) must survive: {out:?}");
+    assert!(
+        out[0] > out[1] * 3.0,
+        "backdrop hue (red-dominant) must survive: {out:?}"
+    );
     let lum = 0.3 * out[0] + 0.59 * out[1] + 0.11 * out[2];
-    assert!((lum - 0.2).abs() < 0.02, "light should come from the source: {lum}");
+    assert!(
+        (lum - 0.2).abs() < 0.02,
+        "light should come from the source: {lum}"
+    );
 }
 
 #[test]
@@ -109,7 +131,11 @@ fn dissolve_is_stochastic_coverage_and_reproducible() {
     }
     let a = f.render(1.0);
     let b = f.render(1.0);
-    assert_eq!(a.data(), b.data(), "the same document must dissolve identically");
+    assert_eq!(
+        a.data(),
+        b.data(),
+        "the same document must dissolve identically"
+    );
     let lit = a.pixels().iter().filter(|p| p.red() > 200).count();
     assert!(
         (300..=724).contains(&lit),
@@ -123,11 +149,19 @@ fn group_opacity_is_not_the_same_as_per_child_opacity() {
     // composites once (one 50% veil). Fading each child instead veils twice.
     let build = |group: bool| -> [f32; 4] {
         let mut f = fixture(8, 8);
-        let a = Layer::new(LayerId::from("lyr_a"), "a", LayerKind::Fill { color: Color::WHITE });
+        let a = Layer::new(
+            LayerId::from("lyr_a"),
+            "a",
+            LayerKind::Fill {
+                color: Color::WHITE,
+            },
+        );
         let mut b = Layer::new(
             LayerId::from("lyr_b"),
             "b",
-            LayerKind::Fill { color: Color::BLACK },
+            LayerKind::Fill {
+                color: Color::BLACK,
+            },
         );
         if group {
             b.opacity = 1.0;
@@ -151,10 +185,16 @@ fn group_opacity_is_not_the_same_as_per_child_opacity() {
     let flat = build(false);
     // Group: black at 50% over nothing -> half-transparent black.
     assert!((grouped[3] - 0.5).abs() < 0.01, "group alpha: {grouped:?}");
-    assert!(grouped[0] < 0.01, "group color is the top child's black: {grouped:?}");
+    assert!(
+        grouped[0] < 0.01,
+        "group color is the top child's black: {grouped:?}"
+    );
     // Flat: white at 50% then black at 50% -> 75% alpha with white showing through.
     assert!(flat[3] > 0.7, "per-child alpha accumulates: {flat:?}");
-    assert!(flat[0] > 0.2, "white survives under the 50% black: {flat:?}");
+    assert!(
+        flat[0] > 0.2,
+        "white survives under the 50% black: {flat:?}"
+    );
     assert!(
         (grouped[3] - flat[3]).abs() > 0.2,
         "group opacity must differ from per-child opacity: {grouped:?} vs {flat:?}"
@@ -165,31 +205,51 @@ fn group_opacity_is_not_the_same_as_per_child_opacity() {
 fn group_blend_mode_applies_to_the_composited_group() {
     let mut f = fixture(4, 4);
     f.pixel_layer("lyr_bg", |_, _| gray(0.5));
-    let inner = Layer::new(LayerId::from("lyr_in"), "in", LayerKind::Fill { color: Color::WHITE });
+    let inner = Layer::new(
+        LayerId::from("lyr_in"),
+        "in",
+        LayerKind::Fill {
+            color: Color::WHITE,
+        },
+    );
     let mut g = Layer::new(
         LayerId::from("lyr_g"),
         "g",
-        LayerKind::Group { layers: vec![inner] },
+        LayerKind::Group {
+            layers: vec![inner],
+        },
     );
     g.blend = BlendMode::Multiply;
     f.push_layer(g);
     // White multiplied over mid-gray leaves the gray.
     let out = at(&f.render(1.0), 2, 2);
-    assert!((out[0] - 0.5).abs() < 0.01, "group blend must apply to the group: {out:?}");
+    assert!(
+        (out[0] - 0.5).abs() < 0.01,
+        "group blend must apply to the group: {out:?}"
+    );
 }
 
 #[test]
 fn a_clipping_mask_limits_a_layer_to_the_alpha_beneath_it() {
     let mut f = fixture(8, 8);
     // Base: opaque only in the left half.
-    f.pixel_layer("lyr_base", |x, _| if x < 4 { [1.0, 1.0, 1.0, 1.0] } else { [0.0; 4] });
+    f.pixel_layer("lyr_base", |x, _| {
+        if x < 4 {
+            [1.0, 1.0, 1.0, 1.0]
+        } else {
+            [0.0; 4]
+        }
+    });
     // Clipped layer: solid red everywhere.
     let top = f.pixel_layer("lyr_top", |_, _| [1.0, 0.0, 0.0, 1.0]);
     f.doc_mut().layer_mut(&top).unwrap().clip = true;
     let pm = f.render(1.0);
     let inside = at(&pm, 1, 4);
     let outside = at(&pm, 6, 4);
-    assert!(inside[0] > 0.9 && inside[1] < 0.05, "red shows where the base is opaque: {inside:?}");
+    assert!(
+        inside[0] > 0.9 && inside[1] < 0.05,
+        "red shows where the base is opaque: {inside:?}"
+    );
     assert_eq!(outside[3], 0.0, "and nowhere else: {outside:?}");
 }
 
@@ -201,14 +261,24 @@ fn a_layer_mask_multiplies_alpha() {
     let cov: Vec<f32> = (0..64).map(|i| if i / 8 < 4 { 1.0 } else { 0.0 }).collect();
     let png = dpaint_raster::canvas::encode_gray_png(8, 8, &cov).unwrap();
     let asset = f.assets.put(&png, "png").unwrap();
-    f.doc_mut().layer_mut(&id).unwrap().mask =
-        Some(Mask { asset, enabled: true, inverted: false, offset: [0, 0] });
+    f.doc_mut().layer_mut(&id).unwrap().mask = Some(Mask {
+        asset,
+        enabled: true,
+        inverted: false,
+        offset: [0, 0],
+    });
     let pm = f.render(1.0);
     assert_eq!(at(&pm, 4, 1)[3], 1.0);
     assert_eq!(at(&pm, 4, 6)[3], 0.0);
 
     // Inverting the mask swaps which half survives.
-    f.doc_mut().layer_mut(&id).unwrap().mask.as_mut().unwrap().inverted = true;
+    f.doc_mut()
+        .layer_mut(&id)
+        .unwrap()
+        .mask
+        .as_mut()
+        .unwrap()
+        .inverted = true;
     let pm = f.render(1.0);
     assert_eq!(at(&pm, 4, 1)[3], 0.0);
     assert_eq!(at(&pm, 4, 6)[3], 1.0);
@@ -222,7 +292,9 @@ fn an_adjustment_layer_affects_layers_beneath_it_and_not_above() {
     f.push_layer(Layer::new(
         LayerId::from("lyr_adj"),
         "invert",
-        LayerKind::Adjustment { adjustment: dpaint_core::doc::raster::Adjustment::Invert },
+        LayerKind::Adjustment {
+            adjustment: dpaint_core::doc::raster::Adjustment::Invert,
+        },
     ));
     f.pixel_layer("lyr_high", |_, y| if y >= 8 { gray(0.5) } else { [0.0; 4] });
 
@@ -230,8 +302,14 @@ fn an_adjustment_layer_affects_layers_beneath_it_and_not_above() {
     let below = at(&pm, 2, 1);
     let above = at(&pm, 2, 10);
     // 0.5 linear is ~0.735 display; inverting display 0.735 gives ~0.265 -> ~0.056 linear.
-    assert!(below[0] < 0.2, "the layer beneath must be inverted: {below:?}");
-    assert!((above[0] - 0.5).abs() < 0.02, "the layer above must be untouched: {above:?}");
+    assert!(
+        below[0] < 0.2,
+        "the layer beneath must be inverted: {below:?}"
+    );
+    assert!(
+        (above[0] - 0.5).abs() < 0.02,
+        "the layer above must be untouched: {above:?}"
+    );
 }
 
 #[test]
@@ -241,17 +319,23 @@ fn an_adjustment_layer_inside_a_group_stays_inside_the_group() {
     let inner = Layer::new(
         LayerId::from("lyr_g_fill"),
         "fill",
-        LayerKind::Fill { color: Color::rgba(1.0, 1.0, 1.0, 0.0) },
+        LayerKind::Fill {
+            color: Color::rgba(1.0, 1.0, 1.0, 0.0),
+        },
     );
     let adj = Layer::new(
         LayerId::from("lyr_g_adj"),
         "invert",
-        LayerKind::Adjustment { adjustment: dpaint_core::doc::raster::Adjustment::Invert },
+        LayerKind::Adjustment {
+            adjustment: dpaint_core::doc::raster::Adjustment::Invert,
+        },
     );
     f.push_layer(Layer::new(
         LayerId::from("lyr_g"),
         "g",
-        LayerKind::Group { layers: vec![inner, adj] },
+        LayerKind::Group {
+            layers: vec![inner, adj],
+        },
     ));
     let out = at(&f.render(1.0), 2, 2);
     assert!(
@@ -267,17 +351,26 @@ fn an_adjustment_layer_honors_its_own_mask_and_opacity() {
     let adj = Layer::new(
         LayerId::from("lyr_adj"),
         "invert",
-        LayerKind::Adjustment { adjustment: dpaint_core::doc::raster::Adjustment::Invert },
+        LayerKind::Adjustment {
+            adjustment: dpaint_core::doc::raster::Adjustment::Invert,
+        },
     );
     let id = f.push_layer(adj);
     let cov: Vec<f32> = (0..64).map(|i| if i % 8 < 4 { 1.0 } else { 0.0 }).collect();
     let png = dpaint_raster::canvas::encode_gray_png(8, 8, &cov).unwrap();
     let asset = f.assets.put(&png, "png").unwrap();
-    f.doc_mut().layer_mut(&id).unwrap().mask =
-        Some(Mask { asset, enabled: true, inverted: false, offset: [0, 0] });
+    f.doc_mut().layer_mut(&id).unwrap().mask = Some(Mask {
+        asset,
+        enabled: true,
+        inverted: false,
+        offset: [0, 0],
+    });
     let pm = f.render(1.0);
     assert!(at(&pm, 1, 4)[0] < 0.2, "masked-in half is inverted");
-    assert!((at(&pm, 6, 4)[0] - 0.5).abs() < 0.02, "masked-out half is untouched");
+    assert!(
+        (at(&pm, 6, 4)[0] - 0.5).abs() < 0.02,
+        "masked-out half is untouched"
+    );
 }
 
 #[test]
@@ -288,7 +381,9 @@ fn a_linked_layer_renders_another_document_fitted_to_its_box() {
     other.layers.push(Layer::new(
         LayerId::from("lyr_red"),
         "red",
-        LayerKind::Fill { color: Color::rgba(1.0, 0.0, 0.0, 1.0) },
+        LayerKind::Fill {
+            color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+        },
     ));
     f.project.add_document(dpaint_core::Document::Raster(other));
     f.push_layer(Layer::new(
@@ -314,17 +409,30 @@ fn hidden_layers_and_their_clipped_children_are_skipped() {
     f.doc_mut().layer_mut(&top).unwrap().clip = true;
     f.doc_mut().layer_mut(&base).unwrap().visible = false;
     let pm = f.render(1.0);
-    assert_eq!(at(&pm, 2, 2)[3], 0.0, "hiding the clip base hides the clipped layer too");
+    assert_eq!(
+        at(&pm, 2, 2)[3],
+        0.0,
+        "hiding the clip base hides the clipped layer too"
+    );
 }
 
 #[test]
 fn document_background_sits_under_every_layer() {
     let mut f = fixture(4, 4);
     f.doc_mut().background = Some(Color::rgba(0.0, 0.0, 1.0, 1.0));
-    f.pixel_layer("lyr_a", |x, _| if x < 2 { [1.0, 0.0, 0.0, 1.0] } else { [0.0; 4] });
+    f.pixel_layer("lyr_a", |x, _| {
+        if x < 2 {
+            [1.0, 0.0, 0.0, 1.0]
+        } else {
+            [0.0; 4]
+        }
+    });
     let pm = f.render(1.0);
     assert!(at(&pm, 0, 0)[0] > 0.9, "layer wins where it is opaque");
-    assert!(at(&pm, 3, 0)[2] > 0.9, "background shows through where it is not");
+    assert!(
+        at(&pm, 3, 0)[2] > 0.9,
+        "background shows through where it is not"
+    );
 }
 
 #[test]
@@ -340,7 +448,11 @@ fn layer_transforms_resample_pixel_content_in_linear_light() {
     f.doc_mut().layer_mut(&id).unwrap().transform =
         dpaint_core::doc::common::Transform::translate(4.0, 4.0);
     let pm = f.render(1.0);
-    assert_eq!(at(&pm, 5, 5)[3], 0.0, "content moved away from its old place");
+    assert_eq!(
+        at(&pm, 5, 5)[3],
+        0.0,
+        "content moved away from its old place"
+    );
     assert_eq!(at(&pm, 9, 9)[3], 1.0, "and arrived at the new one");
 }
 
@@ -354,7 +466,10 @@ fn canvas_round_trips_through_a_pixmap_without_drifting() {
     for i in [0usize, 4, 8] {
         let (a, b) = (c.straight(i), back.straight(i));
         for ch in 0..4 {
-            assert!((a[ch] - b[ch]).abs() < 0.01, "channel {ch} drifted: {a:?} -> {b:?}");
+            assert!(
+                (a[ch] - b[ch]).abs() < 0.01,
+                "channel {ch} drifted: {a:?} -> {b:?}"
+            );
         }
     }
 }
@@ -377,7 +492,10 @@ fn shape_and_text_layers_rasterize_sharper_at_higher_scale() {
     let covered = |c: &Canvas| c.data.chunks_exact(4).filter(|p| p[3] > 0.5).count() as f64;
     // Four times the pixels for twice the scale, within anti-aliasing slack.
     let ratio = covered(&two) / covered(&one);
-    assert!((ratio - 4.0).abs() < 0.4, "area should scale with the square of the scale: {ratio}");
+    assert!(
+        (ratio - 4.0).abs() < 0.4,
+        "area should scale with the square of the scale: {ratio}"
+    );
 }
 
 #[test]
@@ -400,7 +518,9 @@ fn the_public_api_matches_the_signatures_other_crates_call() {
     other.layers.push(Layer::new(
         LayerId::from("lyr_w"),
         "w",
-        LayerKind::Fill { color: Color::WHITE },
+        LayerKind::Fill {
+            color: Color::WHITE,
+        },
     ));
     f.project.add_document(dpaint_core::Document::Raster(other));
     f.push_layer(Layer::new(
@@ -421,6 +541,13 @@ fn the_public_api_matches_the_signatures_other_crates_call() {
         Ok(pm)
     };
     let pm = render(&f.project, &DOC.into(), &f.assets, 1.0, &link).unwrap();
-    assert_eq!(calls.get(), 1, "the supplied resolver must be used, not an internal one");
-    assert!(at(&pm, 4, 4)[0] > 0.9, "and its pixmap must land in the composite");
+    assert_eq!(
+        calls.get(),
+        1,
+        "the supplied resolver must be used, not an internal one"
+    );
+    assert!(
+        at(&pm, 4, 4)[0] > 0.9,
+        "and its pixmap must land in the composite"
+    );
 }

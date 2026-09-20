@@ -52,7 +52,9 @@ fn doc_seed(doc: &DocId) -> u64 {
 /// Device size of a document at a render scale. Scale 2 doubles both dimensions exactly.
 pub fn device_size(doc: &RasterDoc, scale: f64) -> Result<(u32, u32)> {
     if !(scale.is_finite() && scale > 0.0) {
-        return Err(Error::Invalid(format!("render scale must be positive, got {scale}")));
+        return Err(Error::Invalid(format!(
+            "render scale must be positive, got {scale}"
+        )));
     }
     let w = (doc.width() as f64 * scale).round().max(1.0) as u32;
     let h = (doc.height() as f64 * scale).round().max(1.0) as u32;
@@ -129,14 +131,21 @@ pub fn composite_stack(layers: &[Layer], acc: &mut Canvas, ctx: &Ctx<'_>) -> Res
         let mut content = render_layer(layer, ctx)?;
         if j > i + 1 {
             // Clipping mask: the run is limited to the base layer's coverage.
-            let base_alpha: Vec<f32> =
-                (0..content.pixel_count()).map(|k| content.data[k * 4 + 3]).collect();
+            let base_alpha: Vec<f32> = (0..content.pixel_count())
+                .map(|k| content.data[k * 4 + 3])
+                .collect();
             for child in &layers[i + 1..j] {
                 if !child.visible {
                     continue;
                 }
                 if let LayerKind::Adjustment { adjustment } = &child.kind {
-                    apply_adjustment_layer(&mut content, child, adjustment, ctx, Some(&base_alpha))?;
+                    apply_adjustment_layer(
+                        &mut content,
+                        child,
+                        adjustment,
+                        ctx,
+                        Some(&base_alpha),
+                    )?;
                     continue;
                 }
                 let cc = render_layer(child, ctx)?;
@@ -150,7 +159,14 @@ pub fn composite_stack(layers: &[Layer], acc: &mut Canvas, ctx: &Ctx<'_>) -> Res
                 );
             }
         }
-        composite(acc, &content, layer.blend, layer.opacity, &Coverage::Full, ctx.seed);
+        composite(
+            acc,
+            &content,
+            layer.blend,
+            layer.opacity,
+            &Coverage::Full,
+            ctx.seed,
+        );
         i = j;
     }
     Ok(())
@@ -196,11 +212,15 @@ fn apply_adjustment_layer(
 
 /// Coverage of a layer's mask in device space, `None` when the layer has no active mask.
 pub fn layer_mask_coverage(layer: &Layer, ctx: &Ctx<'_>) -> Result<Option<Vec<f32>>> {
-    let Some(mask) = &layer.mask else { return Ok(None) };
+    let Some(mask) = &layer.mask else {
+        return Ok(None);
+    };
     if !mask.enabled {
         return Ok(None);
     }
-    Ok(Some(mask_coverage(mask, ctx.assets, ctx.width, ctx.height, ctx.scale)?))
+    Ok(Some(mask_coverage(
+        mask, ctx.assets, ctx.width, ctx.height, ctx.scale,
+    )?))
 }
 
 /// Decode a layer mask blob into device-space coverage, honoring its offset and `inverted`.
@@ -246,7 +266,8 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
     let mut content = match &layer.kind {
         LayerKind::Pixel { asset, offset } => {
             let src = Canvas::from_png(&ctx.assets.get(asset)?)?;
-            let map = at * dpaint_core::kurbo::Affine::translate((offset[0] as f64, offset[1] as f64));
+            let map =
+                at * dpaint_core::kurbo::Affine::translate((offset[0] as f64, offset[1] as f64));
             if identity && offset == &[0, 0] && src.width == w && src.height == h {
                 src
             } else if identity && ctx.scale == 1.0 {
@@ -268,20 +289,27 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
             }
         }
         LayerKind::Gradient { paint } => {
-            let c = paint::paint_canvas(paint, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
+            let c =
+                paint::paint_canvas(paint, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
             if identity {
                 c
             } else {
                 c.transformed(at, w, h)
             }
         }
-        LayerKind::Shape { d, fill, stroke, fill_rule } => {
+        LayerKind::Shape {
+            d,
+            fill,
+            stroke,
+            fill_rule,
+        } => {
             let path = geom::parse_d(d)?;
             let sk = geom::to_sk(&path, at)
                 .ok_or_else(|| Error::DegenerateGeometry("shape path is empty".into()))?;
             let mut c = Canvas::new(w, h);
             let cov = geom::fill_coverage(&sk, w, h, *fill_rule);
-            let fill_c = paint::paint_canvas(fill, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
+            let fill_c =
+                paint::paint_canvas(fill, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
             composite(
                 &mut c,
                 &fill_c,
@@ -292,7 +320,9 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
             );
             if let Some(s) = stroke {
                 let scov = geom::stroke_coverage(&sk, s, ctx.scale, w, h);
-                let sc = paint::paint_canvas(&s.paint, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
+                let sc = paint::paint_canvas(&s.paint, w, h, ctx.scale, &|d, tw, th| {
+                    (ctx.link)(d, tw, th)
+                })?;
                 composite(
                     &mut c,
                     &sc,
@@ -309,7 +339,8 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
             let mut c = Canvas::new(w, h);
             if let Some(sk) = geom::to_sk(&l.outline, at) {
                 let cov = geom::fill_coverage(&sk, w, h, FillRule::Nonzero);
-                let fill_c = paint::paint_canvas(fill, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
+                let fill_c =
+                    paint::paint_canvas(fill, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
                 composite(
                     &mut c,
                     &fill_c,
@@ -320,7 +351,9 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
                 );
                 if let Some(s) = stroke {
                     let scov = geom::stroke_coverage(&sk, s, ctx.scale, w, h);
-                    let sc = paint::paint_canvas(&s.paint, w, h, ctx.scale, &|d, tw, th| (ctx.link)(d, tw, th))?;
+                    let sc = paint::paint_canvas(&s.paint, w, h, ctx.scale, &|d, tw, th| {
+                        (ctx.link)(d, tw, th)
+                    })?;
                     composite(
                         &mut c,
                         &sc,
@@ -343,9 +376,11 @@ pub fn render_layer(layer: &Layer, ctx: &Ctx<'_>) -> Result<Canvas> {
             }
         }
         LayerKind::Adjustment { .. } => Canvas::new(w, h),
-        LayerKind::Linked { document, fit, r#box } => {
-            render_linked(document, *fit, *r#box, at, ctx)?
-        }
+        LayerKind::Linked {
+            document,
+            fit,
+            r#box,
+        } => render_linked(document, *fit, *r#box, at, ctx)?,
     };
 
     if let Some(cov) = layer_mask_coverage(layer, ctx)? {
@@ -429,7 +464,10 @@ fn render_link(
     depth: usize,
 ) -> Result<Pixmap> {
     if depth >= MAX_LINK_DEPTH {
-        return Err(Error::CyclicLink { from: id.to_string(), to: id.to_string() });
+        return Err(Error::CyclicLink {
+            from: id.to_string(),
+            to: id.to_string(),
+        });
     }
     let doc = project.doc(id)?;
     let rd = doc.as_raster().ok_or_else(|| {

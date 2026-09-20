@@ -28,8 +28,8 @@ pub fn ops() -> Vec<Box<dyn Op>> {
 /// Apply a document-space matrix to an object by composing it into the object's own
 /// transform, with the ancestor transform divided out so the visible result matches.
 fn apply_world(v: &mut VectorDoc, id: &ObjectId, m: Affine) -> Result<()> {
-    let (_, parent) = geom::locate(v, id)
-        .ok_or_else(|| Error::Invalid(format!("object '{id}' vanished")))?;
+    let (_, parent) =
+        geom::locate(v, id).ok_or_else(|| Error::Invalid(format!("object '{id}' vanished")))?;
     let local = parent.inverse() * m * parent;
     let o = v
         .object_mut(id)
@@ -92,7 +92,12 @@ pub struct TranslateArgs {
     pub dy: f64,
 }
 
-vop!(Translate, TranslateArgs, "vector.transform.translate", "Move objects by an offset");
+vop!(
+    Translate,
+    TranslateArgs,
+    "vector.transform.translate",
+    "Move objects by an offset"
+);
 
 impl Translate {
     fn run(project: &mut Project, a: TranslateArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -118,7 +123,12 @@ pub struct RotateArgs {
     pub around: Option<[f64; 2]>,
 }
 
-vop!(Rotate, RotateArgs, "vector.transform.rotate", "Rotate objects about a pivot");
+vop!(
+    Rotate,
+    RotateArgs,
+    "vector.transform.rotate",
+    "Rotate objects about a pivot"
+);
 
 impl Rotate {
     fn run(project: &mut Project, a: RotateArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -147,7 +157,12 @@ pub struct ScaleArgs {
     pub around: Option<[f64; 2]>,
 }
 
-vop!(Scale, ScaleArgs, "vector.transform.scale", "Scale objects about a pivot; negative factors mirror");
+vop!(
+    Scale,
+    ScaleArgs,
+    "vector.transform.scale",
+    "Scale objects about a pivot; negative factors mirror"
+);
 
 impl Scale {
     fn run(project: &mut Project, a: ScaleArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -182,7 +197,12 @@ pub struct SkewArgs {
     pub around: Option<[f64; 2]>,
 }
 
-vop!(Skew, SkewArgs, "vector.transform.skew", "Skew objects about a pivot");
+vop!(
+    Skew,
+    SkewArgs,
+    "vector.transform.skew",
+    "Skew objects about a pivot"
+);
 
 impl Skew {
     fn run(project: &mut Project, a: SkewArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -224,7 +244,12 @@ pub struct MatrixArgs {
     pub replace: bool,
 }
 
-vop!(Matrix, MatrixArgs, "vector.transform.matrix", "Apply an arbitrary affine matrix");
+vop!(
+    Matrix,
+    MatrixArgs,
+    "vector.transform.matrix",
+    "Apply an arbitrary affine matrix"
+);
 
 impl Matrix {
     fn run(project: &mut Project, a: MatrixArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -259,7 +284,12 @@ pub struct FlattenArgs {
     pub target: String,
 }
 
-vop!(Flatten, FlattenArgs, "vector.transform.flatten", "Bake transforms into geometry so the object's matrix becomes the identity");
+vop!(
+    Flatten,
+    FlattenArgs,
+    "vector.transform.flatten",
+    "Bake transforms into geometry so the object's matrix becomes the identity"
+);
 
 impl Flatten {
     fn run(project: &mut Project, a: FlattenArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -323,7 +353,12 @@ pub struct AlignArgs {
     pub to: AlignTo,
 }
 
-vop!(Align, AlignArgs, "vector.transform.align", "Align objects to a shared edge or centre line");
+vop!(
+    Align,
+    AlignArgs,
+    "vector.transform.align",
+    "Align objects to a shared edge or centre line"
+);
 
 impl Align {
     fn run(project: &mut Project, a: AlignArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -379,7 +414,12 @@ pub struct DistributeArgs {
     pub gaps: bool,
 }
 
-vop!(Distribute, DistributeArgs, "vector.transform.distribute", "Space objects evenly along an axis");
+vop!(
+    Distribute,
+    DistributeArgs,
+    "vector.transform.distribute",
+    "Space objects evenly along an axis"
+);
 
 impl Distribute {
     fn run(project: &mut Project, a: DistributeArgs, cx: &mut OpCx) -> Result<OpEffect> {

@@ -18,10 +18,7 @@ pub fn store() -> (tempfile::TempDir, AssetStore) {
 /// A project whose active document is an empty model document.
 pub fn model_project() -> (Project, DocId) {
     let doc = DocId::from("doc_scene");
-    let project = Project::new(
-        "test",
-        Document::Model(ModelDoc::new(doc.clone(), "scene")),
-    );
+    let project = Project::new("test", Document::Model(ModelDoc::new(doc.clone(), "scene")));
     (project, doc)
 }
 
@@ -33,9 +30,13 @@ pub fn add_vector_doc(project: &mut Project, paths: &[(&str, &str)], rule: FillR
         let mut o = VObject::new(
             (*obj).into(),
             *obj,
-            VKind::Path { d: (*d).to_string() },
+            VKind::Path {
+                d: (*d).to_string(),
+            },
         );
-        o.fill = Paint::Solid { color: Color::WHITE };
+        o.fill = Paint::Solid {
+            color: Color::WHITE,
+        };
         o.fill_rule = rule;
         v.objects.push(o);
     }

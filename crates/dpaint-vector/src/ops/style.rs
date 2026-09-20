@@ -39,7 +39,12 @@ pub struct FillArgs {
     pub color: String,
 }
 
-vop!(Fill, FillArgs, "vector.style.fill", "Set a solid fill colour, or clear the fill with 'none'");
+vop!(
+    Fill,
+    FillArgs,
+    "vector.style.fill",
+    "Set a solid fill colour, or clear the fill with 'none'"
+);
 
 impl Fill {
     fn run(project: &mut Project, a: FillArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -82,7 +87,12 @@ pub struct StrokeArgs {
     pub miter: Option<f64>,
 }
 
-vop!(StrokeOp, StrokeArgs, "vector.style.stroke", "Set stroke colour, width, caps, joins and miter limit");
+vop!(
+    StrokeOp,
+    StrokeArgs,
+    "vector.style.stroke",
+    "Set stroke colour, width, caps, joins and miter limit"
+);
 
 impl StrokeOp {
     fn run(project: &mut Project, a: StrokeArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -116,7 +126,10 @@ impl StrokeOp {
                 continue;
             }
             let s = o.stroke.get_or_insert_with(|| {
-                Stroke::solid(color.unwrap_or(dpaint_core::Color::BLACK), a.width.unwrap_or(1.0))
+                Stroke::solid(
+                    color.unwrap_or(dpaint_core::Color::BLACK),
+                    a.width.unwrap_or(1.0),
+                )
             });
             if let Some(c) = color {
                 s.paint = Paint::solid(c);
@@ -183,7 +196,12 @@ pub struct GradientArgs {
     pub slot: PaintSlot,
 }
 
-vop!(Gradient, GradientArgs, "vector.style.gradient", "Set a linear or radial gradient on the fill or the stroke");
+vop!(
+    Gradient,
+    GradientArgs,
+    "vector.style.gradient",
+    "Set a linear or radial gradient on the fill or the stroke"
+);
 
 impl Gradient {
     fn run(project: &mut Project, a: GradientArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -278,7 +296,12 @@ pub struct DashArgs {
     pub offset: f64,
 }
 
-vop!(Dash, DashArgs, "vector.style.dash", "Set or clear a stroke dash pattern");
+vop!(
+    Dash,
+    DashArgs,
+    "vector.style.dash",
+    "Set or clear a stroke dash pattern"
+);
 
 impl Dash {
     fn run(project: &mut Project, a: DashArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -327,7 +350,12 @@ pub struct OpacityArgs {
     pub locked: Option<bool>,
 }
 
-vop!(Opacity, OpacityArgs, "vector.style.opacity", "Set object opacity, visibility and lock state");
+vop!(
+    Opacity,
+    OpacityArgs,
+    "vector.style.opacity",
+    "Set object opacity, visibility and lock state"
+);
 
 impl Opacity {
     fn run(project: &mut Project, a: OpacityArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -348,7 +376,11 @@ impl Opacity {
         let clamped = a.opacity.map(|o| o.clamp(0.0, 1.0));
         if let (Some(raw), Some(c)) = (a.opacity, clamped) {
             if (raw - c).abs() > f64::EPSILON {
-                eff = eff.warn("clamped", a.target.clone(), format!("opacity {raw} clamped to {c}"));
+                eff = eff.warn(
+                    "clamped",
+                    a.target.clone(),
+                    format!("opacity {raw} clamped to {c}"),
+                );
             }
         }
         let v = project.vector_mut(&doc)?;
@@ -378,7 +410,12 @@ pub struct BlendArgs {
     pub mode: BlendMode,
 }
 
-vop!(Blend, BlendArgs, "vector.style.blend", "Set the blend mode used to composite an object");
+vop!(
+    Blend,
+    BlendArgs,
+    "vector.style.blend",
+    "Set the blend mode used to composite an object"
+);
 
 impl Blend {
     fn run(project: &mut Project, a: BlendArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -405,7 +442,12 @@ pub struct FillRuleArgs {
     pub rule: FillRule,
 }
 
-vop!(FillRuleOp, FillRuleArgs, "vector.style.fill-rule", "Choose the nonzero or even-odd fill rule");
+vop!(
+    FillRuleOp,
+    FillRuleArgs,
+    "vector.style.fill-rule",
+    "Choose the nonzero or even-odd fill rule"
+);
 
 impl FillRuleOp {
     fn run(project: &mut Project, a: FillRuleArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -458,7 +500,12 @@ pub struct MarkerArgs {
     pub size: Option<f64>,
 }
 
-vop!(Marker, MarkerArgs, "vector.style.marker", "Place arrowheads or dots at a path's ends as real, editable geometry");
+vop!(
+    Marker,
+    MarkerArgs,
+    "vector.style.marker",
+    "Place arrowheads or dots at a path's ends as real, editable geometry"
+);
 
 impl Marker {
     fn run(project: &mut Project, a: MarkerArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -494,7 +541,9 @@ impl Marker {
             for (slot, (pt, dir)) in [("start", start), ("end", end)] {
                 let wanted = matches!(
                     (a.at, slot),
-                    (MarkerWhere::Both, _) | (MarkerWhere::Start, "start") | (MarkerWhere::End, "end")
+                    (MarkerWhere::Both, _)
+                        | (MarkerWhere::Start, "start")
+                        | (MarkerWhere::End, "end")
                 );
                 let name = format!("{}-marker-{slot}", o.name);
                 drop_names.push(name.clone());
@@ -502,9 +551,13 @@ impl Marker {
                     continue;
                 }
                 let geo = marker_path(a.shape, pt, dir, size);
-                let mut m = VObject::new(ObjectId::from("obj_placeholder"), name.clone(), VKind::Path {
-                    d: geom::to_d(&geo),
-                });
+                let mut m = VObject::new(
+                    ObjectId::from("obj_placeholder"),
+                    name.clone(),
+                    VKind::Path {
+                        d: geom::to_d(&geo),
+                    },
+                );
                 m.fill = paint.clone();
                 plan.push((id.clone(), name, m));
             }
@@ -566,8 +619,7 @@ fn marker_path(shape: MarkerShape, at: Point, dir: Vec2, size: f64) -> BezPath {
             p.close_path();
         }
         MarkerShape::Circle => {
-            p = dpaint_core::kurbo::Circle::new(Point::new(0.0, 0.0), h)
-                .to_path(1e-3);
+            p = dpaint_core::kurbo::Circle::new(Point::new(0.0, 0.0), h).to_path(1e-3);
         }
         MarkerShape::Square => {
             p = dpaint_core::kurbo::Rect::new(-h, -h, h, h).to_path(1e-3);
@@ -600,7 +652,12 @@ fn yes() -> bool {
     true
 }
 
-vop!(Copy, CopyArgs, "vector.style.copy", "Copy fill, stroke and compositing from one object onto others");
+vop!(
+    Copy,
+    CopyArgs,
+    "vector.style.copy",
+    "Copy fill, stroke and compositing from one object onto others"
+);
 
 impl Copy {
     fn run(project: &mut Project, a: CopyArgs, cx: &mut OpCx) -> Result<OpEffect> {

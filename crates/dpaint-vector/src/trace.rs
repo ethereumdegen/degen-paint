@@ -62,7 +62,9 @@ pub struct TracedShape {
 pub fn trace(pm: &tiny_skia::Pixmap, opts: &TraceOptions) -> Result<Vec<TracedShape>> {
     let (w, h) = (pm.width() as usize, pm.height() as usize);
     if w == 0 || h == 0 {
-        return Err(Error::DegenerateGeometry("cannot trace an empty image".into()));
+        return Err(Error::DegenerateGeometry(
+            "cannot trace an empty image".into(),
+        ));
     }
     let px: Vec<[f32; 4]> = pm
         .pixels()
@@ -87,10 +89,7 @@ pub fn trace(pm: &tiny_skia::Pixmap, opts: &TraceOptions) -> Result<Vec<TracedSh
     match opts.mode {
         TraceMode::Binary => {
             let t = opts.threshold.clamp(0.0, 1.0) as f32;
-            let mask: Vec<bool> = px
-                .iter()
-                .map(|c| c[3] > 0.5 && luma(c) < t)
-                .collect();
+            let mask: Vec<bool> = px.iter().map(|c| c[3] > 0.5 && luma(c) < t).collect();
             let mut avg = [0.0f32; 3];
             let mut n = 0.0f32;
             for (c, m) in px.iter().zip(&mask) {
@@ -133,7 +132,11 @@ pub fn trace(pm: &tiny_skia::Pixmap, opts: &TraceOptions) -> Result<Vec<TracedSh
         }
     }
     // Largest first: the painter's-algorithm order an editor expects.
-    out.sort_by(|a, b| b.area.partial_cmp(&a.area).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.area
+            .partial_cmp(&a.area)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     if out.is_empty() {
         return Err(Error::DegenerateGeometry(
             "tracing found no regions; adjust the threshold or speckle filter".into(),
@@ -180,7 +183,9 @@ fn median_cut(px: &[[f32; 4]], k: usize) -> Vec<Color> {
                     }
                 }
                 let spans = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
-                let ch = (0..3).max_by(|a, b| spans[*a].total_cmp(&spans[*b])).unwrap();
+                let ch = (0..3)
+                    .max_by(|a, b| spans[*a].total_cmp(&spans[*b]))
+                    .unwrap();
                 (i, ch, spans[ch])
             })
             .max_by(|a, b| a.2.total_cmp(&b.2))
@@ -329,7 +334,9 @@ fn marching_squares(mask: &[bool], w: usize, h: usize) -> Vec<Vec<Point>> {
             let mut ring = Vec::new();
             let mut cur = s;
             loop {
-                let Some(nexts) = links.get_mut(&cur) else { break };
+                let Some(nexts) = links.get_mut(&cur) else {
+                    break;
+                };
                 let Some(next) = nexts.pop() else { break };
                 ring.push(Point::new(cur.0 as f64 / 2.0, cur.1 as f64 / 2.0));
                 if next == s {
@@ -420,7 +427,10 @@ mod tests {
         let a = geom::area(&shapes[0].path);
         assert!((a - 1024.0).abs() < 80.0, "traced area {a} ~ 32x32");
         let b = geom::bbox(&shapes[0].path).unwrap();
-        assert!((b.x0 - 15.5).abs() < 1.5 && (b.x1 - 47.5).abs() < 1.5, "bbox {b:?}");
+        assert!(
+            (b.x0 - 15.5).abs() < 1.5 && (b.x1 - 47.5).abs() < 1.5,
+            "bbox {b:?}"
+        );
     }
 
     #[test]
@@ -439,7 +449,10 @@ mod tests {
         let path = &shapes[0].path;
         assert_eq!(geom::split_subpaths(path).len(), 2, "outer plus hole");
         let a = geom::area(path);
-        assert!((a - (48.0 * 48.0 - 16.0 * 16.0)).abs() < 150.0, "ring area {a}");
+        assert!(
+            (a - (48.0 * 48.0 - 16.0 * 16.0)).abs() < 150.0,
+            "ring area {a}"
+        );
     }
 
     #[test]
@@ -460,7 +473,8 @@ mod tests {
         opts.speckle = 20.0;
         let filtered = trace(&pm, &opts).unwrap();
         assert!(
-            geom::split_subpaths(&all[0].path).len() > geom::split_subpaths(&filtered[0].path).len(),
+            geom::split_subpaths(&all[0].path).len()
+                > geom::split_subpaths(&filtered[0].path).len(),
             "the 2x2 dot is filtered out"
         );
     }

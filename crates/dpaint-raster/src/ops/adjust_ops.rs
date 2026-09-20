@@ -85,7 +85,10 @@ fn curves(project: &mut Project, a: CurvesArgs, cx: &mut OpCx) -> Result<OpEffec
     run(
         project,
         &a.target,
-        Adjustment::Curves { channel: a.channel, points: a.points },
+        Adjustment::Curves {
+            channel: a.channel,
+            points: a.points,
+        },
         a.scope,
         a.as_layer,
         cx,
@@ -164,7 +167,10 @@ fn brightness_contrast(
     run(
         project,
         &a.target,
-        Adjustment::BrightnessContrast { brightness: a.brightness, contrast: a.contrast },
+        Adjustment::BrightnessContrast {
+            brightness: a.brightness,
+            contrast: a.contrast,
+        },
         a.scope,
         a.as_layer,
         cx,
@@ -193,7 +199,11 @@ fn hsl(project: &mut Project, a: HslArgs, cx: &mut OpCx) -> Result<OpEffect> {
     run(
         project,
         &a.target,
-        Adjustment::Hsl { hue: a.hue, saturation: a.saturation, lightness: a.lightness },
+        Adjustment::Hsl {
+            hue: a.hue,
+            saturation: a.saturation,
+            lightness: a.lightness,
+        },
         a.scope,
         a.as_layer,
         cx,
@@ -252,7 +262,10 @@ fn exposure(project: &mut Project, a: ExposureArgs, cx: &mut OpCx) -> Result<OpE
     run(
         project,
         &a.target,
-        Adjustment::Exposure { stops: a.stops, offset: a.offset },
+        Adjustment::Exposure {
+            stops: a.stops,
+            offset: a.offset,
+        },
         a.scope,
         a.as_layer,
         cx,
@@ -271,7 +284,14 @@ pub struct ChannelMixerArgs {
 }
 
 fn channel_mixer(project: &mut Project, a: ChannelMixerArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    run(project, &a.target, Adjustment::ChannelMixer { matrix: a.matrix }, a.scope, a.as_layer, cx)
+    run(
+        project,
+        &a.target,
+        Adjustment::ChannelMixer { matrix: a.matrix },
+        a.scope,
+        a.as_layer,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -291,7 +311,14 @@ fn half() -> f64 {
 }
 
 fn threshold(project: &mut Project, a: ThresholdArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    run(project, &a.target, Adjustment::Threshold { level: a.level }, a.scope, a.as_layer, cx)
+    run(
+        project,
+        &a.target,
+        Adjustment::Threshold { level: a.level },
+        a.scope,
+        a.as_layer,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -314,7 +341,14 @@ fn posterize(project: &mut Project, a: PosterizeArgs, cx: &mut OpCx) -> Result<O
     if a.levels < 2 {
         return Err(Error::Invalid("posterize needs at least 2 levels".into()));
     }
-    run(project, &a.target, Adjustment::Posterize { levels: a.levels }, a.scope, a.as_layer, cx)
+    run(
+        project,
+        &a.target,
+        Adjustment::Posterize { levels: a.levels },
+        a.scope,
+        a.as_layer,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -327,7 +361,14 @@ pub struct PlainArgs {
 }
 
 fn invert(project: &mut Project, a: PlainArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    run(project, &a.target, Adjustment::Invert, a.scope, a.as_layer, cx)
+    run(
+        project,
+        &a.target,
+        Adjustment::Invert,
+        a.scope,
+        a.as_layer,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -343,7 +384,14 @@ pub struct DesaturateArgs {
 }
 
 fn desaturate(project: &mut Project, a: DesaturateArgs, cx: &mut OpCx) -> Result<OpEffect> {
-    run(project, &a.target, Adjustment::Desaturate { mode: a.mode }, a.scope, a.as_layer, cx)
+    run(
+        project,
+        &a.target,
+        Adjustment::Desaturate { mode: a.mode },
+        a.scope,
+        a.as_layer,
+        cx,
+    )
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -365,25 +413,100 @@ fn lut(project: &mut Project, a: LutArgs, cx: &mut OpCx) -> Result<OpEffect> {
     run(
         project,
         &a.target,
-        Adjustment::Lut { asset: a.asset, amount: a.amount },
+        Adjustment::Lut {
+            asset: a.asset,
+            amount: a.amount,
+        },
         a.scope,
         a.as_layer,
         cx,
     )
 }
 
-raster_op!(Curves, "raster.adjust.curves", "Apply a monotone tone curve", CurvesArgs, curves);
-raster_op!(Levels, "raster.adjust.levels", "Remap black point, white point and gamma", LevelsArgs, levels);
-raster_op!(BrightnessContrast, "raster.adjust.brightness-contrast", "Shift brightness and contrast", BrightnessContrastArgs, brightness_contrast);
-raster_op!(Hsl, "raster.adjust.hsl", "Rotate hue and change saturation and lightness", HslArgs, hsl);
-raster_op!(ColorBalance, "raster.adjust.color-balance", "Shift color per tonal range", ColorBalanceArgs, color_balance);
-raster_op!(Exposure, "raster.adjust.exposure", "Change exposure in stops, in linear light", ExposureArgs, exposure);
-raster_op!(ChannelMixer, "raster.adjust.channel-mixer", "Mix output channels from input channels", ChannelMixerArgs, channel_mixer);
-raster_op!(Threshold, "raster.adjust.threshold", "Reduce to black and white at a luminance cutoff", ThresholdArgs, threshold);
-raster_op!(Posterize, "raster.adjust.posterize", "Quantize tones to a number of steps", PosterizeArgs, posterize);
-raster_op!(Invert, "raster.adjust.invert", "Invert colors", PlainArgs, invert);
-raster_op!(Desaturate, "raster.adjust.desaturate", "Convert to gray", DesaturateArgs, desaturate);
-raster_op!(Lut, "raster.adjust.lut", "Apply a HALD color lookup cube", LutArgs, lut);
+raster_op!(
+    Curves,
+    "raster.adjust.curves",
+    "Apply a monotone tone curve",
+    CurvesArgs,
+    curves
+);
+raster_op!(
+    Levels,
+    "raster.adjust.levels",
+    "Remap black point, white point and gamma",
+    LevelsArgs,
+    levels
+);
+raster_op!(
+    BrightnessContrast,
+    "raster.adjust.brightness-contrast",
+    "Shift brightness and contrast",
+    BrightnessContrastArgs,
+    brightness_contrast
+);
+raster_op!(
+    Hsl,
+    "raster.adjust.hsl",
+    "Rotate hue and change saturation and lightness",
+    HslArgs,
+    hsl
+);
+raster_op!(
+    ColorBalance,
+    "raster.adjust.color-balance",
+    "Shift color per tonal range",
+    ColorBalanceArgs,
+    color_balance
+);
+raster_op!(
+    Exposure,
+    "raster.adjust.exposure",
+    "Change exposure in stops, in linear light",
+    ExposureArgs,
+    exposure
+);
+raster_op!(
+    ChannelMixer,
+    "raster.adjust.channel-mixer",
+    "Mix output channels from input channels",
+    ChannelMixerArgs,
+    channel_mixer
+);
+raster_op!(
+    Threshold,
+    "raster.adjust.threshold",
+    "Reduce to black and white at a luminance cutoff",
+    ThresholdArgs,
+    threshold
+);
+raster_op!(
+    Posterize,
+    "raster.adjust.posterize",
+    "Quantize tones to a number of steps",
+    PosterizeArgs,
+    posterize
+);
+raster_op!(
+    Invert,
+    "raster.adjust.invert",
+    "Invert colors",
+    PlainArgs,
+    invert
+);
+raster_op!(
+    Desaturate,
+    "raster.adjust.desaturate",
+    "Convert to gray",
+    DesaturateArgs,
+    desaturate
+);
+raster_op!(
+    Lut,
+    "raster.adjust.lut",
+    "Apply a HALD color lookup cube",
+    LutArgs,
+    lut
+);
 
 pub fn ops() -> Vec<Box<dyn dpaint_core::Op>> {
     vec![

@@ -37,11 +37,7 @@ pub fn path_in_doc(v: &VectorDoc, object: &ObjectId) -> Result<BezPath> {
 
 /// The object and the product of all of its *ancestors'* transforms.
 pub fn locate<'a>(v: &'a VectorDoc, id: &ObjectId) -> Option<(&'a VObject, Affine)> {
-    fn rec<'a>(
-        os: &'a [VObject],
-        id: &ObjectId,
-        acc: Affine,
-    ) -> Option<(&'a VObject, Affine)> {
+    fn rec<'a>(os: &'a [VObject], id: &ObjectId, acc: Affine) -> Option<(&'a VObject, Affine)> {
         for o in os {
             if &o.id == id {
                 return Some((o, acc));
@@ -116,7 +112,9 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
                     obj.id
                 )));
             }
-            Ok(regular_polygon(*center, *radius, *radius, *sides, *rotation))
+            Ok(regular_polygon(
+                *center, *radius, *radius, *sides, *rotation,
+            ))
         }
         VKind::Star {
             center,
@@ -131,7 +129,13 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
                     obj.id
                 )));
             }
-            Ok(regular_polygon(*center, *outer, *inner, points * 2, *rotation))
+            Ok(regular_polygon(
+                *center,
+                *outer,
+                *inner,
+                points * 2,
+                *rotation,
+            ))
         }
         VKind::Line { from, to } => {
             let mut p = BezPath::new();
@@ -157,7 +161,14 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
                 Some(tp) => {
                     let target = path_in_doc(v, &tp.target)?;
                     let flat = flatten(&target, DEFAULT_TOLERANCE);
-                    Ok(text::outline_on_path(fonts, spec, &flat, tp.offset, tp.side == PathSide::Right).0)
+                    Ok(text::outline_on_path(
+                        fonts,
+                        spec,
+                        &flat,
+                        tp.offset,
+                        tp.side == PathSide::Right,
+                    )
+                    .0)
                 }
                 None => Ok(text::outline_block(fonts, spec, (origin[0], origin[1])).0),
             }
@@ -167,7 +178,13 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
 
 /// Star / polygon generator. `rotation` is degrees clockwise from "first vertex straight up",
 /// which is what both Inkscape and Illustrator show the user.
-pub fn regular_polygon(center: [f64; 2], outer: f64, inner: f64, verts: u32, rotation: f64) -> BezPath {
+pub fn regular_polygon(
+    center: [f64; 2],
+    outer: f64,
+    inner: f64,
+    verts: u32,
+    rotation: f64,
+) -> BezPath {
     let mut p = BezPath::new();
     let base = -std::f64::consts::FRAC_PI_2 + rotation.to_radians();
     let step = std::f64::consts::TAU / verts as f64;
@@ -250,7 +267,12 @@ pub fn flatten(p: &BezPath, tol: f64) -> Vec<Subpath> {
         }
         PathEl::LineTo(pt) => {
             if let Some(sp) = cur.as_mut() {
-                if sp.points.last().map(|l| l.distance(pt) > 1e-12).unwrap_or(true) {
+                if sp
+                    .points
+                    .last()
+                    .map(|l| l.distance(pt) > 1e-12)
+                    .unwrap_or(true)
+                {
                     sp.points.push(pt);
                 }
             }
@@ -258,8 +280,7 @@ pub fn flatten(p: &BezPath, tol: f64) -> Vec<Subpath> {
         PathEl::ClosePath => {
             if let Some(mut sp) = cur.take() {
                 sp.closed = true;
-                if sp.points.len() > 2
-                    && sp.points[0].distance(*sp.points.last().unwrap()) < 1e-12
+                if sp.points.len() > 2 && sp.points[0].distance(*sp.points.last().unwrap()) < 1e-12
                 {
                     sp.points.pop();
                 }
@@ -397,7 +418,11 @@ pub fn sample(p: &BezPath, t: f64) -> Option<(Point, Vec2)> {
                 PathSeg::Quad(x) => x.deriv().eval(u).to_vec2(),
                 PathSeg::Cubic(x) => x.deriv().eval(u).to_vec2(),
             };
-            let d = if d.hypot() < 1e-12 { Vec2::new(1.0, 0.0) } else { d.normalize() };
+            let d = if d.hypot() < 1e-12 {
+                Vec2::new(1.0, 0.0)
+            } else {
+                d.normalize()
+            };
             return Some((s.eval(u), d));
         }
         acc += l;
@@ -437,7 +462,11 @@ trait SegIntersect {
 impl SegIntersect for PathSeg {
     fn intersect_line_or_curve(&self, other: &PathSeg) -> Vec<f64> {
         if let PathSeg::Line(l) = other {
-            return self.intersect_line(*l).iter().map(|h| h.segment_t).collect();
+            return self
+                .intersect_line(*l)
+                .iter()
+                .map(|h| h.segment_t)
+                .collect();
         }
         let mut out = Vec::new();
         subdivide_intersect(self, (0.0, 1.0), other, (0.0, 1.0), 0, &mut out);
@@ -570,7 +599,11 @@ mod tests {
         d.objects.push(g);
         let p = path_in_doc(&d, &ObjectId::from("obj_c")).unwrap();
         let b = bbox(&p).unwrap();
-        assert!((b.width() - 20.0).abs() < 1e-9, "x scale applies, got {}", b.width());
+        assert!(
+            (b.width() - 20.0).abs() < 1e-9,
+            "x scale applies, got {}",
+            b.width()
+        );
         assert!((b.height() - 30.0).abs() < 1e-9);
     }
 
@@ -591,7 +624,10 @@ mod tests {
         p.line_to(Point::new(10.0, 0.0));
         p.line_to(Point::new(10.0, 10.0));
         let (mid, tan) = sample(&p, 0.5).unwrap();
-        assert!((mid.x - 10.0).abs() < 1e-6 && mid.y.abs() < 1e-6, "midpoint at the corner: {mid:?}");
+        assert!(
+            (mid.x - 10.0).abs() < 1e-6 && mid.y.abs() < 1e-6,
+            "midpoint at the corner: {mid:?}"
+        );
         assert!(tan.x.abs() < 1e-6 || tan.y.abs() < 1e-6);
         let (end, _) = sample(&p, 1.0).unwrap();
         assert!((end.y - 10.0).abs() < 1e-6);

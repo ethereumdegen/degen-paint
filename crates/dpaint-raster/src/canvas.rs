@@ -30,7 +30,11 @@ pub struct Canvas {
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         let (width, height) = (width.max(1), height.max(1));
-        Self { width, height, data: vec![0.0; width as usize * height as usize * 4] }
+        Self {
+            width,
+            height,
+            data: vec![0.0; width as usize * height as usize * 4],
+        }
     }
 
     pub fn filled(width: u32, height: u32, px: [f32; 4]) -> Self {
@@ -54,7 +58,12 @@ impl Canvas {
     #[inline]
     pub fn get(&self, x: u32, y: u32) -> [f32; 4] {
         let i = self.idx(x, y);
-        [self.data[i], self.data[i + 1], self.data[i + 2], self.data[i + 3]]
+        [
+            self.data[i],
+            self.data[i + 1],
+            self.data[i + 2],
+            self.data[i + 3],
+        ]
     }
 
     #[inline]
@@ -250,7 +259,12 @@ impl Canvas {
         if a <= 0.0 {
             return [0.0, 0.0, 0.0, 0.0];
         }
-        [self.data[i] / a, self.data[i + 1] / a, self.data[i + 2] / a, a]
+        [
+            self.data[i] / a,
+            self.data[i + 1] / a,
+            self.data[i + 2] / a,
+            a,
+        ]
     }
 
     #[inline]
@@ -284,7 +298,10 @@ pub fn encode_png(w: u32, h: u32, color: image::ColorType, bytes: &[u8]) -> Resu
 
 /// Encode an 8-bit coverage buffer (selection, layer mask) as a grayscale PNG.
 pub fn encode_gray_png(w: u32, h: u32, cov: &[f32]) -> Result<Vec<u8>> {
-    let bytes: Vec<u8> = cov.iter().map(|v| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8).collect();
+    let bytes: Vec<u8> = cov
+        .iter()
+        .map(|v| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8)
+        .collect();
     encode_png(w, h, image::ColorType::L8, &bytes)
 }
 
@@ -297,9 +314,15 @@ pub fn decode_gray_png(bytes: &[u8]) -> Result<(u32, u32, Vec<f32>)> {
     let cov = if has_alpha {
         // A mask stored as RGBA takes its coverage from alpha, which is what a
         // "make a mask out of this layer" round-trip produces.
-        img.to_rgba8().pixels().map(|p| p.0[3] as f32 / 255.0).collect()
+        img.to_rgba8()
+            .pixels()
+            .map(|p| p.0[3] as f32 / 255.0)
+            .collect()
     } else {
-        img.to_luma8().pixels().map(|p| p.0[0] as f32 / 255.0).collect()
+        img.to_luma8()
+            .pixels()
+            .map(|p| p.0[0] as f32 / 255.0)
+            .collect()
     };
     Ok((w, h, cov))
 }

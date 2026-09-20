@@ -166,7 +166,9 @@ fn node_reparent(project: &mut Project, args: NodeReparentArgs, cx: &mut OpCx) -
         .transpose()?;
     if let Some(p) = &parent {
         if p == &target {
-            return Err(Error::Invalid(format!("node '{target}' cannot parent itself")));
+            return Err(Error::Invalid(format!(
+                "node '{target}' cannot parent itself"
+            )));
         }
         let model = project.model(&doc)?;
         let mut stack = vec![target.clone()];

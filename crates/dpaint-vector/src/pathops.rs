@@ -276,7 +276,9 @@ pub fn offset(path: &BezPath, d: f64, rule: FillRule, tol: f64) -> Result<BezPat
     }
     let sps = flatten(path, tol);
     if sps.is_empty() {
-        return Err(Error::DegenerateGeometry("cannot offset an empty path".into()));
+        return Err(Error::DegenerateGeometry(
+            "cannot offset an empty path".into(),
+        ));
     }
     let closed: Vec<Subpath> = sps.iter().filter(|s| s.closed).cloned().collect();
     let open: Vec<Subpath> = sps.iter().filter(|s| !s.closed).cloned().collect();
@@ -465,7 +467,10 @@ fn max_deviation(candidate: &BezPath, reference: &[Point]) -> f64 {
 pub fn reverse(path: &BezPath) -> BezPath {
     let mut out = BezPath::new();
     for sub in crate::geom::split_subpaths(path) {
-        let closed = sub.elements().iter().any(|e| matches!(e, PathEl::ClosePath));
+        let closed = sub
+            .elements()
+            .iter()
+            .any(|e| matches!(e, PathEl::ClosePath));
         let segs: Vec<PathSeg> = sub.segments().collect();
         if segs.is_empty() {
             out.extend(sub);
@@ -490,7 +495,10 @@ pub fn reverse(path: &BezPath) -> BezPath {
 pub fn close_all(path: &BezPath) -> BezPath {
     let mut out = BezPath::new();
     for sub in crate::geom::split_subpaths(path) {
-        let already = sub.elements().iter().any(|e| matches!(e, PathEl::ClosePath));
+        let already = sub
+            .elements()
+            .iter()
+            .any(|e| matches!(e, PathEl::ClosePath));
         out.extend(sub.clone());
         if !already && sub.segments().next().is_some() {
             out.close_path();
@@ -530,14 +538,21 @@ pub fn round_corners(path: &BezPath, r: f64) -> Result<BezPath> {
     }
     let mut out = BezPath::new();
     for sub in crate::geom::split_subpaths(path) {
-        let closed = sub.elements().iter().any(|e| matches!(e, PathEl::ClosePath));
+        let closed = sub
+            .elements()
+            .iter()
+            .any(|e| matches!(e, PathEl::ClosePath));
         let segs: Vec<PathSeg> = sub.segments().collect();
         if segs.len() < 2 {
             out.extend(sub);
             continue;
         }
         let mut pieces: Vec<PathSeg> = segs.clone();
-        let count = if closed { pieces.len() } else { pieces.len() - 1 };
+        let count = if closed {
+            pieces.len()
+        } else {
+            pieces.len() - 1
+        };
         // Trim each pair of adjacent straight segments and remember the arc to insert.
         let mut arcs: Vec<Option<CubicBez>> = vec![None; pieces.len()];
         for i in 0..count {
@@ -703,9 +718,8 @@ pub fn from_nodes(subs: &[NodeSub]) -> BezPath {
 
 fn sub_mut<'a>(subs: &'a mut [NodeSub], i: usize) -> Result<&'a mut NodeSub> {
     let len = subs.len();
-    subs.get_mut(i).ok_or_else(|| {
-        Error::Invalid(format!("subpath {i} is out of range; the path has {len}"))
-    })
+    subs.get_mut(i)
+        .ok_or_else(|| Error::Invalid(format!("subpath {i} is out of range; the path has {len}")))
 }
 
 /// Insert a node partway along the segment that starts at node `index`.
@@ -766,18 +780,19 @@ pub fn node_remove(path: &BezPath, subpath: usize, index: usize) -> Result<BezPa
 }
 
 /// Move a node and drag its handles with it.
-pub fn node_move(path: &BezPath, subpath: usize, index: usize, to: Point, relative: bool) -> Result<BezPath> {
+pub fn node_move(
+    path: &BezPath,
+    subpath: usize,
+    index: usize,
+    to: Point,
+    relative: bool,
+) -> Result<BezPath> {
     let mut subs = to_nodes(path);
     let s = sub_mut(&mut subs, subpath)?;
-    let node = s
-        .nodes
-        .get_mut(index)
-        .ok_or_else(|| Error::Invalid(format!("node {index} is out of range in subpath {subpath}")))?;
-    let delta = if relative {
-        to.to_vec2()
-    } else {
-        to - node.pt
-    };
+    let node = s.nodes.get_mut(index).ok_or_else(|| {
+        Error::Invalid(format!("node {index} is out of range in subpath {subpath}"))
+    })?;
+    let delta = if relative { to.to_vec2() } else { to - node.pt };
     node.pt += delta;
     if let Some(c) = node.in_ctrl.as_mut() {
         *c += delta;
@@ -789,7 +804,12 @@ pub fn node_move(path: &BezPath, subpath: usize, index: usize, to: Point, relati
 }
 
 /// Reshape a node's handles into a corner, a smooth tangent, or a symmetric tangent.
-pub fn node_set_type(path: &BezPath, subpath: usize, index: usize, kind: NodeType) -> Result<BezPath> {
+pub fn node_set_type(
+    path: &BezPath,
+    subpath: usize,
+    index: usize,
+    kind: NodeType,
+) -> Result<BezPath> {
     let mut subs = to_nodes(path);
     let s = sub_mut(&mut subs, subpath)?;
     let n = s.nodes.len();
@@ -800,7 +820,11 @@ pub fn node_set_type(path: &BezPath, subpath: usize, index: usize, kind: NodeTyp
     }
     let node = s.nodes[index];
     let prev = if index == 0 {
-        if s.closed { Some(s.nodes[n - 1]) } else { None }
+        if s.closed {
+            Some(s.nodes[n - 1])
+        } else {
+            None
+        }
     } else {
         Some(s.nodes[index - 1])
     };
@@ -864,12 +888,26 @@ mod tests {
         let mut p = BezPath::new();
         p.move_to((0.0, 0.0));
         p.line_to((100.0, 0.0));
-        let o = outline_stroke(&p, 10.0, LineCap::Butt, LineJoin::Miter, 4.0, &[], 0.0, 0.01).unwrap();
+        let o = outline_stroke(
+            &p,
+            10.0,
+            LineCap::Butt,
+            LineJoin::Miter,
+            4.0,
+            &[],
+            0.0,
+            0.01,
+        )
+        .unwrap();
         assert!(
             o.elements().iter().any(|e| matches!(e, PathEl::ClosePath)),
             "the outline is a closed region"
         );
-        assert!((area(&o) - 1000.0).abs() < 0.5, "area {} ~ 100x10", area(&o));
+        assert!(
+            (area(&o) - 1000.0).abs() < 0.5,
+            "area {} ~ 100x10",
+            area(&o)
+        );
     }
 
     #[test]
@@ -877,11 +915,34 @@ mod tests {
         let mut p = BezPath::new();
         p.move_to((0.0, 0.0));
         p.line_to((100.0, 0.0));
-        let butt = outline_stroke(&p, 10.0, LineCap::Butt, LineJoin::Miter, 4.0, &[], 0.0, 0.005).unwrap();
-        let round = outline_stroke(&p, 10.0, LineCap::Round, LineJoin::Miter, 4.0, &[], 0.0, 0.005).unwrap();
+        let butt = outline_stroke(
+            &p,
+            10.0,
+            LineCap::Butt,
+            LineJoin::Miter,
+            4.0,
+            &[],
+            0.0,
+            0.005,
+        )
+        .unwrap();
+        let round = outline_stroke(
+            &p,
+            10.0,
+            LineCap::Round,
+            LineJoin::Miter,
+            4.0,
+            &[],
+            0.0,
+            0.005,
+        )
+        .unwrap();
         let extra = area(&round) - area(&butt);
         let disc = std::f64::consts::PI * 25.0;
-        assert!((extra - disc).abs() < 1.0, "two half discs = {disc}, got {extra}");
+        assert!(
+            (extra - disc).abs() < 1.0,
+            "two half discs = {disc}, got {extra}"
+        );
     }
 
     #[test]
@@ -889,11 +950,25 @@ mod tests {
         let mut p = BezPath::new();
         p.move_to((0.0, 0.0));
         p.line_to((100.0, 0.0));
-        let solid = outline_stroke(&p, 4.0, LineCap::Butt, LineJoin::Miter, 4.0, &[], 0.0, 0.01).unwrap();
-        let dashed =
-            outline_stroke(&p, 4.0, LineCap::Butt, LineJoin::Miter, 4.0, &[10.0, 10.0], 0.0, 0.01).unwrap();
+        let solid =
+            outline_stroke(&p, 4.0, LineCap::Butt, LineJoin::Miter, 4.0, &[], 0.0, 0.01).unwrap();
+        let dashed = outline_stroke(
+            &p,
+            4.0,
+            LineCap::Butt,
+            LineJoin::Miter,
+            4.0,
+            &[10.0, 10.0],
+            0.0,
+            0.01,
+        )
+        .unwrap();
         assert!((area(&solid) - 400.0).abs() < 0.5);
-        assert!((area(&dashed) - 200.0).abs() < 1.0, "half the ink: {}", area(&dashed));
+        assert!(
+            (area(&dashed) - 200.0).abs() < 1.0,
+            "half the ink: {}",
+            area(&dashed)
+        );
     }
 
     #[test]
@@ -911,7 +986,11 @@ mod tests {
     fn offsetting_inward_shrinks_the_area() {
         let sq = Rect::new(0.0, 0.0, 50.0, 50.0).to_path(1e-4);
         let o = offset(&sq, -5.0, FillRule::Nonzero, 0.01).unwrap();
-        assert!((area(&o) - 1600.0).abs() < 2.0, "40x40 remains, got {}", area(&o));
+        assert!(
+            (area(&o) - 1600.0).abs() < 2.0,
+            "40x40 remains, got {}",
+            area(&o)
+        );
     }
 
     #[test]
@@ -937,7 +1016,10 @@ mod tests {
         assert!((area(&r) - area(&c)).abs() < 1e-6);
         let first = c.segments().next().unwrap().start();
         let rev_end = r.segments().last().unwrap().end();
-        assert!(first.distance(rev_end) < 1e-9, "the reversed path ends where the original began");
+        assert!(
+            first.distance(rev_end) < 1e-9,
+            "the reversed path ends where the original began"
+        );
     }
 
     #[test]
@@ -945,7 +1027,10 @@ mod tests {
         let sq = Rect::new(0.0, 0.0, 100.0, 100.0).to_path(1e-6);
         let r = round_corners(&sq, 20.0).unwrap();
         let a = area(&r);
-        assert!(a < 10_000.0 && a > 9_500.0, "corners cut a little area: {a}");
+        assert!(
+            a < 10_000.0 && a > 9_500.0,
+            "corners cut a little area: {a}"
+        );
         assert!(crate::geom::length(&r) < crate::geom::length(&sq));
     }
 
@@ -963,7 +1048,10 @@ mod tests {
         let sq = Rect::new(0.0, 0.0, 10.0, 10.0).to_path(1e-6);
         let out = node_move(&sq, 0, 0, Point::new(-5.0, -5.0), true).unwrap();
         let b = bbox(&out).unwrap();
-        assert!((b.x0 + 5.0).abs() < 1e-9 && (b.y0 + 5.0).abs() < 1e-9, "{b:?}");
+        assert!(
+            (b.x0 + 5.0).abs() < 1e-9 && (b.y0 + 5.0).abs() < 1e-9,
+            "{b:?}"
+        );
     }
 
     #[test]
@@ -990,7 +1078,10 @@ mod tests {
         let mut b = BezPath::new();
         b.move_to((20.0, 0.0));
         b.line_to((30.0, 0.0));
-        assert_eq!(crate::geom::split_subpaths(&append(&[a.clone(), b.clone()], false)).len(), 2);
+        assert_eq!(
+            crate::geom::split_subpaths(&append(&[a.clone(), b.clone()], false)).len(),
+            2
+        );
         assert_eq!(crate::geom::split_subpaths(&append(&[a, b], true)).len(), 1);
     }
 
@@ -1002,6 +1093,10 @@ mod tests {
         p.line_to((10.0, 10.0));
         assert!((area(&p) - 0.0).abs() < 1e-9 || area(&p) > 0.0);
         let c = close_all(&p);
-        assert!((area(&c) - 50.0).abs() < 1e-9, "triangle closes to 50: {}", area(&c));
+        assert!(
+            (area(&c) - 50.0).abs() < 1e-9,
+            "triangle closes to 50: {}",
+            area(&c)
+        );
     }
 }

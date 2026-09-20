@@ -59,7 +59,12 @@ fn validate(
     Ok(())
 }
 
-vop!(ClipSet, SetArgs, "vector.clip.set", "Clip objects to another object's filled region");
+vop!(
+    ClipSet,
+    SetArgs,
+    "vector.clip.set",
+    "Clip objects to another object's filled region"
+);
 
 impl ClipSet {
     fn run(project: &mut Project, a: SetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -84,7 +89,12 @@ impl ClipSet {
     }
 }
 
-vop!(ClipRelease, ReleaseArgs, "vector.clip.release", "Remove a clip, leaving both objects in place");
+vop!(
+    ClipRelease,
+    ReleaseArgs,
+    "vector.clip.release",
+    "Remove a clip, leaving both objects in place"
+);
 
 impl ClipRelease {
     fn run(project: &mut Project, a: ReleaseArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -108,7 +118,12 @@ impl ClipRelease {
     }
 }
 
-vop!(MaskSet, SetArgs, "vector.mask.set", "Mask objects by another object's luminance");
+vop!(
+    MaskSet,
+    SetArgs,
+    "vector.mask.set",
+    "Mask objects by another object's luminance"
+);
 
 impl MaskSet {
     fn run(project: &mut Project, a: SetArgs, cx: &mut OpCx) -> Result<OpEffect> {
@@ -133,7 +148,12 @@ impl MaskSet {
     }
 }
 
-vop!(MaskRelease, ReleaseArgs, "vector.mask.release", "Remove a luminance mask");
+vop!(
+    MaskRelease,
+    ReleaseArgs,
+    "vector.mask.release",
+    "Remove a luminance mask"
+);
 
 impl MaskRelease {
     fn run(project: &mut Project, a: ReleaseArgs, cx: &mut OpCx) -> Result<OpEffect> {

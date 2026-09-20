@@ -39,7 +39,8 @@ fn shifted(c: &Canvas, dx: f64, dy: f64) -> Canvas {
     let mut out = Canvas::new(c.width, c.height);
     for y in 0..c.height {
         for x in 0..c.width {
-            let p = c.sample_outside_transparent(x as f32 + 0.5 - dx as f32, y as f32 + 0.5 - dy as f32);
+            let p = c
+                .sample_outside_transparent(x as f32 + 0.5 - dx as f32, y as f32 + 0.5 - dy as f32);
             out.set(x, y, p);
         }
     }
@@ -67,7 +68,12 @@ pub fn apply(content: &Canvas, effects: &[Effect], scale: f64) -> Canvas {
             Effect::Blur { radius } => {
                 cur = gaussian_blur(&cur, (radius * scale / 2.0).max(0.0) as f32);
             }
-            Effect::DropShadow { dx, dy, blur, color } => {
+            Effect::DropShadow {
+                dx,
+                dy,
+                blur,
+                color,
+            } => {
                 let cov = blur_cov(w, h, &alpha_of(&cur), (blur * scale / 2.0) as f32);
                 let shadow = shifted(&silhouette(w, h, &cov, *color), dx * scale, dy * scale);
                 // Shadow goes *under* the content: composite content over the shadow.
@@ -79,13 +85,21 @@ pub fn apply(content: &Canvas, effects: &[Effect], scale: f64) -> Canvas {
                 let a = alpha_of(&cur);
                 let cov = blur_cov(w, h, &a, (blur * scale / 2.0).max(0.5) as f32);
                 // Only the part that spills outside the shape glows.
-                let outside: Vec<f32> =
-                    cov.iter().zip(&a).map(|(g, s)| (g * (1.0 - s)).clamp(0.0, 1.0)).collect();
+                let outside: Vec<f32> = cov
+                    .iter()
+                    .zip(&a)
+                    .map(|(g, s)| (g * (1.0 - s)).clamp(0.0, 1.0))
+                    .collect();
                 let mut base = silhouette(w, h, &outside, *color);
                 composite(&mut base, &cur, BlendMode::Normal, 1.0, &Coverage::Full, 0);
                 cur = base;
             }
-            Effect::InnerShadow { dx, dy, blur, color } => {
+            Effect::InnerShadow {
+                dx,
+                dy,
+                blur,
+                color,
+            } => {
                 let a = alpha_of(&cur);
                 // Shadow of the *hole*: invert coverage, offset, blur, clip to the shape.
                 let inverse: Vec<f32> = a.iter().map(|v| 1.0 - v).collect();
@@ -95,12 +109,26 @@ pub fn apply(content: &Canvas, effects: &[Effect], scale: f64) -> Canvas {
                 }
                 let moved = shifted(&inv_canvas, dx * scale, dy * scale);
                 let cov = blur_cov(w, h, &alpha_of(&moved), (blur * scale / 2.0) as f32);
-                let inner: Vec<f32> =
-                    cov.iter().zip(&a).map(|(g, s)| (g * s).clamp(0.0, 1.0)).collect();
+                let inner: Vec<f32> = cov
+                    .iter()
+                    .zip(&a)
+                    .map(|(g, s)| (g * s).clamp(0.0, 1.0))
+                    .collect();
                 let shadow = silhouette(w, h, &inner, *color);
-                composite(&mut cur, &shadow, BlendMode::Normal, 1.0, &Coverage::Full, 0);
+                composite(
+                    &mut cur,
+                    &shadow,
+                    BlendMode::Normal,
+                    1.0,
+                    &Coverage::Full,
+                    0,
+                );
             }
-            Effect::Stroke { width, color, align } => {
+            Effect::Stroke {
+                width,
+                color,
+                align,
+            } => {
                 let a = alpha_of(&cur);
                 let mut src = Canvas::new(w, h);
                 for (i, v) in a.iter().enumerate() {
@@ -109,22 +137,52 @@ pub fn apply(content: &Canvas, effects: &[Effect], scale: f64) -> Canvas {
                 let px = (width * scale).max(1.0);
                 let band = match align {
                     StrokeAlign::Outside => {
-                        let grown = alpha_of(&morphology(&src, MorphOp::Dilate, px.round() as u32, MorphShape::Disk));
-                        grown.iter().zip(&a).map(|(g, s)| (g - s).max(0.0)).collect::<Vec<f32>>()
+                        let grown = alpha_of(&morphology(
+                            &src,
+                            MorphOp::Dilate,
+                            px.round() as u32,
+                            MorphShape::Disk,
+                        ));
+                        grown
+                            .iter()
+                            .zip(&a)
+                            .map(|(g, s)| (g - s).max(0.0))
+                            .collect::<Vec<f32>>()
                     }
                     StrokeAlign::Inside => {
-                        let shrunk = alpha_of(&morphology(&src, MorphOp::Erode, px.round() as u32, MorphShape::Disk));
-                        a.iter().zip(&shrunk).map(|(s, e)| (s - e).max(0.0)).collect::<Vec<f32>>()
+                        let shrunk = alpha_of(&morphology(
+                            &src,
+                            MorphOp::Erode,
+                            px.round() as u32,
+                            MorphShape::Disk,
+                        ));
+                        a.iter()
+                            .zip(&shrunk)
+                            .map(|(s, e)| (s - e).max(0.0))
+                            .collect::<Vec<f32>>()
                     }
                     StrokeAlign::Center => {
                         let r = (px / 2.0).round().max(1.0) as u32;
-                        let grown = alpha_of(&morphology(&src, MorphOp::Dilate, r, MorphShape::Disk));
-                        let shrunk = alpha_of(&morphology(&src, MorphOp::Erode, r, MorphShape::Disk));
-                        grown.iter().zip(&shrunk).map(|(g, e)| (g - e).max(0.0)).collect::<Vec<f32>>()
+                        let grown =
+                            alpha_of(&morphology(&src, MorphOp::Dilate, r, MorphShape::Disk));
+                        let shrunk =
+                            alpha_of(&morphology(&src, MorphOp::Erode, r, MorphShape::Disk));
+                        grown
+                            .iter()
+                            .zip(&shrunk)
+                            .map(|(g, e)| (g - e).max(0.0))
+                            .collect::<Vec<f32>>()
                     }
                 };
                 let stroke = silhouette(w, h, &band, *color);
-                composite(&mut cur, &stroke, BlendMode::Normal, 1.0, &Coverage::Full, 0);
+                composite(
+                    &mut cur,
+                    &stroke,
+                    BlendMode::Normal,
+                    1.0,
+                    &Coverage::Full,
+                    0,
+                );
             }
         }
     }
@@ -150,12 +208,21 @@ mod tests {
         let c = square(40, 40);
         let out = apply(
             &c,
-            &[Effect::DropShadow { dx: 6.0, dy: 6.0, blur: 4.0, color: Color::BLACK }],
+            &[Effect::DropShadow {
+                dx: 6.0,
+                dy: 6.0,
+                blur: 4.0,
+                color: Color::BLACK,
+            }],
             1.0,
         );
         // Just outside the bottom-right corner was empty, now it is shadowed.
         assert_eq!(c.get(33, 33)[3], 0.0);
-        assert!(out.get(33, 33)[3] > 0.2, "shadow missing: {:?}", out.get(33, 33));
+        assert!(
+            out.get(33, 33)[3] > 0.2,
+            "shadow missing: {:?}",
+            out.get(33, 33)
+        );
         // The shape itself is still white, not darkened.
         assert!(out.get(20, 20)[0] > 0.99);
         // And nothing leaked up-left.
@@ -167,11 +234,18 @@ mod tests {
         let c = square(40, 40);
         let out = apply(
             &c,
-            &[Effect::Stroke { width: 2.0, color: Color::rgba(1.0, 0.0, 0.0, 1.0), align: StrokeAlign::Outside }],
+            &[Effect::Stroke {
+                width: 2.0,
+                color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+                align: StrokeAlign::Outside,
+            }],
             1.0,
         );
         let ring = out.get(9, 20);
-        assert!(ring[3] > 0.5 && ring[0] > ring[1], "red ring outside the shape: {ring:?}");
+        assert!(
+            ring[3] > 0.5 && ring[0] > ring[1],
+            "red ring outside the shape: {ring:?}"
+        );
         assert!(out.get(20, 20)[1] > 0.9, "interior stays white");
     }
 

@@ -93,9 +93,24 @@ pub fn trs_matrix(t: [f32; 3], r: [f32; 4], s: [f32; 3]) -> [[f32; 4]; 4] {
     let (yy, yz, zz) = (y * y2, y * z2, z * z2);
     let (wx, wy, wz) = (w * x2, w * y2, w * z2);
     [
-        [(1.0 - (yy + zz)) * s[0], (xy + wz) * s[0], (xz - wy) * s[0], 0.0],
-        [(xy - wz) * s[1], (1.0 - (xx + zz)) * s[1], (yz + wx) * s[1], 0.0],
-        [(xz + wy) * s[2], (yz - wx) * s[2], (1.0 - (xx + yy)) * s[2], 0.0],
+        [
+            (1.0 - (yy + zz)) * s[0],
+            (xy + wz) * s[0],
+            (xz - wy) * s[0],
+            0.0,
+        ],
+        [
+            (xy - wz) * s[1],
+            (1.0 - (xx + zz)) * s[1],
+            (yz + wx) * s[1],
+            0.0,
+        ],
+        [
+            (xz + wy) * s[2],
+            (yz - wx) * s[2],
+            (1.0 - (xx + yy)) * s[2],
+            0.0,
+        ],
         [t[0], t[1], t[2], 1.0],
     ]
 }
@@ -133,29 +148,57 @@ pub fn look_rotation(dir: [f32; 3], up: [f32; 3]) -> [f32; 4] {
     let f = normalize(dir);
     let mut u = normalize(up);
     if dot(f, u).abs() > 0.999 {
-        u = if f[1].abs() > 0.9 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
+        u = if f[1].abs() > 0.9 {
+            [0.0, 0.0, 1.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        };
     }
     let s = normalize(cross(f, u));
     let u = cross(s, f);
     // Column-major basis with -Z forward.
-    let m = [[s[0], s[1], s[2]], [u[0], u[1], u[2]], [-f[0], -f[1], -f[2]]];
+    let m = [
+        [s[0], s[1], s[2]],
+        [u[0], u[1], u[2]],
+        [-f[0], -f[1], -f[2]],
+    ];
     let trace = m[0][0] + m[1][1] + m[2][2];
     let q = if trace > 0.0 {
         let r = (1.0 + trace).sqrt();
         let inv = 0.5 / r;
-        [(m[1][2] - m[2][1]) * inv, (m[2][0] - m[0][2]) * inv, (m[0][1] - m[1][0]) * inv, 0.5 * r]
+        [
+            (m[1][2] - m[2][1]) * inv,
+            (m[2][0] - m[0][2]) * inv,
+            (m[0][1] - m[1][0]) * inv,
+            0.5 * r,
+        ]
     } else if m[0][0] > m[1][1] && m[0][0] > m[2][2] {
         let r = (1.0 + m[0][0] - m[1][1] - m[2][2]).sqrt();
         let inv = 0.5 / r;
-        [0.5 * r, (m[0][1] + m[1][0]) * inv, (m[2][0] + m[0][2]) * inv, (m[1][2] - m[2][1]) * inv]
+        [
+            0.5 * r,
+            (m[0][1] + m[1][0]) * inv,
+            (m[2][0] + m[0][2]) * inv,
+            (m[1][2] - m[2][1]) * inv,
+        ]
     } else if m[1][1] > m[2][2] {
         let r = (1.0 - m[0][0] + m[1][1] - m[2][2]).sqrt();
         let inv = 0.5 / r;
-        [(m[0][1] + m[1][0]) * inv, 0.5 * r, (m[1][2] + m[2][1]) * inv, (m[2][0] - m[0][2]) * inv]
+        [
+            (m[0][1] + m[1][0]) * inv,
+            0.5 * r,
+            (m[1][2] + m[2][1]) * inv,
+            (m[2][0] - m[0][2]) * inv,
+        ]
     } else {
         let r = (1.0 - m[0][0] - m[1][1] + m[2][2]).sqrt();
         let inv = 0.5 / r;
-        [(m[2][0] + m[0][2]) * inv, (m[1][2] + m[2][1]) * inv, 0.5 * r, (m[0][1] - m[1][0]) * inv]
+        [
+            (m[2][0] + m[0][2]) * inv,
+            (m[1][2] + m[2][1]) * inv,
+            0.5 * r,
+            (m[0][1] - m[1][0]) * inv,
+        ]
     };
     normalize_quat(q)
 }
@@ -355,7 +398,11 @@ impl MeshData {
             let fnorm = face_normals[f];
             for &vi in tri {
                 let p = self.positions[vi as usize];
-                let uv = if has_uv { self.uvs[vi as usize] } else { [0.0, 0.0] };
+                let uv = if has_uv {
+                    self.uvs[vi as usize]
+                } else {
+                    [0.0, 0.0]
+                };
                 let mut acc = [0.0f32; 3];
                 if let Some(faces) = by_pos.get(&pos_key(p, WELD_TOL)) {
                     for &g in faces {
@@ -365,11 +412,18 @@ impl MeshData {
                         }
                     }
                 }
-                let n = if length(acc) <= f32::MIN_POSITIVE { fnorm } else { normalize(acc) };
+                let n = if length(acc) <= f32::MIN_POSITIVE {
+                    fnorm
+                } else {
+                    normalize(acc)
+                };
                 let key = (
                     pos_key(p, WELD_TOL),
                     pos_key(n, 1e-3),
-                    ((uv[0] as f64 / 1e-5).round() as i64, (uv[1] as f64 / 1e-5).round() as i64),
+                    (
+                        (uv[0] as f64 / 1e-5).round() as i64,
+                        (uv[1] as f64 / 1e-5).round() as i64,
+                    ),
                 );
                 let idx = *dedup.entry(key).or_insert_with(|| {
                     out.positions.push(p);
@@ -409,7 +463,10 @@ impl MeshData {
                         out.normals[j] = add(out.normals[j], self.normals[i]);
                     }
                     if has_uv {
-                        out.uvs[j] = [out.uvs[j][0] + self.uvs[i][0], out.uvs[j][1] + self.uvs[i][1]];
+                        out.uvs[j] = [
+                            out.uvs[j][0] + self.uvs[i][0],
+                            out.uvs[j][1] + self.uvs[i][1],
+                        ];
                     }
                 }
                 None => {
@@ -436,7 +493,11 @@ impl MeshData {
             }
         }
         for t in self.indices.chunks_exact(3) {
-            let (a, b, c) = (remap[t[0] as usize], remap[t[1] as usize], remap[t[2] as usize]);
+            let (a, b, c) = (
+                remap[t[0] as usize],
+                remap[t[1] as usize],
+                remap[t[2] as usize],
+            );
             if a != b && b != c && a != c {
                 out.indices.extend_from_slice(&[a, b, c]);
             }
@@ -470,7 +531,9 @@ impl MeshData {
     pub fn decimate(&mut self, ratio: f32, normal_angle: f32) {
         let ratio = ratio.clamp(0.001, 1.0);
         let target = ((self.triangle_count() as f32 * ratio).round() as usize).max(1);
-        let Some((lo, hi)) = self.bounds() else { return };
+        let Some((lo, hi)) = self.bounds() else {
+            return;
+        };
         if self.triangle_count() <= target {
             return;
         }
@@ -485,7 +548,11 @@ impl MeshData {
                 let f = |v: f32, l: f32, e: f32| {
                     (((v - l) / e * n as f32).floor().max(0.0) as u32).min(n.saturating_sub(1))
                 };
-                (f(p[0], lo[0], ext[0]), f(p[1], lo[1], ext[1]), f(p[2], lo[2], ext[2]))
+                (
+                    f(p[0], lo[0], ext[0]),
+                    f(p[1], lo[1], ext[1]),
+                    f(p[2], lo[2], ext[2]),
+                )
             };
             for t in self.indices.chunks_exact(3) {
                 let (a, b, c) = (
@@ -513,7 +580,11 @@ impl MeshData {
             let f = |v: f32, l: f32, e: f32| {
                 (((v - l) / e * n as f32).floor().max(0.0) as u32).min(n.saturating_sub(1))
             };
-            (f(p[0], lo[0], ext[0]), f(p[1], lo[1], ext[1]), f(p[2], lo[2], ext[2]))
+            (
+                f(p[0], lo[0], ext[0]),
+                f(p[1], lo[1], ext[1]),
+                f(p[2], lo[2], ext[2]),
+            )
         };
         let mut map: std::collections::HashMap<(u32, u32, u32), u32> =
             std::collections::HashMap::new();
@@ -539,18 +610,19 @@ impl MeshData {
         }
         let mut out = MeshData::default();
         for (p, uv, c) in &sums {
-            out.positions.push([
-                (p[0] / c) as f32,
-                (p[1] / c) as f32,
-                (p[2] / c) as f32,
-            ]);
+            out.positions
+                .push([(p[0] / c) as f32, (p[1] / c) as f32, (p[2] / c) as f32]);
             if has_uv {
                 out.uvs.push([(uv[0] / c) as f32, (uv[1] / c) as f32]);
             }
         }
         let mut seen = std::collections::HashSet::new();
         for t in self.indices.chunks_exact(3) {
-            let (a, b, c) = (remap[t[0] as usize], remap[t[1] as usize], remap[t[2] as usize]);
+            let (a, b, c) = (
+                remap[t[0] as usize],
+                remap[t[1] as usize],
+                remap[t[2] as usize],
+            );
             if a == b || b == c || a == c {
                 continue;
             }
