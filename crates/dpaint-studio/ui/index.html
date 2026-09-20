@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>degen-paint studio</title>
+<link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="toolbar">
+    <div class="brand">degen<span>-paint</span></div>
+    <div class="project" id="projectName" title="">—</div>
+    <div class="sep"></div>
+    <button id="btnUndo" class="tb" disabled title="Undo (Cmd/Ctrl-Z)">↶ Undo</button>
+    <button id="btnRedo" class="tb" disabled title="Redo (Shift-Cmd/Ctrl-Z)">↷ Redo</button>
+    <div class="sep"></div>
+    <button id="btnPalette" class="tb accent" title="Command palette (/ or Ctrl-K)">⌘ Run op…</button>
+    <div class="spacer"></div>
+    <div id="agentFlash" class="flash" hidden>updated by agent</div>
+    <div id="revBadge" class="rev" title="Journal revision">rev —</div>
+  </header>
+
+  <aside id="docs" class="pane">
+    <div class="pane-head">Documents</div>
+    <div id="docList" class="pane-body"></div>
+  </aside>
+
+  <section id="viewport">
+    <div id="canvasArea" class="checker">
+      <div id="canvasPan">
+        <img id="canvasImg" alt="document render" draggable="false">
+      </div>
+      <div id="canvasEmpty" class="empty" hidden>no render</div>
+    </div>
+    <div id="viewBar">
+      <button id="btnFit" class="tb sm" title="Fit (f)">Fit</button>
+      <button id="btnOneToOne" class="tb sm" title="100% (1)">100%</button>
+      <span id="zoomRead" class="read">100%</span>
+      <span class="dot">·</span>
+      <span id="sizeRead" class="read">— × —</span>
+      <span class="dot">·</span>
+      <span id="docRead" class="read">—</span>
+      <span class="grow"></span>
+      <span id="busy" class="busy" hidden>rendering…</span>
+    </div>
+  </section>
+
+  <aside id="right">
+    <div class="pane" id="treePane">
+      <div class="pane-head">
+        Objects
+        <span class="head-note" id="treeCount"></span>
+      </div>
+      <div id="treeList" class="pane-body"></div>
+    </div>
+    <div class="pane" id="inspectorPane">
+      <div class="pane-head">
+        Inspector
+        <span class="head-note" id="inspectTarget"></span>
+      </div>
+      <div id="inspector" class="pane-body">
+        <div class="hint">Pick an op with <kbd>/</kbd> or <kbd>Ctrl-K</kbd> to build its form from the engine schema.</div>
+      </div>
+    </div>
+  </aside>
+
+  <footer id="dock">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="history" role="tab">History</button>
+      <button class="tab" data-tab="lint" role="tab">Lint <span id="lintCount" class="pill" hidden>0</span></button>
+      <button class="tab" data-tab="console" role="tab">Console <span id="conCount" class="pill" hidden>0</span></button>
+      <span class="grow"></span>
+      <button id="btnLint" class="tb sm">Re-lint</button>
+      <button id="btnClearConsole" class="tb sm">Clear log</button>
+    </div>
+    <div class="dock-body">
+      <div id="tab-history" class="tabpane active"></div>
+      <div id="tab-lint" class="tabpane"></div>
+      <div id="tab-console" class="tabpane"></div>
+    </div>
+  </footer>
+
+</div>
+
+<div id="paletteWrap" hidden>
+  <div id="paletteBackdrop"></div>
+  <div id="palette" role="dialog" aria-label="Command palette">
+    <input id="paletteInput" type="text" placeholder="Search 200+ ops by id or description…" autocomplete="off" spellcheck="false">
+    <div id="paletteList"></div>
+    <div id="paletteFoot"><kbd>↑</kbd><kbd>↓</kbd> move <kbd>↵</kbd> choose <kbd>esc</kbd> close</div>
+  </div>
+</div>
+
+<script type="module" src="./studio.js"></script>
+</body>
+</html>

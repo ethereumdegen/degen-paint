@@ -77,6 +77,7 @@ COMMANDS
   gc                    Delete unreferenced asset blobs
   doctor                Report capabilities: fonts, providers, formats
   mcp                   Serve the op registry over MCP on stdio
+  serve                 Run the Studio UI on localhost (--addr, --ui-dir)
 
 GLOBAL
   --project <dir>       Project directory (default: discovered from the cwd)
@@ -174,6 +175,7 @@ fn run(argv: &[String]) -> Result<i32> {
         "gc" => cmd_gc(&ctx),
         "doctor" => cmd_doctor(&ctx),
         "mcp" => cmd_mcp(&ctx),
+        "serve" => cmd_serve(&ctx, rest),
         other => Err(Error::Invalid(format!(
             "unknown command '{other}'; run `dpaint help`"
         ))),
@@ -585,6 +587,19 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
         },
         report,
     );
+    Ok(0)
+}
+
+fn cmd_serve(ctx: &Ctx, argv: &[String]) -> Result<i32> {
+    let studio = match &ctx.project_dir {
+        Some(p) => dpaint_studio::Studio::open(p)?,
+        None => dpaint_studio::Studio::discover(".")?,
+    };
+    let config = dpaint_studio::ServerConfig {
+        addr: flag(argv, "--addr").cloned().unwrap_or_else(|| "127.0.0.1:4317".into()),
+        ui_dir: flag(argv, "--ui-dir").map(PathBuf::from),
+    };
+    dpaint_studio::serve(studio, config)?;
     Ok(0)
 }
 

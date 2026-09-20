@@ -96,6 +96,15 @@ fn render_inner(
         )));
     }
 
+    // An explicit output size becomes a scale factor: raster and vector documents both
+    // have a fixed natural extent, so the two requests are the same request.
+    let effective_scale = match (opts.size, document.size()) {
+        (Some((tw, th)), Some((nw, nh))) if nw > 0.0 && nh > 0.0 => {
+            (tw as f64 / nw).min(th as f64 / nh)
+        }
+        _ => opts.scale,
+    };
+
     stack.borrow_mut().push(doc_id.clone());
     let result = match document {
         Document::Raster(_) => {
@@ -108,18 +117,9 @@ fn render_inner(
                 };
                 render_inner(project, target, assets, &sub, stack)
             };
-            dpaint_raster::render_doc(project, doc_id, assets, opts.scale, &link)
+            dpaint_raster::render_doc(project, doc_id, assets, effective_scale, &link)
         }
-        Document::Vector(_) => {
-            let scale = match opts.size {
-                Some((tw, _)) => {
-                    let (nw, _) = document.size().unwrap_or((tw as f64, 1.0));
-                    if nw > 0.0 { tw as f64 / nw } else { opts.scale }
-                }
-                None => opts.scale,
-            };
-            dpaint_vector::render_doc(project, doc_id, assets, scale)
-        }
+        Document::Vector(_) => dpaint_vector::render_doc(project, doc_id, assets, effective_scale),
         Document::Model(_) => render_model(project, doc_id, assets, w, h, opts),
     };
     stack.borrow_mut().pop();

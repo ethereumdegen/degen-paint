@@ -260,6 +260,27 @@ fn the_op_catalog_is_discoverable_and_every_schema_is_well_formed() {
 }
 
 #[test]
+fn an_explicit_width_is_honored_for_every_document_kind() {
+    let cli = Cli::new();
+    cli.ok(&["new", "p", "--kind", "raster", "--size", "400x200"]);
+    cli.ok(&["op", "raster.layer.add", "--type", "fill", "--color", "#2a9d8f", "--name", "bg"]);
+    cli.ok(&["op", "doc.add", "--name", "art", "--kind", "vector", "--width", "400", "--height", "200"]);
+    cli.ok(&["--doc", "art", "op", "vector.object.add-rect",
+             "--x", "0", "--y", "0", "--width", "400", "--height", "200", "--fill", "#e76f51"]);
+
+    for (doc, name) in [("p", "raster.png"), ("art", "vector.png")] {
+        let out = cli.path(name);
+        cli.ok(&["--doc", doc, "render", out.to_str().unwrap(), "--width", "120"]);
+        let img = image::open(&out).expect("decodes").to_rgba8();
+        assert_eq!(
+            img.dimensions(),
+            (120, 60),
+            "{doc}: an explicit --width must resize and keep the aspect ratio"
+        );
+    }
+}
+
+#[test]
 fn renders_are_deterministic_across_processes() {
     let cli = Cli::new();
     cli.ok(&["new", "p", "--kind", "raster", "--size", "96x96"]);

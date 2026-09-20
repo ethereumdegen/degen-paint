@@ -9,7 +9,9 @@ members = [
     "crates/dpaint-inspect",
     "crates/dpaint-ai",
     "crates/dpaint-mcp",
+    "crates/dpaint-studio",
     "crates/dpaint-cli",
+    "apps/studio",
 ]
 
 [workspace.package]
@@ -29,6 +31,7 @@ dpaint-render = { path = "crates/dpaint-render" }
 dpaint-inspect = { path = "crates/dpaint-inspect" }
 dpaint-ai = { path = "crates/dpaint-ai" }
 dpaint-mcp = { path = "crates/dpaint-mcp" }
+dpaint-studio = { path = "crates/dpaint-studio" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
