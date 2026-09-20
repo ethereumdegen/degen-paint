@@ -97,15 +97,16 @@ const S = {
   sel: null,           // selected object id within activeDoc
   op: null,            // { id, about, schema, modes, query, network }
   maxSeqSeen: 0,
-const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0, fitted: false };
+  logs: [],
   logErrors: 0,
 };
 
 let renderSeq = 0;
 let renderToken = 0;
 let refreshing = null;
+let refreshBusy = false;
 
-const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0 };
+const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0, fitted: false };
 
 const activeDocument = () =>
   (S.state && S.state.documents.find((d) => d.id === S.activeDoc)) || null;
@@ -167,16 +168,21 @@ function renderConsole() {
   if (stick) pane.scrollTop = pane.scrollHeight;
 }
 
-function useCandidate(sel) {
+/** Point the open form at a selector the engine just named. */
+function retarget(sel) {
   const input = document.querySelector('.opform [data-path="target"]');
-  if (input) {
-    input.value = sel;
-    delete input.dataset.auto;
-    input.focus();
-  }
+  if (!input) return;
+  input.value = sel;
+  delete input.dataset.auto;
+}
+
+function useCandidate(sel) {
+  retarget(sel);
   const bare = sel.replace(/^[#@]/, '');
   const doc = activeDocument();
   if (doc && doc.objects.some((o) => o.id === bare)) selectObject(bare);
+  const input = document.querySelector('.opform [data-path="target"]');
+  if (input) input.focus();
 }
 
 // ------------------------------------------------------------------------------- panels
@@ -281,7 +287,7 @@ function renderLint() {
     if (f.value != null) {
       row.append(el('span', 'num', f.required != null ? `${round2(f.value)} / ${round2(f.required)}` : round2(f.value)));
     }
-    row.append(el('span', 'tgt', f.target));
+    row.append(el('span', 'tgt', `${f.document} ${f.target}`));
     row.title = `${f.document} ${f.target} — click to select`;
     row.onclick = () => revealFinding(f);
     pane.append(row);
@@ -298,6 +304,8 @@ async function revealFinding(f) {
     const m = matches[0];
     if (m.document && m.document !== S.activeDoc) await setActiveDoc(m.document);
     selectObject(m.id);
+    // Clicking a finding means "fix this one": the open form follows, whatever was typed.
+    retarget(f.target);
   } catch { /* surfaced in console */ }
 }
 
@@ -307,7 +315,14 @@ function selectObject(id) {
   const row = $('treeList').querySelector(`.node[data-id="${CSS.escape(id)}"]`);
   if (row) row.scrollIntoView({ block: 'nearest' });
   $('inspectTarget').textContent = id ? '#' + id : '';
-  for (const input of document.querySelectorAll('.opform [data-auto="1"]')) input.value = '#' + id;
+  // Follow the selection with the form's `target`, unless the human typed a real query
+  // there (`type:text[opacity<0.5]`) rather than an echo of some object's id.
+  const doc = activeDocument();
+  for (const input of document.querySelectorAll('.opform [data-path="target"]')) {
+    const cur = input.value.trim();
+    const echo = cur === '' || (cur[0] === '#' && doc && doc.objects.some((o) => '#' + o.id === cur));
+    if (input.dataset.auto === '1' || echo) input.value = '#' + id;
+  }
 }
 
 // ------------------------------------------------------------------------------ refresh
@@ -338,18 +353,23 @@ function applyState(st) {
 /** Pull everything the panels show. Serialised so a poll cannot interleave with a click. */
 function refreshAll(opts = {}) {
   const run = async () => {
-    const st = await call('state', {}, { quiet: true });
-    S.sig = stateSignature(st);
-    applyState(st);
-    const [hist, lint] = await Promise.all([
-      call('history', { limit: 200 }, { quiet: true }).catch(() => ({ entries: [] })),
-      call('lint', {}, { quiet: true }).catch(() => null),
-    ]);
-    S.history = hist.entries || [];
-    S.lint = lint;
-    renderHistory();
-    renderLint();
-    if (!opts.noRender) await refreshRender();
+    refreshBusy = true;
+    try {
+      const st = await call('state', {}, { quiet: true });
+      S.sig = stateSignature(st);
+      applyState(st);
+      const [hist, lint] = await Promise.all([
+        call('history', { limit: 200 }, { quiet: true }).catch(() => ({ entries: [] })),
+        call('lint', {}, { quiet: true }).catch(() => null),
+      ]);
+      S.history = hist.entries || [];
+      S.lint = lint;
+      renderHistory();
+      renderLint();
+      if (!opts.noRender) await refreshRender();
+    } finally {
+      refreshBusy = false;
+    }
   };
   refreshing = (refreshing || Promise.resolve()).then(run, run);
   return refreshing;
@@ -600,9 +620,26 @@ function resolve(schema, defs, seen = 0) {
       return { s: { ...r.s, description: schema.description || r.s.description, default: schema.default }, nullable: nullable || r.nullable, def: r.def };
     }
     if (live.length > 1) {
-      // A union such as Paint (solid colour or gradient): offer the simple branch, and let the
-      // JSON escape hatch cover the rest.
       const resolved = live.map((b) => resolve(b, defs, seen + 1));
+      // A string enum split across `enum` and per-variant `const` branches (NewLayerKind):
+      // one select, with each variant's doc comment as the option's tooltip.
+      if (resolved.every((r) => r.s.type === 'string' && (r.s.enum || r.s.const !== undefined))) {
+        const values = [];
+        const notes = {};
+        for (const r of resolved) {
+          if (r.s.enum) values.push(...r.s.enum);
+          else {
+            values.push(r.s.const);
+            if (r.s.description) notes[r.s.const] = r.s.description;
+          }
+        }
+        return { s: { type: 'string', enum: values, enumNotes: notes, description: schema.description }, nullable };
+      }
+      // Tagged unions (Paint = solid | linear | radial, Adjustment, …) get a variant picker.
+      if (resolved.every((r) => discriminator(r.s))) {
+        return { s: { type: 'variant', variants: resolved.map((r) => r.s), description: schema.description }, nullable };
+      }
+      // Anything else: offer the simplest branch, with the JSON escape hatch behind it.
       const simple = resolved.find((r) => r.def === 'Color') || resolved.find((r) => r.s.type === 'string');
       return {
         s: { ...(simple ? simple.s : {}), description: schema.description, union: resolved.map((r) => r.def || r.s.title || r.s.type) },
@@ -617,7 +654,15 @@ function resolve(schema, defs, seen = 0) {
   return { s: schema, nullable: false };
 }
 
+/** Name of the `const`-tagged property that picks a union branch, if there is one. */
+function discriminator(s) {
+  if (!s || s.type !== 'object' || !s.properties) return null;
+  for (const [k, v] of Object.entries(s.properties)) if (v && v.const !== undefined) return k;
+  return null;
+}
+
 function widgetKind(s, def) {
+  if (s.type === 'variant') return 'variant';
   if (s.enum) return 'enum';
   if (def === 'Color' || (typeof s.pattern === 'string' && COLOR_PATTERN.test(s.pattern))) return 'color';
   if (s.type === 'boolean') return 'bool';
@@ -629,7 +674,12 @@ function widgetKind(s, def) {
 }
 
 function typeLabel(s, def, nullable) {
-  const base = def || (s.enum ? 'enum' : s.type === 'array' ? `${(s.items && s.items.type) || 'any'}[]` : s.type) || 'json';
+  const base = def
+    || (s.type === 'variant' ? s.variants.map((v) => v.properties[discriminator(v)].const).join(' | ')
+      : s.enum ? 'enum'
+      : s.type === 'array' ? `${(s.items && s.items.type) || 'any'}[]`
+      : s.type)
+    || 'json';
   return base + (nullable ? '?' : '');
 }
 
@@ -685,8 +735,46 @@ function buildField(name, raw, defs, isRequired, path, depth = 0) {
   const { s, nullable, def } = resolve(raw, defs);
   const kind = widgetKind(s, def);
 
+  if (kind === 'variant' && depth < 3) {
+    const box = el('div', 'nested');
+    box.dataset.group = path;
+    const head = el('div', 'nested-head');
+    const pick = el('select');
+    if (!isRequired) pick.append(new Option('—', ''));
+    for (const v of s.variants) pick.append(new Option(v.properties[discriminator(v)].const));
+    if (!isRequired) pick.value = '';
+    head.append(el('span', null, name), el('span', 'ftype', typeLabel(s, def, nullable)));
+    box.append(head);
+    if (s.description) box.append(el('p', 'desc', s.description));
+    box.append(pick);
+    const body = el('div');
+    box.append(body);
+    const draw = () => {
+      body.textContent = '';
+      const v = s.variants.find((x) => x.properties[discriminator(x)].const === pick.value);
+      if (!v) return;
+      const tag = discriminator(v);
+      const hidden = el('input');
+      hidden.type = 'hidden';
+      hidden.dataset.path = `${path}.${tag}`;
+      hidden.dataset.disc = '1';
+      hidden.dataset.kind = 'text';
+      hidden.value = pick.value;
+      body.append(hidden);
+      const req = new Set(v.required || []);
+      for (const [k, sub] of Object.entries(v.properties)) {
+        if (k === tag) continue;
+        body.append(buildField(k, sub, defs, req.has(k), `${path}.${k}`, depth + 1));
+      }
+    };
+    pick.onchange = draw;
+    draw();
+    return box;
+  }
+
   if (kind === 'object' && depth < 2) {
     const box = el('div', 'nested');
+    box.dataset.group = path;
     const head = el('div', 'nested-head');
     head.append(el('span', null, name), el('span', 'ftype', typeLabel(s, def, nullable)));
     box.append(head);
@@ -710,7 +798,11 @@ function buildField(name, raw, defs, isRequired, path, depth = 0) {
   if (kind === 'enum') {
     input = el('select');
     if (!isRequired) input.append(new Option('—', ''));
-    for (const v of s.enum) input.append(new Option(String(v), String(v)));
+    for (const v of s.enum) {
+      const o = new Option(String(v), String(v));
+      if (s.enumNotes && s.enumNotes[v]) o.title = s.enumNotes[v];
+      input.append(o);
+    }
     if (isRequired && s.default != null) input.value = String(s.default);
   } else if (kind === 'bool') {
     if (isRequired) {
@@ -771,10 +863,32 @@ function setPath(obj, path, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
+/** A nested group the human never touched must not be sent: a half-built `{type:"solid"}`
+ *  would fail schema validation for no reason. */
+function dormant(form) {
+  const out = new Set();
+  for (const g of form.querySelectorAll('[data-group]')) {
+    const live = [...g.querySelectorAll('[data-path]:not([data-disc])')]
+      .some((i) => (i.type === 'checkbox' ? i.checked : i.value.trim() !== ''));
+    if (!live) out.add(g);
+  }
+  return out;
+}
+
 /** Empty means "not supplied", so the engine's own defaults stay in charge. */
 function collect(form) {
   const args = {};
+  const dead = dormant(form);
+  const buried = (input) => {
+    let n = input.parentElement && input.parentElement.closest('[data-group]');
+    while (n) {
+      if (dead.has(n)) return true;
+      n = n.parentElement && n.parentElement.closest('[data-group]');
+    }
+    return false;
+  };
   for (const input of form.querySelectorAll('[data-path]')) {
+    if (buried(input)) continue;
     const { path, kind } = input.dataset;
     let v;
     if (kind === 'bool' && input.type === 'checkbox') v = input.checked;
@@ -863,22 +977,28 @@ function flash(text, cls) {
 function showTab(name) {
   for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.tab === name);
   for (const p of document.querySelectorAll('.tabpane')) p.classList.toggle('active', p.id === 'tab-' + name);
+  // A hidden pane cannot be scrolled, so the newest line is only reachable once it is shown.
+  if (name === 'console') { const p = $('tab-console'); p.scrollTop = p.scrollHeight; }
 }
 
 // -------------------------------------------------------------------------- live sync
 
 /** The shared-journal claim, made visible: an agent's write shows up here on its own. */
 async function poll() {
+  if (refreshBusy) return;   // a refresh in flight will pick the change up anyway
   try {
     const st = await call('state', {}, { quiet: true });
     const sig = stateSignature(st);
     if (sig === S.sig) return;
     const before = S.state ? S.state.revision : 0;
-    await refreshAll();
-    const top = S.history[0];
+    // Say so before the refresh, not after: a re-render plus a project lint takes long
+    // enough that a silent second would look like the UI had missed the write.
+    const peek = await call('history', { limit: 1 }, { quiet: true }).catch(() => ({ entries: [] }));
+    const top = peek.entries[0];
     const actor = top && top.actor === 'human' ? 'human' : 'agent';
-    const what = st.revision > before ? (top ? top.op : 'change') : 'undo/redo';
+    const what = st.revision > before ? (top ? top.op : 'change') : top && top.undone ? 'undo' : 'redo';
     flash(`updated by ${actor} · ${what}`, actor);
+    await refreshAll();
   } catch { /* transport hiccup; the next tick retries */ }
 }
 

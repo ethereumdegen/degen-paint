@@ -91,7 +91,6 @@ kbd {
 .tb.sm { padding: 3px 7px; font-size: 11px; }
 .tb.accent { background: var(--accent); border-color: var(--accent-2); color: #21150a; font-weight: 600; }
 .tb.accent:hover { background: #f7b478; }
-.tb.danger { background: #3a2126; border-color: #5c2f35; color: #f3a1a8; }
 
 .rev { font: 10px/1 var(--mono); color: var(--fg-faint); padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; }
 .flash {
@@ -142,17 +141,19 @@ kbd {
 #canvasArea {
   position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
   cursor: grab; display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 40%, #131820 0%, #0a0c0f 72%);
 }
 #canvasArea.panning { cursor: grabbing; }
 .checker {
-  background-color: #1a1e24;
+  background-color: #cfd4da;
   background-image:
-    linear-gradient(45deg, #23282f 25%, transparent 25%, transparent 75%, #23282f 75%),
-    linear-gradient(45deg, #23282f 25%, transparent 25%, transparent 75%, #23282f 75%);
+    linear-gradient(45deg, #9aa2ac 25%, transparent 25%, transparent 75%, #9aa2ac 75%),
+    linear-gradient(45deg, #9aa2ac 25%, transparent 25%, transparent 75%, #9aa2ac 75%);
   background-size: 16px 16px;
   background-position: 0 0, 8px 8px;
 }
-#canvasPan { position: absolute; left: 50%; top: 50%; will-change: transform; }
+#canvasPan { position: absolute; left: 50%; top: 50%; line-height: 0; font-size: 0; will-change: transform; }
 #canvasImg {
   display: block; image-rendering: auto;
   box-shadow: 0 0 0 1px #000, 0 10px 40px rgba(0,0,0,.6);
@@ -226,9 +227,14 @@ form.opform { padding: 8px 9px 10px; }
   width: 30px; height: 25px; padding: 0; background: var(--bg);
   border: 1px solid var(--line-2); border-radius: 4px; cursor: pointer;
 }
-.field .pick { background: var(--bg-4); border: 1px solid var(--line-2); border-radius: 4px; padding: 4px 6px; cursor: pointer; font-size: 11px; }
 .nested { border: 1px solid var(--line); border-radius: 5px; padding: 7px 8px 1px; margin-bottom: 9px; background: #12161c; }
 .nested > .nested-head { font: 11px/1 var(--mono); color: var(--fg-dim); margin-bottom: 7px; display: flex; gap: 5px; align-items: baseline; }
+.nested > .nested-head .ftype { margin-left: auto; font: 9px/1 var(--mono); color: var(--fg-faint); }
+.nested > select {
+  width: 100%; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--line-2);
+  border-radius: 4px; padding: 4px 6px; font: 11px/1.4 var(--mono); outline: none;
+}
+.nested > select:focus { border-color: var(--accent); }
 .form-actions { display: flex; align-items: center; gap: 7px; padding-top: 4px; position: sticky; bottom: 0; background: var(--bg-2); padding-bottom: 2px; }
 .dry { display: flex; align-items: center; gap: 4px; color: var(--fg-dim); cursor: pointer; }
 .result {

@@ -16,7 +16,7 @@
     <button id="btnUndo" class="tb" disabled title="Undo (Cmd/Ctrl-Z)">↶ Undo</button>
     <button id="btnRedo" class="tb" disabled title="Redo (Shift-Cmd/Ctrl-Z)">↷ Redo</button>
     <div class="sep"></div>
-    <button id="btnPalette" class="tb accent" title="Command palette (/ or Ctrl-K)">⌘ Run op…</button>
+    <button id="btnPalette" class="tb accent" title="Command palette (/ or Ctrl-K)">▶ Run op…</button>
     <div class="spacer"></div>
     <div id="agentFlash" class="flash" hidden>updated by agent</div>
     <div id="revBadge" class="rev" title="Journal revision">rev —</div>
@@ -28,8 +28,8 @@
   </aside>
 
   <section id="viewport">
-    <div id="canvasArea" class="checker">
-      <div id="canvasPan">
+    <div id="canvasArea">
+      <div id="canvasPan" class="checker">
         <img id="canvasImg" alt="document render" draggable="false">
       </div>
       <div id="canvasEmpty" class="empty" hidden>no render</div>

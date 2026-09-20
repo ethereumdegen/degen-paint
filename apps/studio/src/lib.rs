@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use parking_lot::RwLock;
 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 /// Scheme for the "no project open" window. Hyphen-free so every platform's URL parser agrees.
@@ -345,11 +345,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Shell::new(studio, notice))
         .invoke_handler(tauri::generate_handler![dpaint_call, dpaint_render])
-        // A blank webview is the hardest desktop bug to diagnose from a terminal; say when a
-        // window actually finished loading, and what it loaded.
+        // A blank webview is the hardest desktop bug to diagnose from a terminal, so each
+        // window says when it finished loading and reports whether the injected bridge landed.
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
                 eprintln!("degen-paint: window '{}' loaded {}", webview.label(), payload.url());
+                let _ = webview.eval(bridge::BRIDGE_PROBE);
             }
         })
         .register_uri_scheme_protocol(WELCOME_SCHEME, |ctx, request| {
@@ -371,6 +372,9 @@ pub fn run() {
         })
         .setup(move |app| {
             let handle = app.handle().clone();
+            handle.listen("dpaint:bridge", |event| {
+                eprintln!("degen-paint: bridge {}", event.payload());
+            });
             build_menu(&handle)?;
             if have_project {
                 open_studio_window(&handle)?;

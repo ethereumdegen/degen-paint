@@ -953,6 +953,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "chrono",
+ "getrandom 0.3.4",
  "indexmap 2.14.2",
  "json-patch 4.2.0",
  "kurbo",
@@ -1578,9 +1579,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
+ "wasm-bindgen",
 ]
 
 [[package]]

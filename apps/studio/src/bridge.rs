@@ -117,24 +117,19 @@ pub const INIT_SCRIPT: &str = r#"(function () {
     }).catch(function (raw) { throw structured(raw); });
   };
 
-  // The native menu and the directory picker write through the same engine, so the UI has to
-  // hear about it. Three channels, all harmless together: the UI's own coalescing hook, a DOM
-  // event, and the Tauri event.
-  function changed(payload) {
-    try { window.dispatchEvent(new CustomEvent('dpaint:changed', { detail: payload })); } catch (_) {}
-    if (typeof window.__DPAINT_ON_CHANGE__ === 'function') {
-      try { window.__DPAINT_ON_CHANGE__(payload); } catch (_) {}
-    }
-  }
-
-  var tries = 0;
-  (function listen() {
-    var ev = window.__TAURI__ && window.__TAURI__.event;
-    if (ev && typeof ev.listen === 'function') {
-      ev.listen('dpaint:changed', function (e) { changed(e && e.payload); });
-      return;
-    }
-    if (tries++ < 100) { setTimeout(listen, 20); }
-  })();
+  // Change notification deliberately stops here. The native menu and the directory picker
+  // write through the engine and then emit the Tauri event `dpaint:changed`; studio.js
+  // subscribes to that itself (and keeps a 1s state poll as a backstop), so adding a second
+  // listener here would only refresh the same window twice per undo.
 })();
 "#;
+
+/// Evaluated in each window once its page has finished loading.
+///
+/// An injected init script that silently fails to land leaves a UI that looks broken for no
+/// visible reason, so each window reports back what it actually found and the shell logs it.
+/// The answer is `undefined` on the welcome window, which has no bridge and needs none.
+pub const BRIDGE_PROBE: &str = "window.__TAURI__.event.emit('dpaint:bridge', {\
+ transport: window.__DPAINT_TRANSPORT__ || null,\
+ invoke: typeof window.__DPAINT_INVOKE__,\
+ render: typeof window.__DPAINT_RENDER_URL__ })";
