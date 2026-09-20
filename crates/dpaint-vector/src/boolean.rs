@@ -5,7 +5,7 @@
 //! then their holes. Self-intersecting and coincident-edge input is handled by the overlay
 //! itself, so no caller has to pre-clean its geometry.
 
-use crate::geom::{flatten, Subpath};
+use crate::geom::flatten;
 use dpaint_core::doc::common::FillRule as DocFillRule;
 use dpaint_core::error::{Error, Result};
 use dpaint_core::kurbo::{BezPath, Point};
@@ -33,7 +33,9 @@ impl BoolOp {
     fn rule(self) -> OverlayRule {
         match self {
             BoolOp::Union => OverlayRule::Union,
-            BoolOp::Subtract | BoolOp::Divide => OverlayRule::Difference,
+            BoolOp::Subtract => OverlayRule::Difference,
+            // `divide` is routed to `divide()`, which needs two passes.
+            BoolOp::Divide => OverlayRule::Difference,
             BoolOp::Intersect => OverlayRule::Intersect,
             BoolOp::Exclude => OverlayRule::Xor,
         }
@@ -85,6 +87,11 @@ pub fn boolean(paths: &[BezPath], op: BoolOp, rule: DocFillRule, tol: f64) -> Re
     if paths.len() < 2 {
         return Err(Error::DegenerateGeometry(
             "a boolean needs at least two operands".into(),
+        ));
+    }
+    if op == BoolOp::Divide {
+        return Err(Error::Invalid(
+            "divide produces several shapes; call `divide` instead".into(),
         ));
     }
     let fr = fill_rule(rule);
@@ -168,16 +175,6 @@ pub fn union_contours(sets: Vec<Contours>, tol: f64) -> BezPath {
     }
     use i_overlay::float::simplify::SimplifyShape;
     shapes_to_bez(merged.simplify_shape(FillRule::NonZero))
-}
-
-/// Contours of a closed ring, as the stroker and offsetter build them.
-pub fn ring(points: &[Point]) -> Vec<[f64; 2]> {
-    points.iter().map(|p| [p.x, p.y]).collect()
-}
-
-/// Flattened subpaths of a path, exposed for callers that need both forms.
-pub fn subpaths(path: &BezPath, tol: f64) -> Vec<Subpath> {
-    flatten(path, tol)
 }
 
 #[cfg(test)]

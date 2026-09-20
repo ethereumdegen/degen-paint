@@ -97,7 +97,7 @@ impl Rect {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[serde(remote = "Self", tag = "type", rename_all = "kebab-case")]
 pub enum Paint {
     Solid { color: Color },
     Linear { stops: Vec<GradientStop>, from: [f64; 2], to: [f64; 2] },
@@ -133,6 +133,39 @@ impl Paint {
     }
 }
 
+// `remote = "Self"` turns the derives into associated functions; these two impls put the
+// derived behavior back on the trait, leaving room for the shorthand in Deserialize.
+impl Serialize for Paint {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Paint::serialize(self, s)
+    }
+}
+
+/// Accept `"#fb8500"` and `"none"` as well as the full tagged form. Every surface — CLI
+/// flags, MCP arguments, hand-written JSON — gets the shorthand for free.
+impl<'de> Deserialize<'de> for Paint {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = serde_json::Value::deserialize(d)?;
+        if let Some(s) = v.as_str() {
+            return Paint::from_shorthand(s).map_err(serde::de::Error::custom);
+        }
+        Paint::deserialize(v).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Paint {
+    /// `none` or a hex color. Palette lookups happen in the ops, which know the project.
+    pub fn from_shorthand(s: &str) -> std::result::Result<Self, String> {
+        let t = s.trim();
+        if t.eq_ignore_ascii_case("none") || t.is_empty() {
+            return Ok(Paint::None);
+        }
+        Color::parse(t)
+            .map(Paint::solid)
+            .ok_or_else(|| format!("'{t}' is not a hex color or 'none'"))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct GradientStop {
     pub offset: f64,
@@ -140,6 +173,7 @@ pub struct GradientStop {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(remote = "Self")]
 pub struct Stroke {
     pub paint: Paint,
     pub width: f64,
@@ -157,6 +191,38 @@ pub struct Stroke {
 
 fn default_miter() -> f64 {
     4.0
+}
+
+impl Serialize for Stroke {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Stroke::serialize(self, s)
+    }
+}
+
+/// `"#1d3557"` means a 1-unit solid stroke; `"2 #1d3557"` sets the width too.
+impl<'de> Deserialize<'de> for Stroke {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = serde_json::Value::deserialize(d)?;
+        if let Some(s) = v.as_str() {
+            return Stroke::from_shorthand(s).map_err(serde::de::Error::custom);
+        }
+        Stroke::deserialize(v).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Stroke {
+    pub fn from_shorthand(s: &str) -> std::result::Result<Self, String> {
+        let t = s.trim();
+        let (width, paint) = match t.split_once(char::is_whitespace) {
+            Some((w, rest)) if w.parse::<f64>().is_ok() => {
+                (w.parse::<f64>().expect("checked"), rest.trim())
+            }
+            _ => (1.0, t),
+        };
+        let color = Color::parse(paint)
+            .ok_or_else(|| format!("'{paint}' is not a hex color"))?;
+        Ok(Stroke::solid(color, width))
+    }
 }
 
 impl Stroke {
@@ -351,6 +417,34 @@ mod tests {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         assert_eq!(a.union(Rect::default()), a);
         assert_eq!(a.union(Rect::new(10.0, 10.0, 5.0, 5.0)), Rect::new(0.0, 0.0, 15.0, 15.0));
+    }
+
+    #[test]
+    fn paint_accepts_a_hex_string_or_the_full_tagged_form() {
+        let solid: Paint = serde_json::from_value(serde_json::json!("#fb8500")).unwrap();
+        assert_eq!(solid, Paint::solid(Color::parse("#fb8500").unwrap()));
+        assert_eq!(serde_json::from_value::<Paint>(serde_json::json!("none")).unwrap(), Paint::None);
+
+        let tagged: Paint = serde_json::from_value(
+            serde_json::json!({ "type": "solid", "color": "#112233" }),
+        )
+        .unwrap();
+        assert_eq!(tagged, Paint::solid(Color::parse("#112233").unwrap()));
+
+        assert!(serde_json::from_value::<Paint>(serde_json::json!("chartreuse")).is_err());
+    }
+
+    #[test]
+    fn stroke_accepts_a_shorthand_string_with_an_optional_width() {
+        let s: Stroke = serde_json::from_value(serde_json::json!("#1d3557")).unwrap();
+        assert_eq!(s.width, 1.0);
+        let s: Stroke = serde_json::from_value(serde_json::json!("3 #1d3557")).unwrap();
+        assert_eq!(s.width, 3.0);
+        assert_eq!(s.paint, Paint::solid(Color::parse("#1d3557").unwrap()));
+
+        let full: Stroke =
+            serde_json::from_value(serde_json::json!({ "paint": "#000000", "width": 8 })).unwrap();
+        assert_eq!(full.width, 8.0);
     }
 
     #[test]

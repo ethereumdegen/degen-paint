@@ -18,6 +18,7 @@ serde_json.workspace = true
 schemars.workspace = true
 image.workspace = true
 kurbo.workspace = true
+tiny-skia.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

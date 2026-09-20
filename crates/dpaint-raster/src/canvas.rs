@@ -101,11 +101,6 @@ impl Canvas {
         self.sample(x, y)
     }
 
-    pub fn rows_mut(&mut self) -> impl Iterator<Item = &mut [f32]> {
-        let w = self.width as usize * 4;
-        self.data.chunks_exact_mut(w)
-    }
-
     /// sRGB u8 premultiplied (tiny-skia's representation) -> linear premultiplied f32.
     pub fn from_pixmap(p: PixmapRef<'_>) -> Self {
         let mut c = Canvas::new(p.width(), p.height());
@@ -209,7 +204,7 @@ impl Canvas {
         out
     }
 
-    /// Copy `self` into a buffer of `w x h` at integer offset, no resampling.
+    /// Copy `self` into a buffer of `w x h` at an integer offset, no resampling.
     pub fn placed(&self, w: u32, h: u32, ox: i64, oy: i64) -> Self {
         let mut out = Canvas::new(w, h);
         for y in 0..self.height as i64 {
@@ -223,24 +218,6 @@ impl Canvas {
                     continue;
                 }
                 out.set(dx as u32, dy as u32, self.get(x as u32, y as u32));
-            }
-        }
-        out
-    }
-
-    pub fn cropped(&self, x: i64, y: i64, w: u32, h: u32) -> Self {
-        let mut out = Canvas::new(w, h);
-        for dy in 0..h as i64 {
-            let sy = y + dy;
-            if sy < 0 || sy >= self.height as i64 {
-                continue;
-            }
-            for dx in 0..w as i64 {
-                let sx = x + dx;
-                if sx < 0 || sx >= self.width as i64 {
-                    continue;
-                }
-                out.set(dx as u32, dy as u32, self.get(sx as u32, sy as u32));
             }
         }
         out
@@ -284,29 +261,9 @@ impl Canvas {
         self.data[i + 2] = c[2] * a;
         self.data[i + 3] = a;
     }
-
-    /// Mean of the straight sRGB-encoded channels, weighted by nothing — a test/lint helper
-    /// that answers "did this filter shift overall brightness?".
-    pub fn mean_srgb(&self) -> [f32; 4] {
-        let mut acc = [0.0f64; 4];
-        for i in (0..self.data.len()).step_by(4) {
-            let s = self.straight(i);
-            acc[0] += linear_to_srgb(s[0]) as f64;
-            acc[1] += linear_to_srgb(s[1]) as f64;
-            acc[2] += linear_to_srgb(s[2]) as f64;
-            acc[3] += s[3] as f64;
-        }
-        let n = self.pixel_count() as f64;
-        [
-            (acc[0] / n) as f32,
-            (acc[1] / n) as f32,
-            (acc[2] / n) as f32,
-            (acc[3] / n) as f32,
-        ]
-    }
 }
 
-pub fn invert(a: kurbo::Affine) -> Option<kurbo::Affine> {
+fn invert(a: kurbo::Affine) -> Option<kurbo::Affine> {
     let c = a.as_coeffs();
     let det = c[0] * c[3] - c[1] * c[2];
     if det.abs() < 1e-12 {

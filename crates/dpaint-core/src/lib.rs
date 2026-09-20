@@ -22,6 +22,7 @@ pub mod op;
 pub mod ops;
 pub mod project;
 pub mod selector;
+pub mod text;
 
 pub use asset::{AssetRef, AssetStore};
 pub use color::Color;
@@ -33,6 +34,7 @@ pub use journal::{Actor, Journal};
 pub use op::{parse_args, schema_for, Op, OpCx, OpEffect, Registry, Warning};
 pub use project::{now_iso, Project, Workspace, FORMAT_VERSION};
 pub use selector::{resolve, resolve_one, Match, Selector};
+pub use text::{FALLBACK_FAMILY, FALLBACK_FONT};
 
 /// Re-exported so mode crates share one geometry type without a version skew.
 pub use kurbo;

@@ -9,9 +9,10 @@ authors.workspace = true
 
 [dependencies]
 dpaint-core.workspace = true
-serde.workspace = true
 serde_json.workspace = true
-anyhow.workspace = true
+parking_lot = "0.12"
 
 [dev-dependencies]
+serde.workspace = true
+schemars.workspace = true
 tempfile = "3"

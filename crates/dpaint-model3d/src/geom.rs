@@ -241,14 +241,16 @@ impl MeshData {
         self.positions.extend_from_slice(&other.positions);
         if !self.normals.is_empty() || !other.normals.is_empty() {
             if other.normals.is_empty() {
-                self.normals.extend(std::iter::repeat_n([0.0, 1.0, 0.0], other.positions.len()));
+                self.normals
+                    .extend(std::iter::repeat([0.0, 1.0, 0.0]).take(other.positions.len()));
             } else {
                 self.normals.extend_from_slice(&other.normals);
             }
         }
         if !self.uvs.is_empty() || !other.uvs.is_empty() {
             if other.uvs.is_empty() {
-                self.uvs.extend(std::iter::repeat_n([0.0, 0.0], other.positions.len()));
+                self.uvs
+                    .extend(std::iter::repeat([0.0, 0.0]).take(other.positions.len()));
             } else {
                 self.uvs.extend_from_slice(&other.uvs);
             }
@@ -343,10 +345,7 @@ impl MeshData {
         }
 
         let has_uv = !self.uvs.is_empty();
-        let mut out = MeshData {
-            uvs: if has_uv { Vec::new() } else { Vec::new() },
-            ..Default::default()
-        };
+        let mut out = MeshData::default();
         let mut dedup: std::collections::HashMap<((i64, i64, i64), (i64, i64, i64), (i64, i64)), u32> =
             std::collections::HashMap::new();
         let mut indices = Vec::with_capacity(self.indices.len());

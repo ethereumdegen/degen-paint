@@ -385,12 +385,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dejavu"
-version = "2.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "017b75b5fbc5806d490da36acc5c4d0e4ae1b69890d02f24c268da971813fbc1"
-
-[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,6 +430,7 @@ dependencies = [
  "dpaint-raster",
  "dpaint-render",
  "dpaint-vector",
+ "image",
  "schemars",
  "serde",
  "serde_json",
@@ -474,14 +469,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tiny-skia",
 ]
 
 [[package]]
 name = "dpaint-mcp"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "dpaint-core",
+ "parking_lot",
+ "schemars",
  "serde",
  "serde_json",
  "tempfile",
@@ -509,7 +506,6 @@ dependencies = [
 name = "dpaint-raster"
 version = "0.1.0"
 dependencies = [
- "dejavu",
  "dpaint-core",
  "fontdb",
  "image",

@@ -1,7 +1,7 @@
 //! Pixel plumbing between the document and a provider: decoding results, building the mask a
 //! model needs, and turning a cutout into a layer mask.
 
-use dpaint_core::doc::raster::{RasterDoc, Selection};
+use dpaint_core::doc::raster::RasterDoc;
 use dpaint_core::kurbo::{BezPath, PathEl};
 use dpaint_core::{AssetStore, Error, Result};
 use tiny_skia as ts;
@@ -164,15 +164,6 @@ pub fn selection_coverage(mask_png: &[u8]) -> Result<f64> {
     Ok(lit as f64 / (total as f64 * 255.0))
 }
 
-pub fn bounds_of(sel: &Selection, doc: &RasterDoc) -> (f64, f64, f64, f64) {
-    let b = sel.bounds;
-    if b.is_empty() {
-        (0.0, 0.0, doc.width() as f64, doc.height() as f64)
-    } else {
-        (b.x(), b.y(), b.w(), b.h())
-    }
-}
-
 /// Grow a canvas by the requested margins, returning the padded image and the mask of the
 /// new area — outpainting is inpainting of the margin.
 pub fn pad(src: &ts::Pixmap, left: u32, top: u32, right: u32, bottom: u32) -> Result<(ts::Pixmap, ts::Pixmap)> {
@@ -289,6 +280,7 @@ fn to_skia_path(bez: &BezPath) -> Option<ts::Path> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dpaint_core::doc::raster::Selection;
     use dpaint_core::doc::Rect;
     use dpaint_core::DocId;
 

@@ -81,6 +81,7 @@ COMMANDS
 GLOBAL
   --project <dir>       Project directory (default: discovered from the cwd)
   --doc <id|name>       Target document (default: the project's active document)
+                        Note: ops that take their own --document keep it
   --json                Machine-readable output on stdout
   --dry-run             Validate and report without writing
 "#;
@@ -110,7 +111,9 @@ fn split_globals(argv: &[String]) -> Ctx {
                 ctx.project_dir = argv.get(i + 1).map(PathBuf::from);
                 i += 2;
             }
-            "--doc" | "--document" => {
+            // Only `--doc` is global: several ops take their own `--document`
+            // argument (a linked layer's target, for instance) and it must reach them.
+            "--doc" => {
                 ctx.doc = argv.get(i + 1).cloned();
                 i += 2;
             }
@@ -566,16 +569,19 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
         "providers": providers,
         "project": project,
     });
+    let summary = match &report["project"] {
+        serde_json::Value::Null => "  project: none found from this directory".to_string(),
+        p => format!("  project: {} ({} documents)", p["root"], p["documents"]),
+    };
+    let provider_line = serde_json::to_string(&providers).unwrap_or_default();
+    let op_count = reg.len();
     emit(
         ctx,
         || {
             println!("dpaint {}", env!("CARGO_PKG_VERSION"));
-            println!("  ops registered: {}", reg.len());
-            println!("  providers: {}", serde_json::to_string(&providers).unwrap_or_default());
-            match &report["project"] {
-                serde_json::Value::Null => println!("  project: none found from this directory"),
-                p => println!("  project: {} ({} documents)", p["root"], p["documents"]),
-            }
+            println!("  ops registered: {op_count}");
+            println!("  providers: {provider_line}");
+            println!("{summary}");
         },
         report,
     );
@@ -585,7 +591,75 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
 fn cmd_mcp(ctx: &Ctx) -> Result<i32> {
     let reg = registry();
     let root = ctx.project_dir.clone();
-    dpaint_mcp::serve_stdio(reg, root)?;
+
+    // The render and lint loop tools live here because they need the engine crates;
+    // the MCP crate stays dependent on core alone.
+    let render_root = root.clone();
+    let lint_root = root.clone();
+    let handlers = dpaint_mcp::Handlers::new()
+        .with(
+            "dpaint_render",
+            Box::new(move |args: serde_json::Value| -> Result<serde_json::Value> {
+                let ws = match &render_root {
+                    Some(p) => Workspace::open(p)?,
+                    None => Workspace::discover(".")?,
+                };
+                let assets = AssetStore::new(ws.root());
+                let doc = ws
+                    .project
+                    .resolve_doc(args.get("document").and_then(|d| d.as_str()))?;
+                let scale = args.get("scale").and_then(|s| s.as_f64()).unwrap_or(1.0);
+                let opts = dpaint_inspect::DigestOptions {
+                    per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+                    render: dpaint_render::RenderOptions { scale, ..Default::default() },
+                    ..Default::default()
+                };
+                let (digest, findings) =
+                    dpaint_inspect::lint::digest_and_lint(&ws.project, &doc, &assets, &opts)?;
+                let path = args.get("path").and_then(|p| p.as_str());
+                let written = match path {
+                    Some(p) => Some(dpaint_render::export_document(
+                        &ws.project, &doc, &assets, p, &opts.render, 90,
+                    )?),
+                    None => None,
+                };
+                Ok(json!({ "digest": digest, "lint": findings, "written": written }))
+            }),
+        )
+        .with(
+            "dpaint_lint",
+            Box::new(move |args: serde_json::Value| -> Result<serde_json::Value> {
+                let ws = match &lint_root {
+                    Some(p) => Workspace::open(p)?,
+                    None => Workspace::discover(".")?,
+                };
+                let assets = AssetStore::new(ws.root());
+                let opts = dpaint_inspect::DigestOptions {
+                    per_object: !args.get("fast").and_then(|f| f.as_bool()).unwrap_or(false),
+                    ..Default::default()
+                };
+                let report = match args.get("document").and_then(|d| d.as_str()) {
+                    Some(d) => {
+                        let id = ws.project.resolve_doc(Some(d))?;
+                        let findings =
+                            dpaint_inspect::lint::lint_document(&ws.project, &id, &assets, &opts)?;
+                        let errors = findings
+                            .iter()
+                            .filter(|f| f.severity == dpaint_inspect::Severity::Error)
+                            .count();
+                        let warnings = findings
+                            .iter()
+                            .filter(|f| f.severity == dpaint_inspect::Severity::Warn)
+                            .count();
+                        dpaint_inspect::Report { findings, errors, warnings }
+                    }
+                    None => dpaint_inspect::lint::lint_project(&ws.project, &assets, &opts)?,
+                };
+                Ok(serde_json::to_value(report)?)
+            }),
+        );
+
+    dpaint_mcp::serve_stdio(reg, root, handlers)?;
     Ok(0)
 }
 

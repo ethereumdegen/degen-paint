@@ -23,7 +23,11 @@ Without a prefix it resolves against `--doc`, or the active document.
 
 ## Examples
 
+A category keyword selects everything in it, so both `text` and `layer[type=text]` work:
+
 ```bash
+layer                         # every layer in a raster document
+object                        # every object in a vector document
 #lyr_sky                      # the layer with that exact id
 @sky                          # every object named "sky"
 layer[type=text]              # all text layers

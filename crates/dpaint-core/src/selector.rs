@@ -53,6 +53,7 @@ pub struct Match {
     pub name: String,
     #[serde(rename = "type")]
     pub type_name: String,
+    pub category: &'static str,
     pub depth: usize,
 }
 
@@ -166,7 +167,11 @@ impl Predicate {
 pub struct Candidate {
     pub id: String,
     pub name: String,
+    /// Specific kind: "pixel", "text", "path", "ellipse", "mesh"...
     pub type_name: String,
+    /// Broad category: "layer", "object", "artboard", "node", "mesh", "material",
+    /// "light", "camera". Lets `layer[type=text]` mean what it looks like it means.
+    pub category: &'static str,
     pub depth: usize,
     pub attrs: serde_json::Value,
 }
@@ -182,6 +187,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                         id: l.id.to_string(),
                         name: l.name.clone(),
                         type_name: l.type_name().to_string(),
+                        category: "layer",
                         depth,
                         attrs: serde_json::to_value(l).unwrap_or(serde_json::Value::Null),
                     });
@@ -199,6 +205,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                         id: o.id.to_string(),
                         name: o.name.clone(),
                         type_name: o.type_name().to_string(),
+                        category: "object",
                         depth,
                         attrs: serde_json::to_value(o).unwrap_or(serde_json::Value::Null),
                     });
@@ -213,6 +220,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: a.id.to_string(),
                     name: a.name.clone(),
                     type_name: "artboard".into(),
+                    category: "artboard",
                     depth: 0,
                     attrs: serde_json::to_value(a).unwrap_or(serde_json::Value::Null),
                 });
@@ -224,6 +232,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: n.id.to_string(),
                     name: n.name.clone(),
                     type_name: "node".into(),
+                    category: "node",
                     depth: 0,
                     attrs: serde_json::to_value(n).unwrap_or(serde_json::Value::Null),
                 });
@@ -233,6 +242,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: m.id.to_string(),
                     name: m.name.clone(),
                     type_name: "mesh".into(),
+                    category: "mesh",
                     depth: 0,
                     attrs: serde_json::to_value(m).unwrap_or(serde_json::Value::Null),
                 });
@@ -242,6 +252,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: m.id.to_string(),
                     name: m.name.clone(),
                     type_name: "material".into(),
+                    category: "material",
                     depth: 0,
                     attrs: serde_json::to_value(m).unwrap_or(serde_json::Value::Null),
                 });
@@ -251,6 +262,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: l.id.to_string(),
                     name: l.name.clone(),
                     type_name: "light".into(),
+                    category: "light",
                     depth: 0,
                     attrs: serde_json::to_value(l).unwrap_or(serde_json::Value::Null),
                 });
@@ -260,6 +272,7 @@ pub fn candidates(doc: &Document) -> Vec<Candidate> {
                     id: c.id.to_string(),
                     name: c.name.clone(),
                     type_name: "camera".into(),
+                    category: "camera",
                     depth: 0,
                     attrs: serde_json::to_value(c).unwrap_or(serde_json::Value::Null),
                 });
@@ -282,7 +295,8 @@ fn matches(c: &Candidate, t: &Term, index: usize, total: usize) -> bool {
         Source::All => true,
         Source::Id(id) => c.id == *id,
         Source::Name(n) => c.name == *n,
-        Source::Type(ty) => c.type_name == *ty,
+        // A specific kind ("text") or the broad category ("layer") both select.
+        Source::Type(ty) => c.type_name == *ty || c.category == ty.as_str(),
     };
     if !source_ok {
         return false;
@@ -343,6 +357,7 @@ pub fn resolve(project: &Project, selector: &str, default_doc: Option<&DocId>) -
                 id: c.id.clone(),
                 name: c.name.clone(),
                 type_name: c.type_name.clone(),
+                category: c.category,
                 depth: c.depth,
             });
         }
@@ -453,6 +468,15 @@ mod tests {
             vec!["lyr_bg", "lyr_title", "grp_fg", "lyr_inner"]
         );
         assert_eq!(all[3].depth, 1);
+    }
+
+    #[test]
+    fn a_category_keyword_selects_every_kind_in_it() {
+        let p = project();
+        // Both spellings from docs/selectors.md must work.
+        assert_eq!(resolve(&p, "layer", None).unwrap().len(), 4);
+        assert_eq!(resolve(&p, "layer[type=text]", None).unwrap()[0].id, "lyr_title");
+        assert_eq!(resolve(&p, "logo:object", None).unwrap().len(), 1);
     }
 
     #[test]

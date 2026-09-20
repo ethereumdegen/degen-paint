@@ -221,7 +221,6 @@ impl RecordedTransport {
     pub fn calls_matching(&self, needle: &str) -> Vec<HttpRequest> {
         self.calls
             .lock()
-            .unwrap()
             .iter()
             .filter(|c| c.url.contains(needle))
             .cloned()
@@ -361,6 +360,21 @@ mod tests {
         assert_eq!(second.parse_json().unwrap()["status"], "COMPLETED");
         assert_eq!(third.parse_json().unwrap()["status"], "COMPLETED");
         assert_eq!(t.call_count(), 3);
+    }
+
+    #[cfg(feature = "net")]
+    #[test]
+    fn the_real_transport_reports_a_refused_connection_as_a_provider_error() {
+        // Port 1 refuses immediately: this exercises the reqwest path without a network.
+        let t = ReqwestTransport::new(std::time::Duration::from_secs(2));
+        let err = t
+            .request(HttpRequest::post_json(
+                "http://127.0.0.1:1/fal-ai/flux/dev",
+                &serde_json::json!({"prompt": "x"}),
+            ))
+            .unwrap_err();
+        assert_eq!(err.code(), "provider_error");
+        assert_eq!(err.exit_code(), 5);
     }
 
     #[test]

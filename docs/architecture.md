@@ -40,7 +40,7 @@ second renderer, no "preview looks different from export".
 | `dpaint-vector` | Path model, boolean ops, offset/outline/simplify, gradients, text shaping → outlines, SVG parse/serialize | `kurbo`, `i_overlay`, `rustybuzz`, `fontdb`, `ttf-parser`, `usvg`, `svgtypes` |
 | `dpaint-model3d` | glTF authoring: primitives, extrude/revolve/loft, PBR materials, node graph, TRS animation, validation | `gltf-json`, `lyon_tessellation`, `mikktspace`, `meshopt` |
 | `dpaint-ai` | Optional provider layer: fal.ai, QuiverAI; key resolution, caching, provenance, budget | `reqwest`, `tokio`, `keyring`, `secrecy`, `eventsource-stream` |
-| `dpaint-render` | Unified render targets, scale/DPI, thumbnails, wgpu PBR renderer (offscreen + on-surface) | `wgpu`, `oxipng`, `zune-jpeg`, `resvg` |
+| `dpaint-render` | Unified render targets, link resolution with cycle detection, encoders, CPU PBR preview rasterizer | `image`, `tiny-skia` |
 | `dpaint-inspect` | Digest, measurement, lint rules, SSIM/ΔE diff, annotate overlay | `dssim-core`, `image-compare` |
 | `dpaint-cli` | `dpaint` binary; subcommands generated from the registry | `clap`, `indicatif` |
 | `dpaint-mcp` | MCP server over stdio; tools generated from the registry | `rmcp` |
@@ -88,9 +88,16 @@ outlines — so a rendered file never depends on the viewer having the font, and
 feed the 3D extruder.
 
 ### Model
-`wgpu` with a PBR metallic-roughness shader, IBL from a bundled environment map, rendering
-offscreen to a texture for headless turntables and to a surface inside Tauri for the live
-viewport. Same shader both ways.
+Headless previews use a **CPU z-buffer rasterizer** (`dpaint-render/src/preview3d.rs`) with
+perspective-correct depth, interpolated normals, a key/fill/ambient rig and a roughness-driven
+specular term.
+
+This is a deliberate change from the original plan, which specified `wgpu` everywhere. An agent's
+turntable has to render identically on a laptop, in CI, and in a container with no display, and
+a software rasterizer gives byte-identical output with no driver surface — which is exactly what
+golden tests and perceptual diffs require. `wgpu` still belongs in the interactive Tauri viewport
+(P7), where throughput matters more than bit-exactness; the CPU path stays authoritative for
+anything an agent measures.
 
 ### Cross-mode
 A **linked layer** is a document reference plus a transform. Rendering it recursively renders the
@@ -126,3 +133,18 @@ native engine in Tauri and a WASM engine in a plain browser tab.
 Capabilities are reported, never assumed: `dpaint doctor` and the GUI's capability probe both report
 whether WebGPU, the AI providers, and the system font sources are available, so a missing feature
 produces a clear message rather than a mysterious failure.
+
+
+## 8. Argument conventions
+
+Uniform across all 212 ops, because an agent should never have to remember per-op spellings:
+
+| Flag | Meaning |
+|---|---|
+| `--doc <id\|name>` (global) | the document being edited |
+| `--source <id\|name>` | a document this op *reads*: a linked layer's target, the vector path an extrusion consumes, the raster document behind a texture |
+| `--target <selector>` | the objects inside the document the op acts on |
+| `--json`, `--dry-run`, `--project` (global) | machine output, validate-without-writing, explicit project directory |
+
+Documents are addressable by id *or* name everywhere. Selectors may carry their own document
+prefix (`campaign:@mark`), which wins over `--source`.

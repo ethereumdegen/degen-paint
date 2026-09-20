@@ -118,7 +118,3 @@ pub fn device_matrix(layer: Transform, scale: f64) -> Affine {
     Affine::scale(scale) * layer.to_kurbo()
 }
 
-/// Bounding box of a path in document space.
-pub fn bbox(path: &BezPath) -> kurbo::Rect {
-    path.bounding_box()
-}

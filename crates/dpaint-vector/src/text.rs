@@ -9,13 +9,13 @@ use crate::geom::Subpath;
 use dpaint_core::asset::AssetStore;
 use dpaint_core::doc::common::{TextAlign, TextSpec};
 use dpaint_core::error::{Error, Result};
-use dpaint_core::kurbo::{Affine, BezPath, Line as KLine, ParamCurve, Point, Rect as KRect, Shape, Vec2};
+use dpaint_core::kurbo::{Affine, BezPath, Line as KLine, ParamCurve, Point, Shape, Vec2};
 use dpaint_core::project::Project;
 use std::sync::LazyLock;
 
-/// The fallback face. Roboto Regular, Apache-2.0, embedded so text never depends on the host.
-pub const FALLBACK_TTF: &[u8] = include_bytes!("../assets/Roboto-Regular.ttf");
-pub const FALLBACK_FAMILY: &str = "Roboto";
+/// The fallback face, owned by `dpaint-core` so every mode shapes a `TextSpec` the same
+/// way. Re-exported here because this crate's callers reach for it through `text::`.
+pub use dpaint_core::{FALLBACK_FAMILY, FALLBACK_FONT};
 
 /// Families that mean "whatever the renderer's default is" rather than a specific face.
 const GENERIC: &[&str] = &["sans-serif", "sans", "default", "system-ui", FALLBACK_FAMILY];
@@ -41,7 +41,7 @@ pub struct Selection {
 impl Fonts {
     pub fn new_embedded() -> Fonts {
         let mut db = fontdb::Database::new();
-        db.load_font_data(FALLBACK_TTF.to_vec());
+        db.load_font_data(FALLBACK_FONT.to_vec());
         let fallback = db
             .faces()
             .next()
@@ -613,27 +613,6 @@ fn spans_at(path: &BezPath, y: f64, even_odd: bool) -> Vec<(f64, f64)> {
         }
     }
     out
-}
-
-/// Bounding box of a shaped block, for `text.fit` style callers and SVG export.
-pub fn block_bounds(fonts: &Fonts, spec: &TextSpec, origin: (f64, f64)) -> KRect {
-    let shaped = shape(fonts, spec);
-    let m = shaped.metrics;
-    let (bx, by, bw) = match spec.r#box {
-        Some(b) => (b.x(), b.y(), Some(b.w())),
-        None => (origin.0, origin.1, None),
-    };
-    let mut r: Option<KRect> = None;
-    for (i, line) in shaped.lines.iter().enumerate() {
-        let top = by + m.line_height * i as f64;
-        let dx = align_offset(spec.align, line.width, bw);
-        let lr = KRect::new(bx + dx, top, bx + dx + line.width, top + m.ascent + m.descent);
-        r = Some(match r {
-            Some(p) => p.union(lr),
-            None => lr,
-        });
-    }
-    r.unwrap_or(KRect::new(bx, by, bx, by))
 }
 
 #[cfg(test)]

@@ -4,7 +4,6 @@
 //! doc_logo:#mark, depth 12, bevel 1.5"), not a vertex soup. Edit the source path and the
 //! mesh regenerates. That is what keeps 3D diffable and agent-editable instead of opaque.
 
-use super::common::Provenance;
 use crate::asset::AssetRef;
 use crate::color::Color;
 use crate::ids::{AnimId, CameraId, DocId, LightId, MaterialId, MeshId, NodeId, ObjectId};

@@ -3,6 +3,27 @@
 Rule for every phase: it ends with a **rendered artifact and a passing check**, not a claim.
 Phases are sequential because each one's proof depends on the previous one's engine.
 
+## Where it stands
+
+| Phase | State | Evidence |
+|---|---|---|
+| P0 Foundation | done | 61 core tests; apply/undo/redo is byte-identical at every step |
+| P1 Raster | done | 84 ops, 106 tests |
+| P2 Vector | done | 63 ops, 85 tests |
+| P3 Model | done | 37 ops, 49 tests; GLB re-parses and validates |
+| P4 Bridges | done | `examples/campaign.sh`: one path to SVG + GLB + PNG |
+| P5 Agent surface | done | digest, lint, annotate, diff; 217 MCP tools over stdio |
+| P6 AI providers | done | 12 ops, 52 tests against recorded transports |
+| P7 Studio | not started | — |
+| P8 Docs and release | in progress | 415 tests green; installers and CI still to come |
+
+Total: **212 ops, 415 tests, 0 failures** (`cargo test --workspace`).
+
+Two deliberate deviations from the original plan, both documented where they matter:
+`wgpu` was replaced by a CPU rasterizer for headless model previews (determinism beats
+throughput for anything an agent measures — see `docs/architecture.md`), and the wasm32 build
+is deferred to P7 with the GUI that needs it.
+
 ---
 
 ## P0 — Foundation

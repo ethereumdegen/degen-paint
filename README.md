@@ -13,9 +13,9 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-> **Status: planning.** This repository currently contains the design, not an implementation.
-> Start with [`PLAN.md`](./PLAN.md). Nothing here is built yet — no code is being passed off as
-> working.
+> **Status: the engine works.** 212 ops across all three modes, 415 tests green, driven by the
+> `dpaint` CLI and an MCP server. The Tauri/WASM GUI (P7) is designed but not built — see
+> [`docs/roadmap.md`](./docs/roadmap.md) for exactly what is and is not done.
 
 ---
 
@@ -60,6 +60,18 @@ That cross-mode graph is why all three belong in one tool instead of three, and 
 agent gets leverage a human rarely bothers with: edit one source path, regenerate the whole family
 of assets.
 
+## Quickstart
+
+```bash
+cargo build --release            # binary at target/release/dpaint
+dpaint doctor                    # capabilities: ops, formats, providers
+dpaint op --list                 # the whole catalog, or `--list raster.filter`
+dpaint op raster.filter.gaussian-blur --help   # generated from the op's JSON Schema
+```
+
+[`examples/campaign.sh`](./examples/campaign.sh) is the pipeline below, end to end, verified in
+CI by `crates/dpaint-cli/tests/pipeline.rs`.
+
 ## What a session looks like
 
 ```bash
@@ -81,13 +93,19 @@ dpaint op model.material.set-pbr --material "#mat" --base-color "#d4af37" --meta
 # raster: compose, with the other documents linked in live
 dpaint op raster.layer.add --type linked --document logo --box 1800,3100,480,240 --name badge-mark
 dpaint op raster.layer.add --type text --text "URBAN EXPLORER" --font Inter:700 --size 96 --name title
-dpaint op raster.select.wand --layer "#sky" --at 100,100 --tolerance 24
-dpaint op raster.filter.gaussian-blur --layer "#sky" --radius 12      # scoped to the selection
+dpaint --doc campaign op raster.select.wand --at 100,100 --tolerance 24
+dpaint --doc campaign op raster.filter.gaussian-blur --target "@sky" --sigma 12   # scoped to the selection
 
-dpaint render out/poster.png --scale 2 --digest out/digest.json
-dpaint render out/badge.glb
-dpaint lint --json
+dpaint --doc poster render out/poster.png --scale 2
+dpaint --doc badge  render out/badge.glb
+dpaint --doc poster inspect          # the digest
+dpaint lint --json                   # exit 4 when the document has problems
 ```
+
+Two flag conventions worth knowing, because they are uniform across all 212 ops: the global
+`--doc` picks the document being edited, and an op's own `--source` names a document it *reads*
+(the target of a linked layer, the vector path an extrusion consumes, the raster document behind
+a texture).
 
 Every one of those commands is a registered op. Every one is journaled, undoable, and replayable.
 
@@ -199,15 +217,15 @@ Every phase ends with a rendered artifact and a passing check, never a claim.
 
 | | Phase | Gate |
 |---|---|---|
-| P0 | Foundation — doc model, op registry, journal, undo | 20 ops applied, undone, redone, byte-identical each step |
-| P1 | Raster engine | 300 DPI composite poster; blend-mode golden grid |
-| P2 | Vector engine | logo from boolean ops + text-on-path; SVG round-trips identically |
-| P3 | Model engine | GLB passes glTF validation with zero errors; turntable renders |
-| P4 | Cross-mode bridges | one source path drives PNG + SVG + GLB, all consistent |
-| P5 | Agent surface | an agent with only the MCP tool list builds the poster unaided |
-| P6 | AI providers | boolean-subtract a hole in a Quiver-generated logo, then extrude it |
-| P7 | Studio (Tauri + browser) | GUI viewport matches `dpaint render` pixel for pixel |
-| P8 | Docs and release | golden suite green on macOS and Linux |
+| P0 | Foundation — doc model, op registry, journal, undo | **done** — apply/undo/redo restores byte-identical JSON at every step |
+| P1 | Raster engine — 84 ops | **done** — 106 tests: blur reduces variance, group opacity differs from per-child, selections scope every filter |
+| P2 | Vector engine — 63 ops | **done** — 85 tests: boolean areas verified numerically, SVG round-trips byte-stable |
+| P3 | Model engine — 37 ops | **done** — 49 tests: GLB re-parses, extrude volume = s²d, holes survive into the caps |
+| P4 | Cross-mode bridges | **done** — one path drives `logo.svg` + `badge.glb` + `poster.png`; recoloring the source repaints the poster |
+| P5 | Agent surface | **done** — digest, lint, annotate, SSIM/ΔE diff, 217 MCP tools over stdio |
+| P6 | AI providers | **done** — 52 tests against recorded transports; cache, budget, provenance |
+| P7 | Studio (Tauri + browser) | not started |
+| P8 | Docs and release | in progress |
 
 Full acceptance criteria: [`docs/roadmap.md`](./docs/roadmap.md).
 

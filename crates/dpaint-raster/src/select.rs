@@ -190,18 +190,6 @@ pub fn resolve(
     Ok(Some(mask))
 }
 
-/// Store a coverage mask on the document as the current selection.
-pub fn store_mask(doc: &mut RasterDoc, assets: &AssetStore, mask: &SelMask) -> Result<()> {
-    let asset = assets.put(&mask.to_png()?, "png")?;
-    doc.selection = Some(Selection {
-        d: None,
-        mask: Some(asset),
-        feather: 0.0,
-        inverted: false,
-        bounds: mask.bounds(),
-    });
-    Ok(())
-}
 
 /// Store a vector outline as the current selection, keeping it resolution-independent.
 pub fn store_outline(doc: &mut RasterDoc, d: String, bounds: Rect, feather: f64) {

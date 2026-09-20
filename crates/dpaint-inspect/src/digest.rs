@@ -170,10 +170,15 @@ fn object_digests(
             .into_iter()
             .map(|c| c.id)
             .collect();
-        for id in ids {
-            if let Some(l) = raster.layer_mut(&dpaint_core::LayerId::from(id.clone())) {
-                // Keep ancestors visible so a layer inside a group still renders.
-                l.visible = id == node.id || is_ancestor_of(raster, &id, &node.id);
+        // Decide visibility before mutating: a layer inside a group only renders if its
+        // ancestors stay visible too.
+        let visibility: Vec<(String, bool)> = ids
+            .iter()
+            .map(|id| (id.clone(), *id == node.id || is_ancestor_of(raster, id, &node.id)))
+            .collect();
+        for (id, visible) in visibility {
+            if let Some(l) = raster.layer_mut(&dpaint_core::LayerId::from(id)) {
+                l.visible = visible;
             }
         }
         let Ok(pm) = dpaint_render::render_document(&probe, doc_id, assets, &opts.render) else {

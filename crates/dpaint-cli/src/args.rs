@@ -7,6 +7,33 @@
 use dpaint_core::{Error, Result};
 use serde_json::{Map, Value};
 
+/// Follow a `$ref` into the schema's `$defs`, so `--text '{...}'` knows it wants an object.
+fn deref<'a>(root: &'a Value, spec: &'a Value) -> &'a Value {
+    let Some(r) = spec.get("$ref").and_then(|r| r.as_str()) else {
+        return spec;
+    };
+    r.strip_prefix("#/$defs/")
+        .and_then(|name| root.get("$defs").and_then(|d| d.get(name)))
+        .unwrap_or(spec)
+}
+
+/// Resolve an optional-or-$ref wrapper down to the schema that carries the real type.
+fn effective<'a>(root: &'a Value, spec: &'a Value) -> &'a Value {
+    let spec = deref(root, spec);
+    for key in ["anyOf", "oneOf", "allOf"] {
+        if let Some(arr) = spec.get(key).and_then(|v| v.as_array()) {
+            if let Some(hit) = arr
+                .iter()
+                .map(|v| deref(root, v))
+                .find(|v| v.get("type").and_then(|t| t.as_str()) != Some("null"))
+            {
+                return hit;
+            }
+        }
+    }
+    spec
+}
+
 /// Parse `["--radius", "12", "--layer", "#sky", "--invert"]` against a schema.
 pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
     let props = schema.get("properties").and_then(|p| p.as_object());
@@ -43,8 +70,13 @@ pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
             Some((n, v)) => (n, Some(v.to_string())),
             None => (name, None),
         };
-        let key = name.replace('-', "_");
-        let spec = props.and_then(|p| p.get(&key).or_else(|| p.get(name)));
+        // `--text.size 64` sets a field inside an object argument.
+        let (root_name, sub) = match name.split_once('.') {
+            Some((a, b)) => (a, Some(b.replace('-', "_"))),
+            None => (name, None),
+        };
+        let key = root_name.replace('-', "_");
+        let spec = props.and_then(|p| p.get(&key).or_else(|| p.get(root_name)));
 
         if spec.is_none() {
             let known: Vec<&str> = props.map(|p| p.keys().map(|s| s.as_str()).collect()).unwrap_or_default();
@@ -54,7 +86,8 @@ pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
             });
         }
 
-        let ty = type_of(spec.expect("checked above"));
+        let resolved = effective(schema, spec.expect("checked above"));
+        let ty = if sub.is_some() { sub_type(schema, resolved, sub.as_deref().unwrap_or("")) } else { type_of(resolved) };
         if ty == "boolean" && inline.is_none() {
             // Bare `--invert` means true, but `--invert false` still works.
             let next_is_value = argv
@@ -82,11 +115,52 @@ pub fn parse(op: &str, schema: &Value, argv: &[String]) -> Result<Value> {
                 })?,
         };
         let consumed = if spec.is_some() && argv.get(i + 1).map(|v| v == &raw).unwrap_or(false) { 2 } else { 1 };
-        out.insert(key, coerce(&raw, &ty));
+        match sub {
+            Some(field) => {
+                let slot = out.entry(key).or_insert_with(|| Value::Object(Map::new()));
+                if !slot.is_object() {
+                    *slot = Value::Object(Map::new());
+                }
+                slot.as_object_mut()
+                    .expect("just ensured object")
+                    .insert(field, coerce(&raw, &ty));
+            }
+            None => {
+                out.insert(key, coerce_for(schema, resolved, &raw, &ty));
+            }
+        }
         i += consumed;
     }
 
     Ok(Value::Object(out))
+}
+
+/// Type of a named field inside an object-typed argument.
+fn sub_type(root: &Value, spec: &Value, field: &str) -> String {
+    spec.get("properties")
+        .and_then(|p| p.get(field))
+        .map(|f| type_of(effective(root, f)))
+        .unwrap_or_else(|| "string".into())
+}
+
+/// Coerce, with one ergonomic rule: an object argument that has exactly one required
+/// field accepts a bare scalar for that field, so `--text "HELLO"` does the obvious thing.
+fn coerce_for(root: &Value, spec: &Value, raw: &str, ty: &str) -> Value {
+    if ty == "object" && !raw.trim_start().starts_with('{') {
+        let required: Vec<&str> = spec
+            .get("required")
+            .and_then(|r| r.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default();
+        if required.len() == 1 {
+            let field = required[0];
+            let field_ty = sub_type(root, spec, field);
+            let mut m = Map::new();
+            m.insert(field.to_string(), coerce(raw, &field_ty));
+            return Value::Object(m);
+        }
+    }
+    coerce(raw, ty)
 }
 
 fn type_of(spec: &Value) -> String {
@@ -167,7 +241,8 @@ pub fn usage(id: &str, about: &str, schema: &Value) -> String {
         }
         for (name, spec) in props {
             let flag = name.replace('_', "-");
-            let ty = type_of(spec);
+            let resolved = effective(schema, spec);
+            let ty = type_of(resolved);
             let req = if required.contains(&name.as_str()) { " (required)" } else { "" };
             let desc = spec
                 .get("description")
@@ -176,6 +251,15 @@ pub fn usage(id: &str, about: &str, schema: &Value) -> String {
             s.push_str(&format!("  --{flag} <{ty}>{req}\n"));
             if !desc.is_empty() {
                 s.push_str(&format!("      {desc}\n"));
+            }
+            if ty == "object" {
+                if let Some(fields) = resolved.get("properties").and_then(|p| p.as_object()) {
+                    let names: Vec<String> = fields
+                        .keys()
+                        .map(|f| format!("--{flag}.{}", f.replace('_', "-")))
+                        .collect();
+                    s.push_str(&format!("      fields: {}\n", names.join(" ")));
+                }
             }
         }
     }
@@ -252,9 +336,62 @@ mod tests {
 
     #[test]
     fn raw_json_can_be_passed_wholesale() {
-        let v = parse("t", &schema(), &args(&["--args", r#"{"radius": 4, "layer": "#a"}"#])).unwrap();
+        let v = parse("t", &schema(), &args(&["--args", r##"{"radius": 4, "layer": "#a"}"##])).unwrap();
         assert_eq!(v["radius"], 4);
         assert_eq!(v["layer"], "#a");
+    }
+
+    fn object_schema() -> Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "text": { "anyOf": [{ "$ref": "#/$defs/TextSpec" }, { "type": "null" }],
+                          "description": "Text content and typography." }
+            },
+            "$defs": {
+                "TextSpec": {
+                    "type": "object",
+                    "properties": {
+                        "text": { "type": "string" },
+                        "size": { "type": "number" },
+                        "family": { "type": "string" }
+                    },
+                    "required": ["text"]
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn a_bare_scalar_fills_an_objects_single_required_field() {
+        let v = parse("t", &object_schema(), &args(&["--text", "URBAN EXPLORER"])).unwrap();
+        assert_eq!(v["text"]["text"], "URBAN EXPLORER");
+    }
+
+    #[test]
+    fn dotted_flags_set_fields_inside_an_object_argument() {
+        let v = parse(
+            "t",
+            &object_schema(),
+            &args(&["--text", "HELLO", "--text.size", "64", "--text.family", "Inter"]),
+        )
+        .unwrap();
+        assert_eq!(v["text"]["text"], "HELLO");
+        assert_eq!(v["text"]["size"], 64.0, "the nested field must keep its schema type");
+        assert_eq!(v["text"]["family"], "Inter");
+    }
+
+    #[test]
+    fn a_full_json_object_still_wins_over_the_convenience_rule() {
+        let v = parse("t", &object_schema(), &args(&[r#"--text={"text":"A","size":12}"#])).unwrap();
+        assert_eq!(v["text"]["size"], 12);
+    }
+
+    #[test]
+    fn usage_lists_the_fields_of_an_object_argument() {
+        let u = usage("raster.layer.add", "Add a layer", &object_schema());
+        assert!(u.contains("--text <object>"), "{u}");
+        assert!(u.contains("--text.size"), "usage must show how to reach nested fields:\n{u}");
     }
 
     #[test]

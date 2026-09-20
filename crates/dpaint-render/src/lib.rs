@@ -67,7 +67,7 @@ pub fn render_document(
     assets: &AssetStore,
     opts: &RenderOptions,
 ) -> Result<Pixmap> {
-    render_inner(project, doc, assets, opts, &mut Vec::new())
+    render_inner(project, doc, assets, opts, &std::cell::RefCell::new(Vec::new()))
 }
 
 fn render_inner(
@@ -75,13 +75,16 @@ fn render_inner(
     doc_id: &DocId,
     assets: &AssetStore,
     opts: &RenderOptions,
-    stack: &mut Vec<DocId>,
+    stack: &std::cell::RefCell<Vec<DocId>>,
 ) -> Result<Pixmap> {
-    if stack.contains(doc_id) {
-        return Err(Error::CyclicLink {
-            from: stack.last().map(|d| d.to_string()).unwrap_or_default(),
-            to: doc_id.to_string(),
-        });
+    {
+        let s = stack.borrow();
+        if s.contains(doc_id) {
+            return Err(Error::CyclicLink {
+                from: s.last().map(|d| d.to_string()).unwrap_or_default(),
+                to: doc_id.to_string(),
+            });
+        }
     }
     let document = project.doc(doc_id)?;
     let (w, h) = natural_size(document, opts);
@@ -93,7 +96,7 @@ fn render_inner(
         )));
     }
 
-    stack.push(doc_id.clone());
+    stack.borrow_mut().push(doc_id.clone());
     let result = match document {
         Document::Raster(_) => {
             let link = |target: &DocId, tw: u32, th: u32| -> Result<Pixmap> {
@@ -117,9 +120,9 @@ fn render_inner(
             };
             dpaint_vector::render_doc(project, doc_id, assets, scale)
         }
-        Document::Model(_) => render_model(project, doc_id, w, h, opts),
+        Document::Model(_) => render_model(project, doc_id, assets, w, h, opts),
     };
-    stack.pop();
+    stack.borrow_mut().pop();
 
     let mut pm = result?;
     if let Some(bg) = opts.background {
@@ -131,12 +134,13 @@ fn render_inner(
 fn render_model(
     project: &Project,
     doc_id: &DocId,
+    assets: &AssetStore,
     w: u32,
     h: u32,
     opts: &RenderOptions,
 ) -> Result<Pixmap> {
     let doc = project.model(doc_id)?;
-    let drawables = dpaint_model3d::scene_meshes(project, doc_id)?;
+    let drawables = dpaint_model3d::scene_meshes(project, doc_id, assets)?;
     let meshes: Vec<preview3d::Mesh> = drawables
         .into_iter()
         .map(|(_node, data, material, world)| {

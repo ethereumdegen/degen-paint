@@ -16,10 +16,13 @@ pub mod trace;
 
 use dpaint_core::Op;
 
+pub use raster::render_doc;
+pub use svg::{import_svg, to_svg};
+
 pub use geom::path_of;
 
 
 /// Ops contributed by this crate, registered by the CLI and the MCP server.
 pub fn ops() -> Vec<Box<dyn Op>> {
-    Vec::new()
+    ops::all()
 }

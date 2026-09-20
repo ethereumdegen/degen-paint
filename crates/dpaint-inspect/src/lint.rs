@@ -250,7 +250,7 @@ pub fn lint_document(
 
         Document::Model(model) => {
             for mesh in &model.meshes {
-                let Ok(data) = dpaint_model3d::build_mesh(project, doc_id, &mesh.id) else {
+                let Ok(data) = dpaint_model3d::build_mesh(project, doc_id, &mesh.id, assets) else {
                     out.push(Finding {
                         rule: "mesh-build-failed",
                         severity: Severity::Error,

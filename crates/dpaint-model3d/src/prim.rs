@@ -118,10 +118,10 @@ fn sphere(size: [f32; 3], seg: u32) -> MeshData {
             let a = i * stride + j;
             let (b, c, d) = (a + 1, a + stride + 1, a + stride);
             if i != 0 {
-                m.indices.extend_from_slice(&[a, d, b]);
+                m.indices.extend_from_slice(&[a, b, d]);
             }
             if i != stacks - 1 {
-                m.indices.extend_from_slice(&[b, d, c]);
+                m.indices.extend_from_slice(&[b, c, d]);
             }
         }
     }
@@ -147,7 +147,7 @@ fn cylinder(size: [f32; 3], seg: u32) -> MeshData {
     for i in 0..seg {
         let a = i * 2;
         m.indices
-            .extend_from_slice(&[a, a + 2, a + 1, a + 1, a + 2, a + 3]);
+            .extend_from_slice(&[a, a + 1, a + 2, a + 1, a + 3, a + 2]);
     }
     disc(&mut m, rx, rz, hy, seg, true);
     disc(&mut m, rx, rz, -hy, seg, false);
@@ -196,7 +196,7 @@ fn cone(size: [f32; 3], seg: u32) -> MeshData {
     }
     for i in 0..seg {
         let a = i * 2;
-        m.indices.extend_from_slice(&[a, a + 2, a + 1]);
+        m.indices.extend_from_slice(&[a, a + 1, a + 2]);
     }
     disc(&mut m, rx, rz, -hy, seg, false);
     m
@@ -245,7 +245,7 @@ fn capsule(size: [f32; 3], seg: u32) -> MeshData {
     let sectors = seg;
     let half = (seg / 4).max(2);
     let mut m = MeshData::default();
-    let mut ring = |phi: f32, y_off: f32, v: f32, m: &mut MeshData| {
+    let ring = |phi: f32, y_off: f32, v: f32, m: &mut MeshData| {
         let (sp, cp) = (phi.sin(), phi.cos());
         for j in 0..=sectors {
             let u = j as f32 / sectors as f32;
@@ -276,18 +276,11 @@ fn capsule(size: [f32; 3], seg: u32) -> MeshData {
         for j in 0..sectors {
             let a = i * stride + j;
             let (b, c, d) = (a + 1, a + stride + 1, a + stride);
-            m.indices.extend_from_slice(&[a, d, b, b, d, c]);
+            m.indices.extend_from_slice(&[a, b, d, b, c, d]);
         }
     }
     m.drop_degenerate(1e-12);
     m
-}
-
-/// Cheap sanity used by tests and validation: are all normals unit length?
-pub fn normals_are_unit(m: &MeshData, epsilon: f32) -> bool {
-    m.normals
-        .iter()
-        .all(|n| (crate::geom::length(*n) - 1.0).abs() <= epsilon)
 }
 
 /// Outward orientation check: does every triangle normal agree with its own winding?

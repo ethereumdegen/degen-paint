@@ -482,16 +482,6 @@ pub fn distance_to(p: &BezPath, pt: Point) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
-/// Is `pt` inside the filled region under the given rule?
-pub fn contains(p: &BezPath, pt: Point, even_odd: bool) -> bool {
-    let w = p.winding(pt);
-    if even_odd {
-        w % 2 != 0
-    } else {
-        w != 0
-    }
-}
-
 /// Convert a `kurbo` path to a `tiny_skia` path, applying `at`.
 pub fn to_skia(p: &BezPath, at: Affine) -> Option<tiny_skia::Path> {
     let mut b = tiny_skia::PathBuilder::new();
