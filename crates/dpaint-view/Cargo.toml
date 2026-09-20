@@ -1,0 +1,35 @@
+[package]
+name = "dpaint-view"
+description = "degen-paint interactive viewport: a native GPU window onto a degen-paint project"
+keywords = ["graphics", "viewport", "wgpu", "gltf", "editor"]
+categories = ["graphics", "visualization"]
+documentation = "https://docs.rs/dpaint-view"
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "dpaint-view"
+path = "src/main.rs"
+
+[dependencies]
+dpaint-core.workspace = true
+dpaint-render.workspace = true
+dpaint-gpu.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+pollster.workspace = true
+bytemuck.workspace = true
+tiny-skia.workspace = true
+ttf-parser.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+serde_json.workspace = true

@@ -24,6 +24,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
+// The interactive GPU viewport. Browser-only on purpose: it is the one part of this crate
+// that needs a WebGPU surface, and keeping `dpaint-gpu`/`wgpu` out of the native build
+// keeps `cargo test -p dpaint-wasm` about the engine.
+#[cfg(target_arch = "wasm32")]
+mod viewport;
+#[cfg(target_arch = "wasm32")]
+pub use viewport::DpaintViewport;
+
 /// Where the project lives inside the in-memory tree. Arbitrary but stable: the page keys
 /// its OPFS entries off the paths below it.
 const ROOT: &str = "/project.dpaint";
@@ -120,7 +128,7 @@ impl DpaintEngine {
 
     /// Reopened per call, exactly like the native `Studio`: the journal and the project are
     /// read back from storage so a stale in-process copy can never be shown.
-    fn workspace(&self) -> Result<Workspace> {
+    pub(crate) fn workspace(&self) -> Result<Workspace> {
         Workspace::open_with_vfs(&self.root, Arc::clone(&self.vfs))
     }
 
@@ -128,7 +136,7 @@ impl DpaintEngine {
         Ok(Engine::new(self.registry.clone(), self.workspace()?).as_human())
     }
 
-    fn assets(&self) -> AssetStore {
+    pub(crate) fn assets(&self) -> AssetStore {
         AssetStore::with_vfs(&self.root, Arc::clone(&self.vfs))
     }
 }

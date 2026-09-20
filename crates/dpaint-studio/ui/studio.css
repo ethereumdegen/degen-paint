@@ -160,6 +160,12 @@ kbd {
   transform-origin: 0 0;
 }
 #canvasImg.pixelated { image-rendering: pixelated; }
+/* The GPU viewport fills the area: pan, zoom, the checkerboard and the drop shadow are
+   all drawn by the shader, so there is nothing here to transform. */
+#canvasGl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#canvasGl[hidden] { display: none; }
+#canvasArea.orbiting { cursor: move; }
+.read.gpu { color: var(--accent); }
 .empty { position: absolute; color: var(--fg-faint); font: 11px var(--mono); }
 
 #viewBar {

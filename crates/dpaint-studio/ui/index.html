@@ -29,9 +29,13 @@
 
   <section id="viewport">
     <div id="canvasArea">
+      <!-- The CPU path. `#canvasPan` carries pan/zoom as a CSS transform. -->
       <div id="canvasPan" class="checker">
         <img id="canvasImg" alt="document render" draggable="false">
       </div>
+      <!-- The GPU path, used only when a WebGPU viewport attaches; pan, zoom and orbit
+           are then GPU state and this canvas fills the area. -->
+      <canvas id="canvasGl" hidden></canvas>
       <div id="canvasEmpty" class="empty" hidden>no render</div>
     </div>
     <div id="viewBar">
@@ -42,6 +46,8 @@
       <span id="sizeRead" class="read">— × —</span>
       <span class="dot">·</span>
       <span id="docRead" class="read">—</span>
+      <span class="dot">·</span>
+      <span id="gpuRead" class="read" title="Which renderer is drawing this viewport">CPU</span>
       <span class="grow"></span>
       <span id="busy" class="busy" hidden>rendering…</span>
     </div>

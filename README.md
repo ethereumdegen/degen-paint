@@ -7,7 +7,7 @@
 
 <p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-working-brightgreen">
-  <img alt="tests" src="https://img.shields.io/badge/tests-457%20passing-brightgreen">
+  <img alt="tests" src="https://img.shields.io/badge/tests-533%20passing-brightgreen">
   <img alt="ops" src="https://img.shields.io/badge/ops-212-blue">
   <img alt="engine" src="https://img.shields.io/badge/engine-Rust-b7410e?logo=rust&logoColor=white">
   <img alt="shell" src="https://img.shields.io/badge/shell-Tauri%20v2-24C8DB?logo=tauri&logoColor=white">
@@ -15,7 +15,7 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
-> **Status: working.** 212 ops across all three modes, 457 tests green. Driven by the `dpaint`
+> **Status: working.** 212 ops across all three modes, 533 tests green. Driven by the `dpaint`
 > CLI, an MCP server, a Tauri desktop app, the same UI in a browser tab, and — since the engine
 > compiles to `wasm32` — the whole thing running inside the page with no server at all.
 > [`docs/roadmap.md`](./docs/roadmap.md) records what is done and what is not.
@@ -164,6 +164,7 @@ batch), `dpaint_history`.
 ## The Studio
 
 ```bash
+dpaint-view --project poster.dpaint          # native GPU viewport: orbit, pan, zoom, live reload
 dpaint serve                 # the UI in a browser tab, against the native engine
 cargo run -p dpaint-studio-app -- --project poster.dpaint   # the same UI as a desktop app
 ./crates/dpaint-wasm/web/build.sh && python3 -m http.server -d target/wasm-studio
@@ -176,6 +177,12 @@ One `Studio::dispatch` API serves both shells — Tauri calls it in-process, a b
 it over a dependency-free localhost bridge — so the desktop app and the web build cannot drift.
 The frontend is three files of plain ES modules and CSS with no bundler and no npm, which is
 what lets the identical bytes load in both.
+
+The viewport is GPU-driven: `dpaint-view` is a wgpu window (60 fps vsync-locked at 2560×1600
+with 4× MSAA, 4 ms median draw while orbiting), and the browser build uses WebGPU when it is
+available, falling back to the image path when it is not. The CPU renderer stays authoritative
+for everything an agent measures, and the two are held together by a parity test — see
+[`docs/gpu-viewport.md`](./docs/gpu-viewport.md).
 
 Three shells, one `Studio::dispatch` API and one set of UI files. The WASM build runs the
 entire engine — compositor, Bézier booleans, glTF export — in the tab against an in-memory
@@ -275,6 +282,7 @@ collaboration; a node-based compositor graph.
 | [`docs/selectors.md`](./docs/selectors.md) | Selector grammar and resolution rules |
 | [`docs/errors.md`](./docs/errors.md) | Structured errors, exit codes, transactional guarantees |
 | [`docs/testing.md`](./docs/testing.md) | Golden renders, determinism, performance budgets |
+| [`docs/gpu-viewport.md`](./docs/gpu-viewport.md) | The GPU viewport, and why the CPU renderer stays authoritative |
 | [`docs/installing.md`](./docs/installing.md) | Install, build from source, register the MCP server |
 | [`docs/roadmap.md`](./docs/roadmap.md) | P0–P8 with acceptance criteria |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Release history |

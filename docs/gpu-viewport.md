@@ -63,6 +63,45 @@ from 1.000 to 0.786. The parity test covers the lighting rig; it does not cover 
 
 Native it runs on Metal, Vulkan or DX12; in the browser on WebGPU. Same crate, same WGSL.
 
+## The native viewport
+
+`dpaint-view --project <dir>.dpaint [--doc <id|name>]` opens a window on a project. Model
+documents orbit: drag to turn, shift-drag or right-drag to pan, wheel to zoom, `f` frames the
+subject, `1` resets to the view `dpaint render` starts from. Raster and vector documents are
+rasterized once by `dpaint_render::render_document` and then panned and zoomed as pure GPU
+state — the texture is not re-uploaded while you drag. `c` toggles the checkerboard, `p`
+toggles nearest-neighbour magnification, `s` hides the status readout, `r` forces a reload,
+`q` or Escape quits.
+
+The window polls the project's journal twice a second, so an op applied by an agent, the CLI
+or the Studio appears here within half a second — the same shared-journal property the rest of
+the tool has, made visible.
+
+`--frames N --out <dir>` renders those same frames offscreen through the same code path the
+window uses. That is how the viewport is inspected on a machine with no display, and it
+reports per-frame draw cost.
+
+Measured on an Apple A18 Pro, release build, a 2560×1600 physical window (1280×800 logical at
+2× scale) with 4× MSAA: **60.0 fps, vsync-locked**, with a 4.0 ms median draw while orbiting —
+roughly 250 fps of headroom. The canvas path costs 1.52 ms at the same size. Across a 60-frame
+orbit the geometry upload count stays at 1, and across a 60-frame pan/zoom the pixmap upload
+count stays at 1; both are asserted, because that is the actual reason a drag is cheap.
+
+With no adapter, `dpaint-view` prints the `dpaint render` command that does the same job on the
+CPU and exits 2. It never opens a black window.
+
+## The browser viewport
+
+The Studio UI probes for `navigator.gpu`. When WebGPU is available, a `<canvas>` replaces the
+`<img>` and pan, zoom and orbit become GPU state; when it is not, the existing image path runs
+unchanged and the status bar says `CPU · no WebGPU in this browser`. The same three UI files
+serve all three shells, so `dpaint serve` and the Tauri app are unaffected either way.
+
+Verified in a real browser: a 40-move orbit drag on a model document issued **zero** engine
+calls — the render-call counter stayed at 0 for the whole session, and the invoke counter
+tracked the one-per-second state poll exactly. Adding wgpu cost +2.4% gzipped wasm
+(2.85 → 2.92 MB) and +11 KB gzipped of JS glue.
+
 ## Lighting parity
 
 `SceneRenderer` reproduces `preview3d`'s rig rather than inventing a prettier one, because a

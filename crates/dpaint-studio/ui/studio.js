@@ -108,6 +108,11 @@ let refreshBusy = false;
 
 const view = { zoom: 1, x: 0, y: 0, rw: 0, rh: 0, fitted: false };
 
+// The GPU viewport, when the shell offers one and the browser can honour it. `on === false`
+// is the ordinary case — an HTTP or Tauri shell, or a browser without WebGPU — and then
+// every path below is exactly the image-and-CSS-transform viewport this file always had.
+const gpu = { on: false, vp: null, mode: 'empty', dpr: 1, pending: 0, ro: null };
+
 const activeDocument = () =>
   (S.state && S.state.documents.find((d) => d.id === S.activeDoc)) || null;
 
@@ -386,9 +391,99 @@ async function setActiveDoc(id) {
   await refreshRender({ fit: true });
 }
 
+// ------------------------------------------------------------------------- GPU viewport
+//
+// A shell that can draw on the GPU publishes `window.__DPAINT_GPU_VIEWPORT__(canvas)`,
+// which resolves to a viewport handle or to `null` when the browser has no adapter. The
+// handle is deliberately engine-free — the shell closes over whatever engine it owns — so
+// this file stays the same file for all three shells.
+//
+// Nothing below assumes the provider exists. With none (the HTTP server and the Tauri
+// shell today) `gpu.on` stays false and every path is the `<img>` + CSS transform viewport
+// this file has always had.
+
+function gpuSay(text, active, title) {
+  const n = $('gpuRead');
+  n.textContent = text;
+  n.title = title || 'Which renderer is drawing this viewport';
+  n.classList.toggle('gpu', !!active);
+}
+
+async function initGpu() {
+  const provider = window.__DPAINT_GPU_VIEWPORT__;
+  if (typeof provider !== 'function') { gpuSay('CPU'); return; }
+  if (!navigator.gpu) {
+    gpuSay('CPU · no WebGPU in this browser', false, 'navigator.gpu is absent; using the CPU renderer');
+    return;
+  }
+  let vp = null;
+  try {
+    vp = await provider($('canvasGl'));
+  } catch (e) {
+    console.warn('[dpaint] GPU viewport failed to start:', e);
+    gpuSay('CPU · WebGPU failed to start', false, String((e && e.message) || e));
+    return;
+  }
+  if (!vp) {
+    gpuSay('CPU · no WebGPU adapter', false, 'navigator.gpu exists but requestAdapter() returned nothing');
+    return;
+  }
+  gpu.vp = vp;
+  gpu.on = true;
+  const info = vp.info();
+  // A software or headless adapter often reports no name at all; say what there is rather
+  // than leaving a gap between two separators.
+  const detail = ['WebGPU ' + info.backend, info.name, info.deviceType, `${info.samples}× MSAA`]
+    .filter((s) => s && String(s).trim().length)
+    .join(' · ');
+  gpuSay(`GPU · ${info.backend}`, true, detail);
+  // The shader draws its own checkerboard, so the CSS one and the image it framed go away.
+  $('canvasPan').hidden = true;
+  $('canvasGl').hidden = false;
+  gpuResize();
+  if (typeof ResizeObserver === 'function') {
+    gpu.ro = new ResizeObserver(() => { gpuResize(); layoutView(); });
+    gpu.ro.observe($('canvasArea'));
+  }
+}
+
+/** Keep the canvas backing store matched to the area, in device pixels. */
+function gpuResize() {
+  if (!gpu.on) return;
+  const c = $('canvasGl');
+  const r = $('canvasArea').getBoundingClientRect();
+  gpu.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(r.width * gpu.dpr));
+  const h = Math.max(1, Math.round(r.height * gpu.dpr));
+  if (c.width === w && c.height === h) return;
+  c.width = w;
+  c.height = h;
+  gpu.vp.resize(w, h);
+}
+
+/** One frame per animation frame, however many times the view changed in between. */
+function gpuDraw() {
+  if (!gpu.on || gpu.pending) return;
+  gpu.pending = requestAnimationFrame(() => {
+    gpu.pending = 0;
+    try { gpu.vp.frame(); } catch (e) { console.warn('[dpaint] GPU frame failed:', e); }
+  });
+}
+
+/** Hand the current view to the GPU. No engine call: this is why a drag is free. */
+function gpuPush() {
+  const s = screenScale();
+  // A model's zoom is a camera distance, which device pixel ratio has no business scaling;
+  // a canvas's is device pixels per texel, which it does.
+  const zoom = gpu.mode === 'model' ? view.zoom : s * gpu.dpr;
+  gpu.vp.setView(zoom, view.x * gpu.dpr, view.y * gpu.dpr, s >= 2);
+  gpuDraw();
+}
+
 // ----------------------------------------------------------------------------- viewport
 
 async function refreshRender({ fit = false } = {}) {
+  if (gpu.on) return refreshRenderGpu({ fit });
   const img = $('canvasImg');
   if (!S.activeDoc) { img.removeAttribute('src'); return; }
   const token = ++renderToken;
@@ -409,6 +504,39 @@ async function refreshRender({ fit = false } = {}) {
   }
 }
 
+/** The GPU equivalent: the engine rasterizes or builds meshes once, here, and never again
+ *  until the document changes. Panning and orbiting do not come through this function. */
+async function refreshRenderGpu({ fit = false } = {}) {
+  const token = ++renderToken;
+  if (!S.activeDoc) {
+    gpu.vp.clearDocument();
+    gpu.mode = 'empty';
+    view.rw = 0; view.rh = 0;
+    $('canvasEmpty').hidden = false;
+    gpuDraw();
+    return;
+  }
+  $('busy').hidden = false;
+  try {
+    const size = await Promise.resolve(gpu.vp.setDocument(S.activeDoc));
+    if (token !== renderToken) return;
+    gpu.mode = gpu.vp.mode();
+    view.rw = size[0] | 0;
+    view.rh = size[1] | 0;
+    $('canvasEmpty').hidden = true;
+    gpuResize();
+    if (fit || !view.fitted) { fitView(); view.fitted = true; } else { layoutView(); }
+  } catch (e) {
+    if (token !== renderToken) return;
+    console.warn('[dpaint] GPU document upload failed:', e);
+    gpu.mode = 'empty';
+    $('canvasEmpty').hidden = false;
+    gpuDraw();
+  } finally {
+    if (token === renderToken) $('busy').hidden = true;
+  }
+}
+
 /** Screen pixels per rendered pixel. `zoom` is document pixels, which is what a user means. */
 function screenScale() {
   const doc = activeDocument();
@@ -417,6 +545,14 @@ function screenScale() {
 }
 
 function layoutView() {
+  if (gpu.on) {
+    gpuPush();
+    $('zoomRead').textContent = Math.round(view.zoom * 100) + '%';
+    $('sizeRead').textContent = gpu.mode === 'model'
+      ? `${$('canvasGl').width} × ${$('canvasGl').height} px`
+      : (view.rw ? `${view.rw} × ${view.rh} px` : '— × —');
+    return;
+  }
   const img = $('canvasImg');
   const s = screenScale();
   img.style.width = Math.max(1, Math.round(view.rw * s)) + 'px';
@@ -428,6 +564,11 @@ function layoutView() {
 }
 
 function fitView() {
+  // A model has no pixel size to fit; `zoom = 1` is the framing the CPU turntable uses.
+  if (gpu.on && gpu.mode === 'model') {
+    view.zoom = 1; view.x = 0; view.y = 0;
+    return layoutView();
+  }
   const area = $('canvasArea').getBoundingClientRect();
   if (!view.rw) return layoutView();
   const s = Math.min((area.width - 40) / view.rw, (area.height - 40) / view.rh);
@@ -443,7 +584,10 @@ function zoomTo(zoom, cx, cy) {
   const z0 = view.zoom;
   view.zoom = Math.min(32, Math.max(0.02, zoom));
   const s1 = screenScale();
-  if (cx !== undefined && s0 > 0) {
+  // Anchoring to the cursor is a 2D idea; on a model, zoom is a camera dolly and shifting
+  // the target with it just makes the subject slide off screen.
+  const anchored = !(gpu.on && gpu.mode === 'model');
+  if (cx !== undefined && s0 > 0 && anchored) {
     // Keep the pixel under the cursor put.
     const u = (cx - view.x) / s0, v = (cy - view.y) / s0;
     view.x = cx - u * s1; view.y = cy - v * s1;
@@ -466,20 +610,29 @@ function initViewport() {
   let drag = null;
   area.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.button !== 1) return;
-    drag = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
+    // On a GPU-drawn model, the left button orbits and shift (or the middle button) pans.
+    const orbit = gpu.on && gpu.mode === 'model' && e.button === 0 && !e.shiftKey;
+    drag = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y, orbit };
     area.setPointerCapture(e.pointerId);
-    area.classList.add('panning');
+    area.classList.add(orbit ? 'orbiting' : 'panning');
   });
   area.addEventListener('pointermove', (e) => {
     if (!drag) return;
+    if (drag.orbit) {
+      // Relative, so a clamped pitch does not accumulate a hidden debt.
+      gpu.vp.orbit((e.clientX - drag.x) * 0.4, -(e.clientY - drag.y) * 0.4);
+      drag.x = e.clientX; drag.y = e.clientY;
+      gpuDraw();
+      return;
+    }
     view.x = drag.ox + (e.clientX - drag.x);
     view.y = drag.oy + (e.clientY - drag.y);
     layoutView();
   });
-  const end = () => { drag = null; area.classList.remove('panning'); };
+  const end = () => { drag = null; area.classList.remove('panning', 'orbiting'); };
   area.addEventListener('pointerup', end);
   area.addEventListener('pointercancel', end);
-  window.addEventListener('resize', () => layoutView());
+  window.addEventListener('resize', () => { gpuResize(); layoutView(); });
 
   $('btnFit').onclick = () => fitView();
   $('btnOneToOne').onclick = () => { view.x = 0; view.y = 0; zoomTo(1); layoutView(); };
@@ -1041,6 +1194,8 @@ async function boot() {
   for (const t of document.querySelectorAll('.tab')) t.onclick = () => showTab(t.dataset.tab);
 
   renderConsole();
+  // Before the first render, so the first frame already goes wherever it is going to go.
+  await initGpu();
   try {
     S.catalog = await call('catalog', {}, { quiet: true });
   } catch { S.catalog = []; }
@@ -1059,6 +1214,15 @@ async function boot() {
   if (tauriEvent && typeof tauriEvent.listen === 'function') {
     tauriEvent.listen('dpaint:changed', () => window.__DPAINT_ON_CHANGE__());
   }
+
+  // What the verification harness reads instead of guessing from pixels.
+  window.__DPAINT_VIEWPORT__ = {
+    get renderer() { return gpu.on ? 'gpu' : 'cpu'; },
+    get mode() { return gpu.on ? gpu.mode : 'image'; },
+    get status() { return $('gpuRead').textContent; },
+    get view() { return { zoom: view.zoom, x: view.x, y: view.y, rw: view.rw, rh: view.rh }; },
+    get orbit() { return gpu.on && gpu.vp.orbitAngles ? gpu.vp.orbitAngles() : null; },
+  };
 }
 
 boot();

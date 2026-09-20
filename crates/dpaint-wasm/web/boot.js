@@ -12,7 +12,7 @@
 // `history.jsonl` and the asset blobs, and this file writes them to OPFS, or IndexedDB, or
 // nowhere — saying which, visibly, rather than pretending.
 
-import init, { DpaintEngine } from './pkg/dpaint_wasm.js';
+import init, { DpaintEngine, DpaintViewport } from './pkg/dpaint_wasm.js';
 
 const boot = document.getElementById('dpBoot');
 const bootWhy = document.getElementById('dpBootWhy');
@@ -227,6 +227,39 @@ function publishBridge(engine, store, known) {
   return flush;
 }
 
+// -------------------------------------------------------------------- the GPU viewport
+//
+// Optional by construction. The seam is always published, because the UI is the thing with
+// a status bar and it can only name the reason — "no WebGPU in this browser" versus "no
+// WebGPU adapter" — if it gets to ask. The factory resolving to `null` means exactly that,
+// and the studio keeps the `data:` URI image path, which is also what the HTTP server and
+// the Tauri shell do, so the CPU path stays the well-trodden one rather than a fallback
+// nobody exercises.
+//
+// The handle handed to the UI takes no engine: the UI has no business knowing that this
+// shell has one in the same address space.
+function publishGpuViewport(engine) {
+  window.__DPAINT_GPU_VIEWPORT__ = async (canvas) => {
+    if (!navigator.gpu) return null;
+    const vp = await DpaintViewport.create();
+    if (!vp) return null;
+    vp.attach(canvas);
+    return {
+      info: () => vp.info(),
+      mode: () => vp.mode(),
+      // The one call that re-enters the engine, and only when the document changed.
+      setDocument: (doc) => Array.from(vp.set_document(engine, doc ?? undefined)),
+      clearDocument: () => vp.clear_document(),
+      setView: (zoom, x, y, pixelated) => vp.set_view(zoom, x, y, !!pixelated),
+      orbit: (dx, dy) => vp.orbit(dx, dy),
+      orbitAngles: () => Array.from(vp.orbit_angles()),
+      resize: (w, h) => vp.resize(w, h),
+      frame: () => vp.frame(),
+    };
+  };
+  return !!navigator.gpu;
+}
+
 // ------------------------------------------------------------------------------- the UI
 
 /** Load the studio's markup and script verbatim from `./ui/`, which is a straight copy of
@@ -257,6 +290,7 @@ async function main() {
   const { engine, restored } = await restore(store, known);
 
   const flush = publishBridge(engine, store, known);
+  const webgpu = publishGpuViewport(engine);
   if (!restored) await flush();
   showStorage(store);
 
@@ -265,11 +299,14 @@ async function main() {
 
   boot.hidden = true;
   console.info(
-    `[dpaint] wasm engine ready · storage=${store.kind} · ${restored ? 'restored' : 'new'} project`,
+    `[dpaint] wasm engine ready · storage=${store.kind} · ${restored ? 'restored' : 'new'} project` +
+      ` · webgpu=${webgpu ? 'offered' : 'absent'}`,
   );
   // A hook the verification harness (and a curious user) can read without guessing.
-  window.__DPAINT_WASM__ = { engine, store: store.kind, restored };
-  window.dispatchEvent(new CustomEvent('dpaint:wasm-ready', { detail: { storage: store.kind, restored } }));
+  window.__DPAINT_WASM__ = { engine, store: store.kind, restored, webgpu };
+  window.dispatchEvent(
+    new CustomEvent('dpaint:wasm-ready', { detail: { storage: store.kind, restored, webgpu } }),
+  );
 }
 
 main().catch((e) => fail('boot', e));

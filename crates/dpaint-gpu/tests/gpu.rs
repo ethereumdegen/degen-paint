@@ -526,25 +526,43 @@ fn canvas_pan_and_zoom_change_the_image_without_re_uploading() {
         "pan [24, 0] moved the image centre from {cx:.1} to {px:.1}"
     );
 
-    // Zoom is device pixels per texel: 64 texels at 1.0 cover 64px, at 1.8 cover ~115.
+    // Zoom is device pixels per texel: a 64-texel document spans 64px at 1.0 and ~115px at
+    // 1.8, plus the 1px document edge on each side. Measured as an extent rather than an
+    // area so the edge contributes a known 2px and not a perimeter.
+    let span = |pm: &Pixmap| {
+        let px = covered(pm);
+        let x0 = px.iter().map(|p| p.0).min().expect("min x");
+        let x1 = px.iter().map(|p| p.0).max().expect("max x");
+        (x1 - x0 + 1) as f32
+    };
     assert!(
-        (covered(&centred).len() as i64 - 64 * 64).abs() <= 128,
-        "at zoom 1.0 a 64x64 document should cover 64x64 pixels, covered {}",
-        covered(&centred).len()
+        (span(&centred) - 66.0).abs() < 1.5,
+        "at zoom 1.0 a 64px document plus its 1px edge should span 66px, spanned {}",
+        span(&centred)
     );
-    let zoomed_area = covered(&zoomed).len() as f32;
-    let expected = (64.0 * 1.8) * (64.0 * 1.8);
+    let expected = 64.0 * 1.8 + 2.0;
     assert!(
-        (zoomed_area - expected).abs() / expected < 0.05,
-        "at zoom 1.8 expected ~{expected:.0} covered pixels, got {zoomed_area}"
+        (span(&zoomed) - expected).abs() < 2.5,
+        "at zoom 1.8 expected a span near {expected:.0}px, got {}",
+        span(&zoomed)
     );
 }
 
+/// The checker says "the document is transparent here", so it belongs to the document rect,
+/// not to the viewport. Flooding the viewport with it — which is what this renderer did
+/// first — makes a fully transparent document indistinguishable from empty space, and
+/// disagrees with the CSS viewport it replaces.
 #[test]
-fn the_canvas_checker_is_drawn_only_where_asked() {
+fn the_checker_marks_document_transparency_and_stays_inside_the_document() {
     let gpu = gpu!();
-    let mut doc = Pixmap::new(8, 8).expect("pixmap");
-    doc.fill(tiny_skia::Color::from_rgba8(255, 0, 0, 255));
+    // Left half opaque red, right half fully transparent.
+    let mut doc = Pixmap::new(32, 32).expect("pixmap");
+    for y in 0..32u32 {
+        for x in 0..16u32 {
+            doc.pixels_mut()[(y * 32 + x) as usize] =
+                tiny_skia::PremultipliedColorU8::from_rgba(255, 0, 0, 255).expect("opaque red");
+        }
+    }
 
     let texture = gpu.device().create_texture(&wgpu::TextureDescriptor {
         label: None,
@@ -564,28 +582,47 @@ fn the_canvas_checker_is_drawn_only_where_asked() {
     let mut renderer = CanvasRenderer::new(&gpu, TARGET_FORMAT, 1);
     renderer.upload(&gpu, &doc);
 
+    // 32 texels at zoom 1.0 centred in a 64px viewport: the document occupies x,y in 16..48.
+    let state = ViewState {
+        pixelated: true,
+        ..ViewState::default()
+    };
+    renderer.draw(&gpu, &view, [64, 64], state);
+    let shot = dpaint_gpu::read_texture(&gpu, &texture, [64, 64]).expect("readback");
+
+    // Well outside the document: empty, not checkered.
+    assert_eq!(
+        pixel(&shot, 2, 2),
+        [0, 0, 0, 0],
+        "the checker escaped the document rect"
+    );
+    // The 1px document edge sits just outside it, and one pixel further out is empty again.
+    assert_eq!(
+        pixel(&shot, 15, 30),
+        [0, 0, 0, 255],
+        "missing document edge"
+    );
+    assert_eq!(pixel(&shot, 14, 30), [0, 0, 0, 0], "edge is wider than 1px");
+    // Inside, over the opaque half: the document itself.
+    assert_eq!(pixel(&shot, 20, 30), [255, 0, 0, 255]);
+    // Inside, over the transparent half: the checker, still phased on the viewport so the
+    // squares do not crawl while dragging. Cells are 16px: (34,18) is dark, (34,34) light.
+    assert_eq!(pixel(&shot, 34, 18), [154, 162, 172, 255]);
+    assert_eq!(pixel(&shot, 34, 34), [207, 212, 218, 255]);
+
+    // With the checker off, a transparent document region stays transparent.
     renderer.draw(
         &gpu,
         &view,
         [64, 64],
         ViewState {
             checker: false,
-            ..ViewState::default()
+            ..state
         },
     );
     let plain = dpaint_gpu::read_texture(&gpu, &texture, [64, 64]).expect("readback");
-    assert_eq!(
-        pixel(&plain, 2, 2),
-        [0, 0, 0, 0],
-        "without the checker, outside the image must stay transparent"
-    );
-
-    renderer.draw(&gpu, &view, [64, 64], ViewState::default());
-    let checked = dpaint_gpu::read_texture(&gpu, &texture, [64, 64]).expect("readback");
-    // 16px squares anchored at the viewport origin: (2,2) is light, (20,2) is dark.
-    assert_eq!(pixel(&checked, 2, 2), [207, 212, 218, 255]);
-    assert_eq!(pixel(&checked, 20, 2), [154, 162, 172, 255]);
-    assert_eq!(pixel(&checked, 20, 20), [207, 212, 218, 255]);
+    assert_eq!(pixel(&plain, 34, 18), [0, 0, 0, 0]);
+    assert_eq!(pixel(&plain, 20, 30), [255, 0, 0, 255]);
 }
 
 #[test]

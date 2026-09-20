@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.1.0] — unreleased
 
+### Added — GPU viewport
+
+- `dpaint-gpu`: a wgpu renderer for interactive use — forward PBR for model documents and a
+  textured-quad canvas for 2D, in WGSL, with the lighting rig ported from the CPU renderer
+  rather than replaced. Parity with the CPU path is measured, not assumed: unmultisampled the
+  two agree to SSIM 0.9997 / mean ΔE 0.016, and the test holds them to 0.99 / 0.5 there and
+  0.93 / 6.0 with MSAA across drivers.
+- `dpaint-view`: native interactive viewport. A winit 0.30 window on a wgpu surface, HiDPI
+  honoured (a 2× display renders 2560×1600, not 1280×800), orbit/pan/zoom, live reload off the
+  shared journal, and a status readout drawn from the font the engine already embeds — no UI
+  framework. `--frames N --out <dir>` renders the same path offscreen. 60 fps vsync-locked at
+  2560×1600 with 4× MSAA; 4.0 ms median draw while orbiting.
+- WebGPU in the browser build: the Studio probes `navigator.gpu` and, when present, drives the
+  viewport on the GPU — a 40-move orbit drag issues zero engine calls. Without WebGPU the
+  existing image path runs unchanged. +2.4% gzipped wasm.
+
+The CPU renderer remains authoritative for `render.image`, `render.turntable`, digests, diffs
+and goldens, because byte-identical output across machines is what those depend on and a GPU
+cannot promise it.
+
 First release: the engine, the three surfaces an agent drives it through, and the GUI a human
 drives it through. The date is filled in when the `v0.1.0` tag is pushed.
 

@@ -212,7 +212,10 @@ impl Scene {
 pub struct ViewState {
     pub zoom: f32,
     pub pan: [f32; 2],
-    /// Draw the 16px transparency checker behind the image.
+    /// Draw the 16px transparency checker behind the document, clamped to the document's
+    /// own rect: it marks where the *document* is transparent, so a fully transparent
+    /// document still reads as a document and not as empty space. A 1px dark edge is drawn
+    /// around the rect regardless, which is what keeps the boundary legible.
     pub checker: bool,
     /// Nearest-neighbour sampling instead of linear.
     pub pixelated: bool,
