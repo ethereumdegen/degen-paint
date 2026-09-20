@@ -15,14 +15,16 @@ Phases are sequential because each one's proof depends on the previous one's eng
 | P5 Agent surface | done | digest, lint, annotate, diff; 217 MCP tools over stdio |
 | P6 AI providers | done | 12 ops, 52 tests against recorded transports |
 | P7 Studio | done | Tauri app + browser UI over one `Studio::dispatch`; agent edits surface live in the open page |
-| P8 Docs and release | in progress | 441 tests green; WASM build, installers and CI still to come |
+| P8 Docs and release | done | WASM engine in the browser, CI on macOS + Linux with fmt/clippy/wasm gates, tagged release workflow, install docs |
 
-Total: **212 ops, 441 tests, 0 failures** (`cargo test --workspace`).
+Total: **212 ops, 457 tests, 0 failures** (`cargo test --workspace`), with `cargo fmt --check`
+and `cargo clippy -D warnings` both clean and blocking in CI.
 
-Two deliberate deviations from the original plan, both documented where they matter:
-`wgpu` was replaced by a CPU rasterizer for headless model previews (determinism beats
-throughput for anything an agent measures — see `docs/architecture.md`), and the wasm32 build
-is deferred to P7 with the GUI that needs it.
+One deliberate deviation from the original plan, documented where it matters: `wgpu` was
+replaced by a CPU rasterizer for headless model previews, because determinism beats throughput
+for anything an agent measures — see `docs/architecture.md`. `wgpu` remains the right choice
+for an interactive viewport, which is the one thing the Studio does not yet have; today the
+viewport displays engine renders rather than driving a GPU surface.
 
 ---
 
