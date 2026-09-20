@@ -18,16 +18,15 @@ fn alpha_of(c: &Canvas) -> Vec<f32> {
 fn silhouette(w: u32, h: u32, cov: &[f32], color: Color) -> Canvas {
     let s = color.to_linear();
     let mut c = Canvas::new(w, h);
-    for i in 0..c.pixel_count() {
-        let a = cov[i].clamp(0.0, 1.0) * s[3];
+    for (px, cv) in c.data.chunks_exact_mut(4).zip(cov) {
+        let a = cv.clamp(0.0, 1.0) * s[3];
         if a <= 0.0 {
             continue;
         }
-        let o = i * 4;
-        c.data[o] = s[0] * a;
-        c.data[o + 1] = s[1] * a;
-        c.data[o + 2] = s[2] * a;
-        c.data[o + 3] = a;
+        px[0] = s[0] * a;
+        px[1] = s[1] * a;
+        px[2] = s[2] * a;
+        px[3] = a;
     }
     c
 }
@@ -52,8 +51,8 @@ fn blur_cov(w: u32, h: u32, cov: &[f32], sigma: f32) -> Vec<f32> {
         return cov.to_vec();
     }
     let mut c = Canvas::new(w, h);
-    for i in 0..cov.len() {
-        c.data[i * 4 + 3] = cov[i];
+    for (px, cv) in c.data.chunks_exact_mut(4).zip(cov) {
+        px[3] = *cv;
     }
     let b = gaussian_blur(&c, sigma);
     alpha_of(&b)

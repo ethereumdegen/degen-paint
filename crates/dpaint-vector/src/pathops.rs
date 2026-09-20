@@ -110,7 +110,7 @@ fn ring(pts: &[Point]) -> Vec<[f64; 2]> {
 
 /// The boolean union is winding-sensitive, so every contributed ring gets the same
 /// orientation before it goes in.
-fn orient_ccw(r: &mut Vec<[f64; 2]>) {
+fn orient_ccw(r: &mut [[f64; 2]]) {
     let n = r.len();
     let mut a = 0.0;
     for i in 0..n {
@@ -716,7 +716,7 @@ pub fn from_nodes(subs: &[NodeSub]) -> BezPath {
     p
 }
 
-fn sub_mut<'a>(subs: &'a mut [NodeSub], i: usize) -> Result<&'a mut NodeSub> {
+fn sub_mut(subs: &mut [NodeSub], i: usize) -> Result<&mut NodeSub> {
     let len = subs.len();
     subs.get_mut(i)
         .ok_or_else(|| Error::Invalid(format!("subpath {i} is out of range; the path has {len}")))

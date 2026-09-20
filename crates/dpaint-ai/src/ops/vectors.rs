@@ -95,7 +95,7 @@ fn unique_artboard_id(doc: &VectorDoc, name: &str) -> ArtboardId {
 }
 
 fn uniquify(
-    objects: &mut Vec<VObject>,
+    objects: &mut [VObject],
     used: &mut BTreeSet<String>,
     renames: &mut BTreeMap<String, String>,
 ) {
@@ -119,7 +119,7 @@ fn uniquify(
     }
 }
 
-fn retarget_clips(objects: &mut Vec<VObject>, renames: &BTreeMap<String, String>) {
+fn retarget_clips(objects: &mut [VObject], renames: &BTreeMap<String, String>) {
     for o in objects.iter_mut() {
         if let Some(clip) = &o.clip {
             if let Some(new) = renames.get(clip.as_str()) {
@@ -132,7 +132,7 @@ fn retarget_clips(objects: &mut Vec<VObject>, renames: &BTreeMap<String, String>
     }
 }
 
-fn stamp_provenance(objects: &mut Vec<VObject>, prov: &dpaint_core::doc::common::Provenance) {
+fn stamp_provenance(objects: &mut [VObject], prov: &dpaint_core::doc::common::Provenance) {
     for o in objects.iter_mut() {
         o.provenance = Some(prov.clone());
         if let VKind::Group { objects } = &mut o.kind {
@@ -347,7 +347,7 @@ impl Op for Vectorize {
             &url,
             &body,
             &key_params,
-            &[bytes.clone()],
+            std::slice::from_ref(&bytes),
         )?;
         let prov = provenance(Provider::Quiver, &model, None, None, &gen);
 

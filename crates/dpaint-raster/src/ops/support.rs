@@ -301,8 +301,8 @@ pub fn layer_canvas(
     let mut content = layer_content(project, doc, id, assets)?;
     if opacity < 1.0 {
         for px in content.data.chunks_exact_mut(4) {
-            for c in 0..4 {
-                px[c] *= opacity;
+            for v in px.iter_mut() {
+                *v *= opacity;
             }
         }
     }

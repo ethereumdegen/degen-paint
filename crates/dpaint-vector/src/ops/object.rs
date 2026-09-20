@@ -520,7 +520,7 @@ impl Remove {
 }
 
 /// Visit every object in the tree, depth first.
-pub(crate) fn for_each_mut(list: &mut Vec<VObject>, f: &mut impl FnMut(&mut VObject)) {
+pub(crate) fn for_each_mut(list: &mut [VObject], f: &mut impl FnMut(&mut VObject)) {
     for o in list.iter_mut() {
         f(o);
         if let VKind::Group { objects } = &mut o.kind {

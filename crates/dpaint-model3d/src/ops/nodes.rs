@@ -69,7 +69,7 @@ fn node_add(project: &mut Project, args: NodeAddArgs, cx: &mut OpCx) -> Result<O
 
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.nodes.iter().map(|n| n.id.to_string()).collect();
-    let id = unique_id(&args.name, |s| NodeId::from_name(s), &taken);
+    let id = unique_id(&args.name, NodeId::from_name, &taken);
     let mut node = Node::new(id.clone(), args.name.clone());
     node.mesh = mesh.map(MeshId::from);
     node.material = material.map(MaterialId::from);

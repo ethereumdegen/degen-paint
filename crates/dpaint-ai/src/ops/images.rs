@@ -236,7 +236,7 @@ impl Op for Edit {
             &model,
             &body,
             &key_params,
-            &[src_bytes.clone()],
+            std::slice::from_ref(&src_bytes),
         )?;
         let asset = first_asset(&gen, self.id())?;
         let prov = provenance(Provider::Fal, &model, Some(a.prompt.clone()), a.seed, &gen);
@@ -656,7 +656,7 @@ impl Op for Upscale {
             &model,
             &body,
             &key_params,
-            &[src_bytes.clone()],
+            std::slice::from_ref(&src_bytes),
         )?;
         let asset = first_asset(&gen, self.id())?;
         let prov = provenance(Provider::Fal, &model, None, None, &gen);
@@ -754,7 +754,7 @@ impl Op for RemoveBackground {
             &model,
             &body,
             &key_params,
-            &[src_bytes.clone()],
+            std::slice::from_ref(&src_bytes),
         )?;
         let cutout = first_asset(&gen, self.id())?;
 

@@ -389,8 +389,8 @@ pub fn apply_pixel(p: &Prepared, mut c: [f32; 4]) -> [f32; 4] {
             }
         }
         Prepared::Exposure { gain, offset } => {
-            for ch in 0..3 {
-                c[ch] = (c[ch] * gain + offset).clamp(0.0, 1.0);
+            for v in c.iter_mut().take(3) {
+                *v = (*v * gain + offset).clamp(0.0, 1.0);
             }
         }
         Prepared::Matrix(m) => {

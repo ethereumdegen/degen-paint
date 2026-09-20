@@ -70,9 +70,11 @@ fn render_at_depth(
         if let Some(bg) = ab.background {
             let r = ab.rect.to_kurbo();
             if let Some(path) = geom::to_skia(&r.to_path(1e-3), Affine::IDENTITY) {
-                let mut p = Paint::default();
-                p.shader = Shader::SolidColor(sk_color(bg, 1.0));
-                p.anti_alias = true;
+                let p = Paint {
+                    shader: Shader::SolidColor(sk_color(bg, 1.0)),
+                    anti_alias: true,
+                    ..Default::default()
+                };
                 pm.fill_path(&path, &p, SkFillRule::Winding, device, None);
             }
         }
@@ -147,9 +149,11 @@ fn draw_object(
         let mut layer = Pixmap::new(pm.width(), pm.height())
             .ok_or_else(|| Error::Invalid("cannot allocate a compositing layer".into()))?;
         paint_object(&mut layer, o, v, cx, world, mask_ref, 1.0)?;
-        let mut pp = PixmapPaint::default();
-        pp.opacity = o.opacity.clamp(0.0, 1.0);
-        pp.blend_mode = sk_blend(o.blend);
+        let pp = PixmapPaint {
+            opacity: o.opacity.clamp(0.0, 1.0),
+            blend_mode: sk_blend(o.blend),
+            ..Default::default()
+        };
         pm.draw_pixmap(0, 0, layer.as_ref(), &pp, SkTransform::identity(), None);
         return Ok(());
     }
@@ -185,9 +189,11 @@ fn paint_object(
     let fill_pm = doc_pixmap(&o.fill, bbox, cx)?;
     if !matches!(o.kind, VKind::Image { .. }) {
         if let Some(shader) = shader_for(&o.fill, bbox, alpha, fill_pm.as_ref()) {
-            let mut p = Paint::default();
-            p.shader = shader;
-            p.anti_alias = true;
+            let p = Paint {
+                shader,
+                anti_alias: true,
+                ..Default::default()
+            };
             pm.fill_path(&path, &p, sk_rule(o.fill_rule), cx.device, mask);
         }
     }
@@ -195,9 +201,11 @@ fn paint_object(
         if stroke.width > 0.0 {
             let stroke_pm = doc_pixmap(&stroke.paint, bbox, cx)?;
             if let Some(shader) = shader_for(&stroke.paint, bbox, alpha, stroke_pm.as_ref()) {
-                let mut p = Paint::default();
-                p.shader = shader;
-                p.anti_alias = true;
+                let p = Paint {
+                    shader,
+                    anti_alias: true,
+                    ..Default::default()
+                };
                 pm.stroke_path(&path, &p, &sk_stroke(stroke), cx.device, mask);
             }
         }
@@ -310,9 +318,11 @@ fn draw_image(
     let Some(path) = geom::to_skia(&outline, Affine::IDENTITY) else {
         return Ok(());
     };
-    let mut p = Paint::default();
-    p.shader = shader;
-    p.anti_alias = true;
+    let p = Paint {
+        shader,
+        anti_alias: true,
+        ..Default::default()
+    };
     pm.fill_path(&path, &p, SkFillRule::Winding, cx.device, mask);
     Ok(())
 }
@@ -441,18 +451,20 @@ pub fn sk_rule(r: FillRule) -> SkFillRule {
 }
 
 fn sk_stroke(s: &DocStroke) -> SkStroke {
-    let mut out = SkStroke::default();
-    out.width = s.width as f32;
-    out.miter_limit = s.miter.max(1.0) as f32;
-    out.line_cap = match s.cap {
-        LineCap::Butt => tiny_skia::LineCap::Butt,
-        LineCap::Round => tiny_skia::LineCap::Round,
-        LineCap::Square => tiny_skia::LineCap::Square,
-    };
-    out.line_join = match s.join {
-        LineJoin::Miter => tiny_skia::LineJoin::Miter,
-        LineJoin::Round => tiny_skia::LineJoin::Round,
-        LineJoin::Bevel => tiny_skia::LineJoin::Bevel,
+    let mut out = SkStroke {
+        width: s.width as f32,
+        miter_limit: s.miter.max(1.0) as f32,
+        line_cap: match s.cap {
+            LineCap::Butt => tiny_skia::LineCap::Butt,
+            LineCap::Round => tiny_skia::LineCap::Round,
+            LineCap::Square => tiny_skia::LineCap::Square,
+        },
+        line_join: match s.join {
+            LineJoin::Miter => tiny_skia::LineJoin::Miter,
+            LineJoin::Round => tiny_skia::LineJoin::Round,
+            LineJoin::Bevel => tiny_skia::LineJoin::Bevel,
+        },
+        ..Default::default()
     };
     if !s.dash.is_empty() && s.dash.iter().any(|d| *d > 0.0) {
         let mut arr: Vec<f32> = s.dash.iter().map(|d| *d as f32).collect();

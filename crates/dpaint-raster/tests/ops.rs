@@ -279,7 +279,7 @@ fn wand_with_contiguous_false_reaches_disconnected_regions() {
     let mut f = fixture(12, 4);
     // Two black bars separated by white.
     f.pixel_layer("lyr_a", |x, _| {
-        if x < 3 || x >= 9 {
+        if !(3..9).contains(&x) {
             gray(0.0)
         } else {
             gray(1.0)
@@ -1478,7 +1478,10 @@ fn dither_reduces_a_ramp_to_two_tones_that_still_read_as_a_ramp() {
     let c = f.layer_pixels(&id);
     for i in (0..c.data.len()).step_by(4) {
         let v = c.data[i];
-        assert!(v < 1e-6 || v > 1.0 - 1e-6, "two levels only, got {v}");
+        assert!(
+            !(1e-6..=1.0 - 1e-6).contains(&v),
+            "two levels only, got {v}"
+        );
     }
     let lit = |x0: u32, x1: u32| {
         (x0..x1)

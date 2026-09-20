@@ -170,7 +170,7 @@ fn from_js(v: &JsValue) -> Result<Value> {
         return Ok(json!({}));
     }
     let text = js_sys::JSON::stringify(v)
-        .map(|s| String::from(s))
+        .map(String::from)
         .map_err(|_| Error::Invalid("params are not JSON-serializable".into()))?;
     Ok(serde_json::from_str(&text)?)
 }

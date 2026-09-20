@@ -55,9 +55,7 @@ pub fn handle_message(registry: &Registry, handlers: &Handlers, msg: &Value) -> 
     let params = msg.get("params").cloned().unwrap_or_else(|| json!({}));
 
     // Notifications carry no id and expect no answer.
-    let Some(id) = id else {
-        return None;
-    };
+    let id = id?;
 
     let result: Value = match method {
         "initialize" => initialize_result(&params),

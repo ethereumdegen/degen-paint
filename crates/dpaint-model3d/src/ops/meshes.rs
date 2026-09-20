@@ -53,7 +53,7 @@ fn install(
 ) -> Result<OpEffect> {
     let model = project.model_mut(doc)?;
     let taken: Vec<String> = model.meshes.iter().map(|m| m.id.to_string()).collect();
-    let mesh_id = unique_id(name, |s| MeshId::from_name(s), &taken);
+    let mesh_id = unique_id(name, MeshId::from_name, &taken);
     model.meshes.push(Mesh {
         id: mesh_id.clone(),
         name: name.to_string(),
@@ -62,7 +62,7 @@ fn install(
     let mut effect = OpEffect::changed(doc).with_created(mesh_id.to_string());
     if make_node {
         let taken: Vec<String> = model.nodes.iter().map(|n| n.id.to_string()).collect();
-        let node_id = unique_id(name, |s| NodeId::from_name(s), &taken);
+        let node_id = unique_id(name, NodeId::from_name, &taken);
         let mut node = Node::new(node_id.clone(), name.to_string());
         node.mesh = Some(mesh_id);
         node.material = material;

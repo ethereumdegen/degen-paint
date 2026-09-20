@@ -100,7 +100,7 @@ fn material_create(
     args.pbr.apply_to(project, &mut material)?;
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.materials.iter().map(|m| m.id.to_string()).collect();
-    material.id = unique_id(&args.name, |s| MaterialId::from_name(s), &taken);
+    material.id = unique_id(&args.name, MaterialId::from_name, &taken);
     let id = material.id.to_string();
     model.materials.push(material);
     Ok(OpEffect::changed(&doc).with_created(id))
@@ -322,7 +322,7 @@ fn material_from_raster_doc(
     });
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.materials.iter().map(|m| m.id.to_string()).collect();
-    material.id = unique_id(&name, |s| MaterialId::from_name(s), &taken);
+    material.id = unique_id(&name, MaterialId::from_name, &taken);
     let id = material.id.to_string();
     model.materials.push(material);
     Ok(OpEffect::changed(&doc).with_created(id))

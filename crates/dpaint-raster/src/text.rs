@@ -58,8 +58,7 @@ impl FontSet {
             db.load_font_data(bytes);
             if let Some(actual) = db
                 .faces()
-                .skip(before)
-                .next()
+                .nth(before)
                 .and_then(|f| f.families.first().map(|(n, _)| n.clone()))
             {
                 aliases.insert(entry.family.to_ascii_lowercase(), actual);

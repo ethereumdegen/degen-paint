@@ -66,7 +66,7 @@ fn light_add(project: &mut Project, args: LightAddArgs, cx: &mut OpCx) -> Result
     }
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.lights.iter().map(|l| l.id.to_string()).collect();
-    let id = unique_id(&args.name, |s| LightId::from_name(s), &taken);
+    let id = unique_id(&args.name, LightId::from_name, &taken);
     model.lights.push(Light {
         id: id.clone(),
         name: args.name.clone(),
@@ -78,7 +78,7 @@ fn light_add(project: &mut Project, args: LightAddArgs, cx: &mut OpCx) -> Result
     let mut effect = OpEffect::changed(&doc).with_created(id.to_string());
     if args.node {
         let taken: Vec<String> = model.nodes.iter().map(|n| n.id.to_string()).collect();
-        let node_id = unique_id(&args.name, |s| NodeId::from_name(s), &taken);
+        let node_id = unique_id(&args.name, NodeId::from_name, &taken);
         let mut node = Node::new(node_id.clone(), args.name.clone());
         node.light = Some(id);
         if let Some(t) = args.translation {
@@ -222,7 +222,7 @@ fn camera_add(project: &mut Project, args: CameraAddArgs, cx: &mut OpCx) -> Resu
     }
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.cameras.iter().map(|c| c.id.to_string()).collect();
-    let id = unique_id(&args.name, |s| CameraId::from_name(s), &taken);
+    let id = unique_id(&args.name, CameraId::from_name, &taken);
     model.cameras.push(Camera {
         id: id.clone(),
         name: args.name.clone(),
@@ -233,7 +233,7 @@ fn camera_add(project: &mut Project, args: CameraAddArgs, cx: &mut OpCx) -> Resu
     let mut effect = OpEffect::changed(&doc).with_created(id.to_string());
     if args.node {
         let taken: Vec<String> = model.nodes.iter().map(|n| n.id.to_string()).collect();
-        let node_id = unique_id(&args.name, |s| NodeId::from_name(s), &taken);
+        let node_id = unique_id(&args.name, NodeId::from_name, &taken);
         let mut node = Node::new(node_id.clone(), args.name.clone());
         node.camera = Some(id);
         if let Some(t) = args.translation {

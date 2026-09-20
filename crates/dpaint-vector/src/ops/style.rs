@@ -367,10 +367,8 @@ impl Opacity {
             ));
         }
         // Unlocking must be possible on a locked object, so only value edits are gated.
-        if a.opacity.is_some() || a.visible.is_some() {
-            if a.locked != Some(false) {
-                check_unlocked(project.vector(&doc)?, &ids)?;
-            }
+        if (a.opacity.is_some() || a.visible.is_some()) && a.locked != Some(false) {
+            check_unlocked(project.vector(&doc)?, &ids)?;
         }
         let mut eff = OpEffect::changed(&doc);
         let clamped = a.opacity.map(|o| o.clamp(0.0, 1.0));

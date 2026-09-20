@@ -62,7 +62,7 @@ pub fn render_data_uri(
         .render_png(doc, scale, max.max(1))
         .map_err(|e| error_payload(&e))?;
     // base64 is 4 bytes per 3, and the prefix is 22: size it once instead of growing.
-    let mut uri = String::with_capacity(22 + (png.len() + 2) / 3 * 4);
+    let mut uri = String::with_capacity(22 + png.len().div_ceil(3) * 4);
     uri.push_str("data:image/png;base64,");
     base64::engine::general_purpose::STANDARD.encode_string(&png, &mut uri);
     Ok(uri)

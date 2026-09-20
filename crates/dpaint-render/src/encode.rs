@@ -75,8 +75,8 @@ pub fn flatten(img: &RgbaImage, bg: dpaint_core::Color) -> RgbaImage {
     let mut out = img.clone();
     for px in out.pixels_mut() {
         let a = px.0[3] as u32;
-        for c in 0..3 {
-            px.0[c] = ((px.0[c] as u32 * a + b[c] as u32 * (255 - a)) / 255) as u8;
+        for (c, v) in px.0.iter_mut().enumerate().take(3) {
+            *v = ((*v as u32 * a + b[c] as u32 * (255 - a)) / 255) as u8;
         }
         px.0[3] = 255;
     }

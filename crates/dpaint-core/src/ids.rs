@@ -99,7 +99,7 @@ mod tests {
             LayerId::from_name("Sky Gradient").as_str(),
             "lyr_sky-gradient"
         );
-        assert_eq!(LayerId::from_name("  ").as_str().len() > 4, true);
+        assert!(LayerId::from_name("  ").as_str().len() > 4);
         assert_ne!(LayerId::generate(), LayerId::generate());
     }
 

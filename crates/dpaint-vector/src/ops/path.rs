@@ -432,7 +432,7 @@ impl Append {
                 a.source
             )));
         }
-        check_unlocked(project.vector(&doc)?, &[target.clone()])?;
+        check_unlocked(project.vector(&doc)?, std::slice::from_ref(&target))?;
         let v = project.vector(&doc)?;
         let mut parts = vec![geom::path_in_doc(v, &target)?];
         for s in &sources {
@@ -575,7 +575,7 @@ fn node_edit(
 ) -> Result<OpEffect> {
     let doc = doc_of(project, cx)?;
     let id = one(project, target, &doc)?;
-    check_unlocked(project.vector(&doc)?, &[id.clone()])?;
+    check_unlocked(project.vector(&doc)?, std::slice::from_ref(&id))?;
     let v = project.vector(&doc)?;
     let edited = f(&geom::path_in_doc(v, &id)?)?;
     let v = project.vector_mut(&doc)?;

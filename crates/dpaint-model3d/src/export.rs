@@ -717,7 +717,6 @@ fn export_material(cx: &mut Ctx, m: &Material) -> Result<(gj::Index<gj::Material
             emissive_strength: Some(gj::extensions::material::EmissiveStrength {
                 emissive_strength: gj::extensions::material::EmissiveStrengthFactor(strength),
             }),
-            ..Default::default()
         })
     } else {
         None

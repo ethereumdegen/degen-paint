@@ -366,8 +366,8 @@ pub fn mean_color(img: &RgbaImage) -> Color {
         if p.0[3] == 0 {
             continue;
         }
-        for c in 0..3 {
-            acc[c] += p.0[c] as f64;
+        for (a, v) in acc.iter_mut().zip(p.0.iter()).take(3) {
+            *a += *v as f64;
         }
         n += 1.0;
     }

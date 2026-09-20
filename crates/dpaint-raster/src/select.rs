@@ -379,10 +379,7 @@ pub fn to_path_d(mask: &SelMask) -> String {
     while let Some((&start, _)) = starts.iter().next() {
         let mut ring = vec![start];
         let mut cur = start;
-        loop {
-            let Some(nexts) = starts.get_mut(&cur) else {
-                break;
-            };
+        while let Some(nexts) = starts.get_mut(&cur) {
             let Some(next) = nexts.pop() else {
                 starts.remove(&cur);
                 break;

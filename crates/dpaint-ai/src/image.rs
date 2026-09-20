@@ -108,8 +108,10 @@ pub fn selection_mask_png(doc: &RasterDoc, assets: &AssetStore) -> Result<Vec<u8
         let src = decode(&bytes)?;
         let sx = w as f32 / src.width() as f32;
         let sy = h as f32 / src.height() as f32;
-        let mut paint = ts::PixmapPaint::default();
-        paint.quality = ts::FilterQuality::Bilinear;
+        let paint = ts::PixmapPaint {
+            quality: ts::FilterQuality::Bilinear,
+            ..Default::default()
+        };
         pm.draw_pixmap(
             0,
             0,

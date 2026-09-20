@@ -183,8 +183,8 @@ pub fn erase_cov(dst: &mut Canvas, cov: &[f32], flow: f32) {
             continue;
         }
         let keep = 1.0 - m;
-        for c in 0..4 {
-            px[c] *= keep;
+        for v in px.iter_mut() {
+            *v *= keep;
         }
     }
 }

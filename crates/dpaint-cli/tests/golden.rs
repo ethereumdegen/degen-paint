@@ -81,7 +81,7 @@ fn replay(case: &str, work: &Path) -> PathBuf {
     let render_doc = stream
         .lines()
         .find_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
-        .and_then(|_| None::<String>)
+        .and(None::<String>)
         .unwrap_or_default();
     let _ = render_doc;
 

@@ -224,7 +224,7 @@ impl OnPath {
     fn run(project: &mut Project, a: OnPathArgs, cx: &mut OpCx) -> Result<OpEffect> {
         let doc = doc_of(project, cx)?;
         let id = one(project, &a.target, &doc)?;
-        check_unlocked(project.vector(&doc)?, &[id.clone()])?;
+        check_unlocked(project.vector(&doc)?, std::slice::from_ref(&id))?;
         if a.release {
             let v = project.vector_mut(&doc)?;
             let VKind::Text { on_path, .. } = text_of(v, &id)? else {
@@ -437,7 +437,7 @@ impl FlowInShape {
                 });
             }
         }
-        check_unlocked(project.vector(&doc)?, &[id.clone()])?;
+        check_unlocked(project.vector(&doc)?, std::slice::from_ref(&id))?;
         let fonts = shaping::Fonts::for_project(project, cx.assets);
         let v = project.vector(&doc)?;
         let src = v

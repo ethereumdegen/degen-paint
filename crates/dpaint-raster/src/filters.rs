@@ -31,8 +31,8 @@ fn rows_mut(data: &mut [f32], stride: usize) -> std::slice::ChunksMut<'_, f32> {
 fn clamp_premul(px: &mut [f32]) {
     let a = px[3].clamp(0.0, 1.0);
     px[3] = a;
-    for c in 0..3 {
-        px[c] = px[c].clamp(0.0, a);
+    for v in px.iter_mut().take(3) {
+        *v = v.clamp(0.0, a);
     }
 }
 
@@ -133,8 +133,8 @@ pub fn motion_blur(src: &Canvas, distance: f32, angle_deg: f32) -> Canvas {
                     }
                     n += 1.0;
                 }
-                for c in 0..4 {
-                    acc[c] /= n;
+                for v in acc.iter_mut() {
+                    *v /= n;
                 }
                 clamp_premul(&mut acc);
                 let o = x as usize * 4;
@@ -185,8 +185,8 @@ pub fn radial_blur(src: &Canvas, mode: RadialMode, amount: f32, center: [f32; 2]
                         acc[c] += p[c];
                     }
                 }
-                for c in 0..4 {
-                    acc[c] /= (steps + 1) as f32;
+                for v in acc.iter_mut() {
+                    *v /= (steps + 1) as f32;
                 }
                 clamp_premul(&mut acc);
                 let o = x as usize * 4;
@@ -274,8 +274,8 @@ pub fn convolve(
                         }
                     }
                 }
-                for c in 0..4 {
-                    acc[c] = acc[c] / div + bias;
+                for v in acc.iter_mut() {
+                    *v = *v / div + bias;
                 }
                 clamp_premul(&mut acc);
                 let o = x as usize * 4;

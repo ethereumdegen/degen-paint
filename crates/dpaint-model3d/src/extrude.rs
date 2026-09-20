@@ -168,7 +168,7 @@ fn probe_sides(r: &Ring) -> Option<([f64; 2], [f64; 2])> {
     let b = r[(best.0 + 1) % r.len()];
     let m = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
     let d = [(b[0] - a[0]) / best.1, (b[1] - a[1]) / best.1];
-    let eps = (best.1 * 1e-3).min(1e-3).max(1e-9);
+    let eps = (best.1 * 1e-3).clamp(1e-9, 1e-3);
     let n = [-d[1], d[0]]; // left of travel
     Some((
         [m[0] + n[0] * eps, m[1] + n[1] * eps],

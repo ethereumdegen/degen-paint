@@ -57,7 +57,7 @@ fn anim_clip_create(
     let doc = target_model(project, cx)?;
     let model = project.model_mut(&doc)?;
     let taken: Vec<String> = model.animations.iter().map(|a| a.id.to_string()).collect();
-    let id = unique_id(&args.name, |s| AnimId::from_name(s), &taken);
+    let id = unique_id(&args.name, AnimId::from_name, &taken);
     model.animations.push(Animation {
         id: id.clone(),
         name: args.name,
@@ -96,7 +96,7 @@ fn anim_track_add(project: &mut Project, args: TrackAddArgs, cx: &mut OpCx) -> R
         Ok(i) => i,
         Err(_) => {
             let taken: Vec<String> = model.animations.iter().map(|a| a.id.to_string()).collect();
-            let id = unique_id(&args.animation, |s| AnimId::from_name(s), &taken);
+            let id = unique_id(&args.animation, AnimId::from_name, &taken);
             model.animations.push(Animation {
                 id,
                 name: args.animation.clone(),

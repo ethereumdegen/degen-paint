@@ -333,10 +333,7 @@ fn marching_squares(mask: &[bool], w: usize, h: usize) -> Vec<Vec<Point>> {
         while links.get(&s).map(|v| !v.is_empty()).unwrap_or(false) {
             let mut ring = Vec::new();
             let mut cur = s;
-            loop {
-                let Some(nexts) = links.get_mut(&cur) else {
-                    break;
-                };
+            while let Some(nexts) = links.get_mut(&cur) {
                 let Some(next) = nexts.pop() else { break };
                 ring.push(Point::new(cur.0 as f64 / 2.0, cur.1 as f64 / 2.0));
                 if next == s {
@@ -467,8 +464,10 @@ mod tests {
             Transform::identity(),
             None,
         );
-        let mut opts = TraceOptions::default();
-        opts.speckle = 0.0;
+        let mut opts = TraceOptions {
+            speckle: 0.0,
+            ..Default::default()
+        };
         let all = trace(&pm, &opts).unwrap();
         opts.speckle = 20.0;
         let filtered = trace(&pm, &opts).unwrap();
