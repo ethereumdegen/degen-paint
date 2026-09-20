@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Golden failures and op errors are far easier to read with a backtrace than without.
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: build + test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}
+
+      # apps/studio is part of the workspace, so `--workspace` compiles Tauri on Linux too.
+      # Installing the system libraries is the honest option: scoping the desktop app out of
+      # the Linux job would mean the shell is only ever compiled on macOS, and the shell is
+      # where the two GUI surfaces are wired together.
+      #   webkit2gtk/gtk/soup/javascriptcoregtk : Tauri v2 webview
+      #   ayatana-appindicator / librsvg        : tray and icon handling
+      #   libdbus-1-dev                         : keyring's secret-service backend (dpaint-ai)
+      #   libssl-dev / pkg-config               : reqwest's default TLS (dpaint-ai)
+      - name: Install Tauri and dpaint-ai system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libxdo-dev \
+            pkg-config
+
+      - name: cargo build
+        run: cargo build --workspace --all-targets
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      # The golden harness writes actual.png and diff.png next to the expected image when a
+      # render drifts. A golden failure you cannot look at is a bad afternoon.
+      - name: Upload golden render evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-renders-${{ matrix.os }}
+          path: |
+            crates/dpaint-cli/tests/golden/**/actual.png
+            crates/dpaint-cli/tests/golden/**/diff.png
+            crates/dpaint-cli/tests/golden/**/expected.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: lint
+
+      # `clippy --all-targets` compiles apps/studio, so this job needs the same libraries the
+      # Linux test job does.
+      - name: Install Tauri and dpaint-ai system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libxdo-dev \
+            pkg-config
+
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  wasm:
+    name: wasm32 engine build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      # Nothing else in CI compiles for the browser target, and it is easy to break from a
+      # native-only dependency or a stray `std::fs` call in library code. The CLI, the MCP
+      # server, the AI provider layer and the Tauri app are deliberately excluded: they are
+      # native by design. `.cargo/config.toml` supplies the getrandom backend flag.
+      - name: cargo build --target wasm32-unknown-unknown (engine crates)
+        run: |
+          cargo build --target wasm32-unknown-unknown \
+            -p dpaint-core \
+            -p dpaint-raster \
+            -p dpaint-vector \
+            -p dpaint-model3d \
+            -p dpaint-render \
+            -p dpaint-inspect \
+            -p dpaint-studio
+
+      # The crate the browser actually loads: the wasm-bindgen surface over the same engine,
+      # built the way the page consumes it.
+      - name: cargo build --target wasm32-unknown-unknown (browser bindings)
+        run: cargo build --release --target wasm32-unknown-unknown -p dpaint-wasm
+
+      # The glue is only valid if the CLI matches the `wasm-bindgen` version the lockfile
+      # resolved; a mismatch is accepted at build time and rejected in the browser. Read the
+      # version out of the resolved graph rather than pinning a literal here.
+      - name: Resolve the wasm-bindgen version
+        id: wasm-bindgen
+        run: |
+          version="$(cargo metadata --format-version 1 --locked \
+            | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version' | head -n1)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ steps.wasm-bindgen.outputs.version }}
+
+      - name: Generate the browser glue
+        run: |
+          wasm-bindgen --target web --out-dir target/wasm-pkg \
+            target/wasm32-unknown-unknown/release/dpaint_wasm.wasm
+          ls -l target/wasm-pkg

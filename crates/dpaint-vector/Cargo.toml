@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-vector"
+description = "Bezier path model, boolean ops, text shaping and SVG I/O for degen-paint"
+keywords = ["svg", "bezier", "vector", "graphics", "text"]
+categories = ["graphics", "rendering::data-formats"]
+documentation = "https://docs.rs/dpaint-vector"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

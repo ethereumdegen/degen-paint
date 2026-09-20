@@ -1,6 +1,11 @@
 [package]
 name = "dpaint-core"
 description = "Document model, op registry, journal and asset store for degen-paint"
+keywords = ["graphics", "image", "vector", "gltf", "agent"]
+categories = ["graphics", "multimedia::images"]
+documentation = "https://docs.rs/dpaint-core"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,4 +29,8 @@ kurbo.workspace = true
 tempfile = "3"
 
 [target.wasm32-unknown-unknown.dependencies]
+# `crypto.getRandomValues` for ulid and id generation…
 getrandom = { version = "0.3", features = ["wasm_js"] }
+# …and `Date` for `now_iso`: without `wasmbind`, chrono falls through to `SystemTime`,
+# which is not implemented on `wasm32-unknown-unknown` and panics on the first op.
+chrono = { workspace = true, features = ["wasmbind"] }

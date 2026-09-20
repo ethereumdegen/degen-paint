@@ -1,6 +1,11 @@
 [package]
 name = "dpaint-cli"
 description = "degen-paint command line: an agent-native raster, vector and glTF studio"
+keywords = ["cli", "graphics", "image", "svg", "gltf"]
+categories = ["command-line-utilities", "graphics"]
+documentation = "https://docs.rs/dpaint-cli"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

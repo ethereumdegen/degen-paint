@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-mcp"
+description = "MCP server over stdio exposing the degen-paint op registry as tools"
+keywords = ["mcp", "agent", "llm", "tools", "graphics"]
+categories = ["development-tools", "api-bindings"]
+documentation = "https://docs.rs/dpaint-mcp"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

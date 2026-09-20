@@ -10,6 +10,7 @@ members = [
     "crates/dpaint-ai",
     "crates/dpaint-mcp",
     "crates/dpaint-studio",
+    "crates/dpaint-wasm",
     "crates/dpaint-cli",
     "apps/studio",
 ]
@@ -21,17 +22,21 @@ rust-version = "1.80"
 license = "MIT"
 repository = "https://github.com/ethereumdegen/degen-paint"
 authors = ["Andrew Mazzola <admazzola@gmail.com>"]
+homepage = "https://github.com/ethereumdegen/degen-paint"
+# Inherited by every published crate; cargo packages it from the workspace root.
+readme = "README.md"
 
 [workspace.dependencies]
-dpaint-core = { path = "crates/dpaint-core" }
-dpaint-raster = { path = "crates/dpaint-raster" }
-dpaint-vector = { path = "crates/dpaint-vector" }
-dpaint-model3d = { path = "crates/dpaint-model3d" }
-dpaint-render = { path = "crates/dpaint-render" }
-dpaint-inspect = { path = "crates/dpaint-inspect" }
-dpaint-ai = { path = "crates/dpaint-ai" }
-dpaint-mcp = { path = "crates/dpaint-mcp" }
-dpaint-studio = { path = "crates/dpaint-studio" }
+dpaint-core = { path = "crates/dpaint-core", version = "0.1.0" }
+dpaint-raster = { path = "crates/dpaint-raster", version = "0.1.0" }
+dpaint-vector = { path = "crates/dpaint-vector", version = "0.1.0" }
+dpaint-model3d = { path = "crates/dpaint-model3d", version = "0.1.0" }
+dpaint-render = { path = "crates/dpaint-render", version = "0.1.0" }
+dpaint-inspect = { path = "crates/dpaint-inspect", version = "0.1.0" }
+dpaint-ai = { path = "crates/dpaint-ai", version = "0.1.0" }
+dpaint-mcp = { path = "crates/dpaint-mcp", version = "0.1.0" }
+dpaint-studio = { path = "crates/dpaint-studio", version = "0.1.0" }
+dpaint-wasm = { path = "crates/dpaint-wasm", version = "0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

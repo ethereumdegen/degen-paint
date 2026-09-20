@@ -1,0 +1,211 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Only the release job writes; everything else is a build.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cli:
+    name: dpaint (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      # The CLI links dpaint-ai, whose default features are the reqwest TLS stack and the
+      # secret-service keyring backend. No webkit here: the CLI does not depend on Tauri.
+      - name: Install dpaint-ai system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libdbus-1-dev libssl-dev pkg-config
+
+      - name: Build
+        run: cargo build --release --locked -p dpaint-cli --target ${{ matrix.target }}
+
+      - name: Strip, package and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          stage="dpaint-${version}-${{ matrix.target }}"
+          mkdir -p "dist/${stage}"
+          cp "target/${{ matrix.target }}/release/dpaint" "dist/${stage}/dpaint"
+          cp README.md LICENSE docs/installing.md "dist/${stage}/"
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            strip -x "dist/${stage}/dpaint"
+            # Stripping invalidates the ad-hoc signature linkers give arm64 binaries, and an
+            # unsigned arm64 Mach-O is killed on launch. Re-sign ad hoc after stripping.
+            codesign --force --sign - "dist/${stage}/dpaint"
+          else
+            strip "dist/${stage}/dpaint"
+          fi
+          tar -czf "dist/${stage}.tar.gz" -C dist "${stage}"
+          rm -rf "dist/${stage}"
+          cd dist
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256"
+          else
+            sha256sum "${stage}.tar.gz" > "${stage}.tar.gz.sha256"
+          fi
+          cat "${stage}.tar.gz.sha256"
+
+      - name: Smoke-test the packaged binary
+        # A tarball nobody ran is a rumour. Skipped for the cross-built x86_64 macOS
+        # artifact, which cannot execute on an arm64 runner.
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          stage="dpaint-${version}-${{ matrix.target }}"
+          tar -xzf "dist/${stage}.tar.gz" -C "${RUNNER_TEMP}"
+          "${RUNNER_TEMP}/${stage}/dpaint" --version
+          "${RUNNER_TEMP}/${stage}/dpaint" doctor
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  bundle-macos:
+    name: Studio bundle (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bundle-${{ matrix.target }}
+
+      # The frontend is plain ES modules served straight out of crates/dpaint-studio/ui, so
+      # there is no npm install and no bundler step before `tauri build`.
+      - name: Install the Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build the bundles
+        working-directory: apps/studio
+        run: cargo tauri build --target ${{ matrix.target }} --bundles app,dmg
+
+      # Unsigned and unnotarised: no Developer ID certificate is configured in this repo, so
+      # macOS will quarantine the download until the user clears it. Signing means adding
+      # APPLE_CERTIFICATE / APPLE_SIGNING_IDENTITY / notarytool secrets and setting them here.
+      - name: Collect the bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          out="target/${{ matrix.target }}/release/bundle"
+          mkdir -p dist
+          for dmg in "${out}"/dmg/*.dmg; do
+            cp "$dmg" "dist/degen-paint-Studio-${version}-${{ matrix.target }}.dmg"
+          done
+          # `ditto` preserves the bundle's symlinks and resource forks; `zip -r` does not.
+          app="$(find "${out}/macos" -maxdepth 1 -name '*.app' -print -quit)"
+          ditto -c -k --sequesterRsrc --keepParent "$app" \
+            "dist/degen-paint-Studio-${version}-${{ matrix.target }}-app.zip"
+          cd dist
+          for f in *; do shasum -a 256 "$f" > "$f.sha256"; done
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish-check:
+    name: cargo publish --dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-check
+
+      - name: Install dpaint-ai system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libdbus-1-dev libssl-dev pkg-config
+
+      # Deliberately a dry run, not a publish. Pushing to crates.io is irreversible per
+      # version, the `dpaint-*` names are not claimed yet, and a tag should not be able to
+      # burn a version number by accident. This proves the packages are publishable — every
+      # internal dependency carries both `path` and `version`, every crate has a description,
+      # a license and a readme — and leaves the actual `cargo publish` a deliberate human act.
+      #
+      # `--workspace` packages and verifies in dependency order and resolves the internal
+      # deps against the other crates in this run, which is what makes the check pass while
+      # none of them exist on crates.io yet. apps/studio is `publish = false` and is skipped.
+      - name: Dry-run publish
+        run: cargo publish --dry-run --workspace --locked
+
+  release:
+    name: Publish the GitHub release
+    needs: [cli, bundle-macos, publish-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: staged
+
+      - name: Assemble SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find staged -type f ! -name '*.sha256' -exec cp {} dist/ \;
+          cat staged/*/*.sha256 | sed 's#  .*/#  #' | sort -k2 > dist/SHA256SUMS
+          cd dist && sha256sum -c SHA256SUMS && ls -l
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            Binaries are unsigned. Verify them against `SHA256SUMS`:
+
+            ```
+            sha256sum -c SHA256SUMS --ignore-missing
+            ```
+
+            Nothing is published to crates.io by this workflow; see `publish-check`.

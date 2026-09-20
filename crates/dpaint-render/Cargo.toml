@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-render"
+description = "Unified render targets, link resolution and encoders for degen-paint documents"
+keywords = ["render", "png", "svg", "gltf", "graphics"]
+categories = ["graphics", "rendering"]
+documentation = "https://docs.rs/dpaint-render"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

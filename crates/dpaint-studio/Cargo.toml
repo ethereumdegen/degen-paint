@@ -1,6 +1,11 @@
 [package]
 name = "dpaint-studio"
 description = "Shared API and local server behind the degen-paint GUI shells"
+keywords = ["gui", "editor", "graphics", "studio", "agent"]
+categories = ["graphics", "gui"]
+documentation = "https://docs.rs/dpaint-studio"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

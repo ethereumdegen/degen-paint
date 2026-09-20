@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-ai"
+description = "Optional fal.ai and QuiverAI generation ops for degen-paint"
+keywords = ["ai", "image-generation", "svg", "fal", "vectorize"]
+categories = ["graphics", "api-bindings"]
+documentation = "https://docs.rs/dpaint-ai"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-raster"
+description = "Linear-light layer compositor, filters and selections for degen-paint"
+keywords = ["graphics", "image", "compositing", "raster", "filters"]
+categories = ["graphics", "multimedia::images"]
+documentation = "https://docs.rs/dpaint-raster"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,10 +20,15 @@ serde_json.workspace = true
 schemars.workspace = true
 tiny-skia.workspace = true
 image.workspace = true
-rayon.workspace = true
+rayon = { workspace = true, optional = true }
 kurbo.workspace = true
 fontdb.workspace = true
 rustybuzz = "0.20"
+
+[features]
+default = ["parallel"]
+# Row-parallel filters. Off for wasm32, where there is no thread to spawn.
+parallel = ["dep:rayon"]
 
 [dev-dependencies]
 tempfile = "3"

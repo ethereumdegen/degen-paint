@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-inspect"
+description = "Render digest, lint rules and perceptual diff for degen-paint"
+keywords = ["lint", "ssim", "diff", "image", "graphics"]
+categories = ["graphics", "visualization"]
+documentation = "https://docs.rs/dpaint-inspect"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

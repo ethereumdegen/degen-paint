@@ -1,5 +1,7 @@
 [package]
 name = "dpaint-studio-app"
+# The desktop shell ships as a signed bundle, not as a crates.io package.
+publish = false
 description = "degen-paint Studio: the desktop shell around the shared engine API"
 version.workspace = true
 edition.workspace = true

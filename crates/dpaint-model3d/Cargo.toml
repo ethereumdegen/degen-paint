@@ -1,5 +1,11 @@
 [package]
 name = "dpaint-model3d"
+description = "glTF authoring for degen-paint: extrude, revolve, PBR materials, validation"
+keywords = ["gltf", "3d", "mesh", "extrude", "pbr"]
+categories = ["graphics", "rendering::data-formats"]
+documentation = "https://docs.rs/dpaint-model3d"
+readme.workspace = true
+homepage.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
