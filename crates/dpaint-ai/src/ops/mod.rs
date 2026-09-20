@@ -47,6 +47,9 @@ pub(crate) fn require_key(rt: &Runtime, provider: Provider) -> Result<ApiKey> {
         .ok_or_else(|| Error::ProviderUnconfigured(provider.id().to_string()))
 }
 
+// These are internal helpers whose parameters are genuinely independent; bundling them
+// into a struct at a couple of call sites would add indirection, not clarity.
+#[allow(clippy::too_many_arguments)]
 /// Cache lookup, budget pre-check, the call itself, then accounting — in that order, so a
 /// repeat never bills and an over-budget request never leaves the machine.
 pub(crate) fn run_cached<F>(
@@ -136,6 +139,9 @@ pub(crate) fn fal_call(
     })
 }
 
+// These are internal helpers whose parameters are genuinely independent; bundling them
+// into a struct at a couple of call sites would add indirection, not clarity.
+#[allow(clippy::too_many_arguments)]
 /// A Quiver call, returning the SVG markup. The markup is stored so a cache hit can replay
 /// it, but what lands in the document is parsed geometry, never the blob.
 pub(crate) fn quiver_call(

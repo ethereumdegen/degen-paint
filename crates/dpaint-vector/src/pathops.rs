@@ -12,6 +12,9 @@ use dpaint_core::doc::common::{FillRule, LineCap, LineJoin};
 use dpaint_core::error::{Error, Result};
 use dpaint_core::kurbo::{BezPath, CubicBez, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
+// These are internal helpers whose parameters are genuinely independent; bundling them
+// into a struct at a couple of call sites would add indirection, not clarity.
+#[allow(clippy::too_many_arguments)]
 /// Convert a stroke into a fillable outline.
 pub fn outline_stroke(
     path: &BezPath,
@@ -23,6 +26,9 @@ pub fn outline_stroke(
     dash_offset: f64,
     tol: f64,
 ) -> Result<BezPath> {
+    // `!(a < b)` is deliberate: it is true when the values are incomparable, which is the
+    // branch degenerate geometry needs. Rewriting it as `a >= b` would silently drop NaN.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(width > 0.0) {
         return Err(Error::DegenerateGeometry(
             "stroke width must be greater than zero".into(),
@@ -514,6 +520,9 @@ pub fn append(paths: &[BezPath], connect: bool) -> BezPath {
 
 /// Replace sharp corners between straight segments with circular arcs of radius `r`.
 pub fn round_corners(path: &BezPath, r: f64) -> Result<BezPath> {
+    // `!(a < b)` is deliberate: it is true when the values are incomparable, which is the
+    // branch degenerate geometry needs. Rewriting it as `a >= b` would silently drop NaN.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(r > 0.0) {
         return Err(Error::DegenerateGeometry(
             "corner radius must be greater than zero".into(),

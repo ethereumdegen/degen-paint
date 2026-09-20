@@ -540,6 +540,9 @@ vop!(RoundCorners, RoundCornersArgs, "vector.path.round-corners", "Replace strai
 
 impl RoundCorners {
     fn run(project: &mut Project, a: RoundCornersArgs, cx: &mut OpCx) -> Result<OpEffect> {
+        // `!(a < b)` is deliberate: it is true when the values are incomparable, which is the
+        // branch degenerate geometry needs. Rewriting it as `a >= b` would silently drop NaN.
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
         if !(a.radius > 0.0) {
             return Err(Error::Invalid("radius must be greater than zero".into()));
         }

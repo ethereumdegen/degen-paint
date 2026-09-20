@@ -235,11 +235,15 @@ pub fn mesh_tangents(
 }
 
 /// Every drawable in the scene with its world matrix (column-major, `m[col][row]`).
+/// One drawable in a scene: the node that draws it, its geometry, its material,
+/// and its world matrix in glTF's column-major `m[col][row]` order.
+pub type Drawable = (NodeId, MeshData, Option<MaterialId>, [[f32; 4]; 4]);
+
 pub fn scene_meshes(
     project: &Project,
     doc: &DocId,
     assets: &AssetStore,
-) -> Result<Vec<(NodeId, MeshData, Option<MaterialId>, [[f32; 4]; 4])>> {
+) -> Result<Vec<Drawable>> {
     let model = project.model(doc)?;
     let mut out = Vec::new();
     let mut cache: std::collections::HashMap<MeshId, MeshData> = std::collections::HashMap::new();

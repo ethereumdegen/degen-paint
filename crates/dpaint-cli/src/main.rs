@@ -274,7 +274,6 @@ fn cmd_op(ctx: &Ctx, argv: &[String]) -> Result<i32> {
     let mut engine = Engine::new(reg, open(ctx)?);
     let applied = engine.apply(&id, parsed, ctx.doc.clone(), ctx.dry_run)?;
 
-    let has_warnings = !applied.effect.warnings.is_empty();
     emit(
         ctx,
         || {
@@ -306,7 +305,9 @@ fn cmd_op(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         },
         json!({ "ok": true, "result": applied }),
     );
-    Ok(if has_warnings { 0 } else { 0 })
+    // Warnings are reported on stderr and carried in --json; they do not make the op a
+    // failure. `lint` owns the "ran fine, but the document has problems" signal (exit 4).
+    Ok(0)
 }
 
 fn cmd_render(ctx: &Ctx, argv: &[String]) -> Result<i32> {

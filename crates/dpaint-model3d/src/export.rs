@@ -99,6 +99,9 @@ impl Ctx<'_> {
         self.root.push(view)
     }
 
+    // A glTF accessor genuinely has this many independent fields; bundling them into a
+    // struct used at exactly three call sites would add indirection, not clarity.
+    #[allow(clippy::too_many_arguments)]
     fn accessor(
         &mut self,
         view: gj::Index<gj::buffer::View>,

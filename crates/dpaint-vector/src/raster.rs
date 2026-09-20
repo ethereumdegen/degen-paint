@@ -39,6 +39,9 @@ fn render_at_depth(
     scale: f64,
     depth: u32,
 ) -> Result<Pixmap> {
+    // `!(a < b)` is deliberate: it is true when the values are incomparable, which is the
+    // branch degenerate geometry needs. Rewriting it as `a >= b` would silently drop NaN.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(scale > 0.0) {
         return Err(Error::Invalid(format!("render scale must be positive, got {scale}")));
     }

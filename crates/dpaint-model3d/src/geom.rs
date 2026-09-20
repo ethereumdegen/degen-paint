@@ -4,6 +4,9 @@
 //! list. Everything else in this crate either produces one (primitives, extrusion, revolve,
 //! loft, buffer decode) or consumes one (UV projection, tangents, validation, glTF export).
 
+/// Quantized position, normal and uv — vertices matching on all three are one vertex.
+type WeldKey = ((i64, i64, i64), (i64, i64, i64), (i64, i64));
+
 /// Triangle geometry with per-vertex attributes. Indices are triangle triples.
 ///
 /// `normals` and `uvs` are either empty or exactly as long as `positions`.
@@ -346,8 +349,7 @@ impl MeshData {
 
         let has_uv = !self.uvs.is_empty();
         let mut out = MeshData::default();
-        let mut dedup: std::collections::HashMap<((i64, i64, i64), (i64, i64, i64), (i64, i64)), u32> =
-            std::collections::HashMap::new();
+        let mut dedup: std::collections::HashMap<WeldKey, u32> = std::collections::HashMap::new();
         let mut indices = Vec::with_capacity(self.indices.len());
         for (f, tri) in self.indices.chunks_exact(3).enumerate() {
             let fnorm = face_normals[f];
