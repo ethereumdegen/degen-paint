@@ -1,0 +1,8 @@
+{"cmd": "new", "name": "campaign", "kind": "vector", "size": "256x256"}
+{"op": "vector.object.add-path", "args": {"d": "M128 16 L240 224 L16 224 Z", "fill": "#fb8500", "name": "mark"}}
+{"op": "vector.object.add-ellipse", "args": {"cx": 128, "cy": 165, "rx": 35, "name": "hole", "fill": "#000000"}}
+{"op": "vector.path.boolean", "args": {"target": "@mark, @hole", "op": "subtract"}}
+{"op": "doc.add", "args": {"name": "poster", "kind": "raster", "width": 300, "height": 380, "dpi": 150}}
+{"op": "raster.layer.add", "doc": "poster", "args": {"type": "fill", "color": "#14213d", "name": "bg"}}
+{"op": "raster.layer.add", "doc": "poster", "args": {"type": "linked", "source": "campaign", "box": [40, 40, 220, 220], "fit": "contain", "name": "art"}}
+{"op": "raster.layer.add", "doc": "poster", "args": {"type": "text", "text": {"text": "URBAN EXPLORER", "size": 22, "align": "center", "box": [20, 290, 260, 50]}, "fill": "#f4a261", "name": "title"}}

@@ -19,16 +19,17 @@ suite is built around that, not around coverage percentage.
 
 ## Goldens
 
-Goldens live in `tests/golden/<case>/expected.png` with the ops that produce them in
-`case.jsonl` — the fixture is a journal, so a golden is *reproducible by replay*, not a mystery
-binary.
+Goldens live in `crates/dpaint-cli/tests/golden/<case>/` as `ops.jsonl` (the op stream that
+builds the document), `render.json` (which document to render and how), and `expected.png`.
+The fixture is a journal, so a golden is *reproducible by replay* and reviewable as a diff,
+not a mystery binary.
 
 Comparison is perceptual, not byte-exact: SSIM ≥ 0.999 and max ΔE2000 ≤ 1.0 by default, tightened
 per case. A failing case writes `actual.png` and `diff.png` next to the expected file, so the
 failure is inspectable rather than a boolean.
 
-`cargo test -- --ignored update-goldens` regenerates, and regeneration is a reviewable diff in
-the PR — never something CI does silently.
+`UPDATE_GOLDENS=1 cargo test -p dpaint-cli --test golden` regenerates, and regeneration is a
+reviewable diff in the pull request — never something CI does silently.
 
 ## Determinism
 
@@ -43,9 +44,11 @@ Golden tests are worthless without it, so determinism is itself tested:
 
 ## Blend-mode grid
 
-One fixture renders all 25+ blend modes over a gradient-and-photo backdrop in a labeled grid, with
-per-mode numeric assertions against the published formulas at sampled points. Blend math is easy
-to get subtly wrong and nearly impossible to eyeball.
+The `blend-grid` golden renders all 26 separable and non-separable modes over a three-stop
+gradient backdrop, so luminance *and* hue vary across every cell. Blend math is easy to get
+subtly wrong and nearly impossible to eyeball; `dpaint-raster`'s own suite additionally asserts
+the published formulas numerically (multiply over white is identity, screen is its dual,
+luminosity keeps the backdrop hue).
 
 ## AI providers
 

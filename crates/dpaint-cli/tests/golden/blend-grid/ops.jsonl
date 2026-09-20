@@ -1,0 +1,28 @@
+{"cmd": "new", "name": "grid", "kind": "raster", "size": "240x200"}
+{"op": "raster.layer.add", "args": {"type": "gradient", "name": "backdrop", "paint": {"type": "linear", "from": [0, 0], "to": [240, 200], "stops": [{"offset": 0.0, "color": "#203060"}, {"offset": 0.5, "color": "#d05020"}, {"offset": 1.0, "color": "#f0e0a0"}]}}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M4 4 H36 V36 H4 Z", "fill": "#4080c0", "blend": "normal", "name": "cell-0"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M44 4 H76 V36 H44 Z", "fill": "#4080c0", "blend": "multiply", "name": "cell-1"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M84 4 H116 V36 H84 Z", "fill": "#4080c0", "blend": "screen", "name": "cell-2"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M124 4 H156 V36 H124 Z", "fill": "#4080c0", "blend": "overlay", "name": "cell-3"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M164 4 H196 V36 H164 Z", "fill": "#4080c0", "blend": "darken", "name": "cell-4"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M204 4 H236 V36 H204 Z", "fill": "#4080c0", "blend": "lighten", "name": "cell-5"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M4 44 H36 V76 H4 Z", "fill": "#4080c0", "blend": "color-dodge", "name": "cell-6"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M44 44 H76 V76 H44 Z", "fill": "#4080c0", "blend": "color-burn", "name": "cell-7"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M84 44 H116 V76 H84 Z", "fill": "#4080c0", "blend": "hard-light", "name": "cell-8"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M124 44 H156 V76 H124 Z", "fill": "#4080c0", "blend": "soft-light", "name": "cell-9"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M164 44 H196 V76 H164 Z", "fill": "#4080c0", "blend": "difference", "name": "cell-10"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M204 44 H236 V76 H204 Z", "fill": "#4080c0", "blend": "exclusion", "name": "cell-11"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M4 84 H36 V116 H4 Z", "fill": "#4080c0", "blend": "hue", "name": "cell-12"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M44 84 H76 V116 H44 Z", "fill": "#4080c0", "blend": "saturation", "name": "cell-13"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M84 84 H116 V116 H84 Z", "fill": "#4080c0", "blend": "color", "name": "cell-14"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M124 84 H156 V116 H124 Z", "fill": "#4080c0", "blend": "luminosity", "name": "cell-15"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M164 84 H196 V116 H164 Z", "fill": "#4080c0", "blend": "linear-burn", "name": "cell-16"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M204 84 H236 V116 H204 Z", "fill": "#4080c0", "blend": "linear-dodge", "name": "cell-17"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M4 124 H36 V156 H4 Z", "fill": "#4080c0", "blend": "vivid-light", "name": "cell-18"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M44 124 H76 V156 H44 Z", "fill": "#4080c0", "blend": "linear-light", "name": "cell-19"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M84 124 H116 V156 H84 Z", "fill": "#4080c0", "blend": "pin-light", "name": "cell-20"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M124 124 H156 V156 H124 Z", "fill": "#4080c0", "blend": "hard-mix", "name": "cell-21"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M164 124 H196 V156 H164 Z", "fill": "#4080c0", "blend": "subtract", "name": "cell-22"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M204 124 H236 V156 H204 Z", "fill": "#4080c0", "blend": "divide", "name": "cell-23"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M4 164 H36 V196 H4 Z", "fill": "#4080c0", "blend": "darker-color", "name": "cell-24"}}
+{"op": "raster.layer.add", "args": {"type": "shape", "d": "M44 164 H76 V196 H44 Z", "fill": "#4080c0", "blend": "lighter-color", "name": "cell-25"}}
