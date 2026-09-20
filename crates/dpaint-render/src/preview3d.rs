@@ -310,7 +310,9 @@ pub fn render(
         }
     }
 
-    let bg = background.map(|c| c.to_linear());
+    // The background was already filled above, as sRGB bytes straight into the pixmap.
+    // Do not "improve" this into a linear-light fill: the GPU viewport matches this
+    // behavior exactly, and dpaint-gpu's empty-scene parity test fails if it changes.
     for (i, px) in pm.pixels_mut().iter_mut().enumerate() {
         if !covered[i] {
             continue;
@@ -320,7 +322,6 @@ pub fn render(
         *px = tiny_skia::PremultipliedColorU8::from_rgba(rgba[0], rgba[1], rgba[2], 255)
             .unwrap_or_else(|| tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, 255).unwrap());
     }
-    let _ = bg;
     Ok(pm)
 }
 

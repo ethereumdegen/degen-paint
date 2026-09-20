@@ -39,6 +39,11 @@ pub struct Scene {
     pub camera: Camera,                          // same fields as dpaint_render::preview3d::Camera
     pub lighting: Lighting,                      // same fields as dpaint_render::preview3d::Lighting
     pub background: Option<dpaint_core::Color>,
+    /// Camera target offset along camera-right/up, in units of the fitted radius. Eye and
+    /// target move together, so `[0.0, 0.0]` is exactly the CPU path's framing — which is
+    /// what the parity test renders. Pan lives here rather than on `Camera` because the CPU
+    /// renderer is untouched and must not gain a field it does not use.
+    pub pan: [f32; 2],
 }
 
 pub struct SceneRenderer { /* pipeline, depth, msaa */ }

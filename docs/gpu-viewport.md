@@ -18,11 +18,35 @@ So the split is explicit, and it is a **policy**, not an accident:
 | `dpaint render`, `render.turntable`, goldens, digests, diffs | CPU (`dpaint-render::preview3d`) | always, never GPU |
 | Interactive viewport — native window, Tauri, browser canvas | GPU (`dpaint-gpu`) | falls back to CPU when no adapter exists |
 
-A GPU frame and a CPU frame of the same scene will not be bit-identical. They must be
-*recognizably the same image*, and that is tested: the parity test renders both and requires
-SSIM ≥ 0.93 with mean ΔE2000 ≤ 6 — tight enough to catch a flipped normal, a wrong matrix
-convention or an unlit material, loose enough to survive rasterization and filtering
-differences.
+A GPU frame and a CPU frame of the same scene will not be bit-identical, so parity is measured
+rather than assumed — and the threshold that matters is the tight one.
+
+| Configuration | Bound | Why |
+|---|---|---|
+| multisampled, any driver | SSIM ≥ 0.93, mean ΔE2000 ≤ 6 | survives MSAA and filtering differences across vendors |
+| 1×, matched rasterizer | SSIM ≥ 0.99, mean ΔE2000 ≤ 0.5 | with MSAA off both renderers cover the same pixel centres, so there is no excuse for disagreement |
+
+The loose pair alone is not a sufficient detector, which was established by breaking things on
+purpose and measuring rather than by reasoning about it:
+
+| Deliberate breakage | SSIM | mean ΔE | caught by 0.93 / 6? |
+|---|---|---|---|
+| transposed world matrix | 0.668 | 44.5 | yes, overwhelmingly |
+| flipped normal | 0.892 | 4.77 | by SSIM only — the ΔE bound misses it |
+| unlit material | 0.970 | 1.94 | **no** |
+
+Mean ΔE over a whole frame averages a defect away, and under this lighting rig
+`base * (ambient + diffuse) + spec` lands near `base` for a mid-bright colour, so an unlit
+shader produces almost the right picture. The tight 1× bound catches all three (measured
+agreement in the good case: SSIM 0.9997, mean ΔE 0.016), and every metric is also computed
+over the subject's bounding box so empty background cannot dilute it.
+
+**What the scene parity test does not cover:** `preview3d` does no backface culling — it draws
+every triangle and flips the interpolated normal toward the camera — so a one-sided surface
+seen from behind is still lit. Closed solids always occlude their own back faces, so removing
+that flip from the GPU shader changes the parity scene by nothing at all (SSIM 0.9995). It is
+covered by a separate test that views a plane from below, where dropping the flip moves SSIM
+from 1.000 to 0.786. The parity test covers the lighting rig; it does not cover two-sidedness.
 
 ## Shape
 

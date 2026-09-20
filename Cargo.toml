@@ -6,12 +6,14 @@ members = [
     "crates/dpaint-vector",
     "crates/dpaint-model3d",
     "crates/dpaint-render",
+    "crates/dpaint-gpu",
     "crates/dpaint-inspect",
     "crates/dpaint-ai",
     "crates/dpaint-mcp",
     "crates/dpaint-studio",
     "crates/dpaint-wasm",
     "crates/dpaint-cli",
+    "crates/dpaint-view",
     "apps/studio",
 ]
 
@@ -32,6 +34,8 @@ dpaint-raster = { path = "crates/dpaint-raster", version = "0.1.0" }
 dpaint-vector = { path = "crates/dpaint-vector", version = "0.1.0" }
 dpaint-model3d = { path = "crates/dpaint-model3d", version = "0.1.0" }
 dpaint-render = { path = "crates/dpaint-render", version = "0.1.0" }
+dpaint-gpu = { path = "crates/dpaint-gpu", version = "0.1.0" }
+dpaint-view = { path = "crates/dpaint-view", version = "0.1.0" }
 dpaint-inspect = { path = "crates/dpaint-inspect", version = "0.1.0" }
 dpaint-ai = { path = "crates/dpaint-ai", version = "0.1.0" }
 dpaint-mcp = { path = "crates/dpaint-mcp", version = "0.1.0" }
@@ -60,6 +64,12 @@ ttf-parser = "0.25"
 i_overlay = "4"
 gltf-json = "1"
 base64 = "0.22"
+# Defaults are already target-gated by wgpu (metal on Apple, vulkan/gles/dx12
+# elsewhere, webgpu on wasm), so disabling them only removes every backend.
+wgpu = "30"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "1"
+winit = "0.30"
 
 [profile.release]
 opt-level = 3

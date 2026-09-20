@@ -1,0 +1,37 @@
+[package]
+name = "dpaint-gpu"
+description = "GPU viewport renderer for degen-paint: wgpu forward PBR for model documents and a textured-quad 2D canvas"
+keywords = ["gpu", "wgpu", "viewport", "renderer", "graphics"]
+categories = ["graphics", "rendering"]
+documentation = "https://docs.rs/dpaint-gpu"
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+dpaint-core.workspace = true
+dpaint-model3d.workspace = true
+dpaint-render.workspace = true
+bytemuck.workspace = true
+tiny-skia.workspace = true
+serde.workspace = true
+schemars.workspace = true
+wgpu.workspace = true
+
+# pollster has no business in a wasm bundle; the browser has a real event loop. wgpu's own
+# backend features are target-gated inside wgpu, so the plain workspace dependency above is
+# already Metal here, Vulkan/DX12 elsewhere and WebGPU on wasm.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pollster.workspace = true
+
+[dev-dependencies]
+dpaint-inspect.workspace = true
+image.workspace = true
+serde_json.workspace = true
+tempfile = "3"
+pollster.workspace = true
