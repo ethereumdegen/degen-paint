@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/dpaint-core",
+    "crates/dpaint-raster",
+    "crates/dpaint-vector",
+    "crates/dpaint-model3d",
+    "crates/dpaint-render",
+    "crates/dpaint-inspect",
+    "crates/dpaint-ai",
+    "crates/dpaint-mcp",
+    "crates/dpaint-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+repository = "https://github.com/ethereumdegen/degen-paint"
+authors = ["Andrew Mazzola <admazzola@gmail.com>"]
+
+[workspace.dependencies]
+dpaint-core = { path = "crates/dpaint-core" }
+dpaint-raster = { path = "crates/dpaint-raster" }
+dpaint-vector = { path = "crates/dpaint-vector" }
+dpaint-model3d = { path = "crates/dpaint-model3d" }
+dpaint-render = { path = "crates/dpaint-render" }
+dpaint-inspect = { path = "crates/dpaint-inspect" }
+dpaint-ai = { path = "crates/dpaint-ai" }
+dpaint-mcp = { path = "crates/dpaint-mcp" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+schemars = "1"
+json-patch = "4"
+indexmap = { version = "2", features = ["serde"] }
+thiserror = "2"
+anyhow = "1"
+blake3 = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+ulid = "1"
+kurbo = { version = "0.13", features = ["serde"] }
+tiny-skia = "0.12"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "tiff"] }
+rayon = "1"
+clap = { version = "4", features = ["derive", "string"] }
+usvg = "0.48"
+resvg = "0.48"
+fontdb = "0.24"
+ttf-parser = "0.25"
+i_overlay = "4"
+gltf-json = "1"
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
