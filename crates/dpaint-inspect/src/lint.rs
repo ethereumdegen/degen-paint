@@ -263,6 +263,71 @@ pub fn lint_document(
                     });
                 }
             }
+
+            // The digest measures vector objects by isolation now, so the checks that
+            // decide whether a mark is usable can finally run on the documents marks are
+            // actually drawn in.
+            let canvas = [d.size[0] as f64, d.size[1] as f64];
+            for node in &d.tree {
+                if node.type_name == "artboard" {
+                    continue;
+                }
+                let sel = format!("#{}", node.id);
+
+                if node.type_name == "text" {
+                    if let Some(requested) = &node.font_fallback {
+                        out.push(Finding {
+                            rule: "font-fallback",
+                            severity: Severity::Warn,
+                            document: doc_id.to_string(),
+                            target: sel.clone(),
+                            detail: format!(
+                                "'{requested}' is not embedded; shaped with '{}' — register it so the mark travels",
+                                node.font.as_deref().unwrap_or("the fallback")
+                            ),
+                            value: None,
+                            required: None,
+                        });
+                    }
+                    if let Some(c) = node.contrast_vs_backdrop {
+                        if c < MIN_CONTRAST {
+                            out.push(Finding {
+                                rule: "low-contrast",
+                                severity: Severity::Error,
+                                document: doc_id.to_string(),
+                                target: sel.clone(),
+                                detail: "text fails WCAG AA against what is behind it".into(),
+                                value: Some(c as f64),
+                                required: Some(MIN_CONTRAST as f64),
+                            });
+                        }
+                    }
+                }
+
+                let Some(bb) = node.bbox else { continue };
+                let (x0, y0, x1, y1) = (bb[0], bb[1], bb[0] + bb[2], bb[1] + bb[3]);
+                if x1 <= 0.0 || y1 <= 0.0 || x0 >= canvas[0] || y0 >= canvas[1] {
+                    out.push(Finding {
+                        rule: "off-canvas",
+                        severity: Severity::Error,
+                        document: doc_id.to_string(),
+                        target: sel.clone(),
+                        detail: "object lies entirely outside the canvas".into(),
+                        value: None,
+                        required: None,
+                    });
+                } else if x0 < 0.0 || y0 < 0.0 || x1 > canvas[0] || y1 > canvas[1] {
+                    out.push(Finding {
+                        rule: "clipped",
+                        severity: Severity::Warn,
+                        document: doc_id.to_string(),
+                        target: sel.clone(),
+                        detail: "content extends past the canvas and will be cut".into(),
+                        value: None,
+                        required: None,
+                    });
+                }
+            }
         }
 
         Document::Model(model) => {

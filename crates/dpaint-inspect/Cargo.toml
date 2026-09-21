@@ -35,3 +35,4 @@ parallel = ["dpaint-raster/parallel", "dpaint-render/parallel"]
 
 [dev-dependencies]
 tempfile = "3"
+serde_json.workspace = true

@@ -205,16 +205,16 @@ fn object_digests(
 ) -> Result<Vec<NodeDigest>> {
     let mut out = shallow_tree(project.doc(doc_id)?);
     let Some(_) = project.doc(doc_id)?.as_raster() else {
-        // Vector and model objects: isolation rendering is raster-specific, so report the
-        // structural tree and the composite statistics only. The font a text object
-        // resolved to is structural, though, and a wordmark is exactly where a silent
-        // substitution matters most — so that much is answered here.
+        // Model documents have no 2D isolation to do. Vector ones do, and a logo is
+        // exactly where "what does this object actually paint, and does it read against
+        // what is behind it" is the question being asked.
         if let Ok(v) = project.vector(doc_id) {
             let fonts = dpaint_vector::text::Fonts::for_project(project, assets);
             let objects = v.clone();
             for node in out.iter_mut() {
                 resolve_vector_font(node, &objects, &fonts);
             }
+            vector_geometry(project, doc_id, assets, opts, full, &mut out);
         }
         return Ok(out);
     };
@@ -267,6 +267,110 @@ fn object_digests(
         }
     }
     Ok(out)
+}
+
+/// Measure each vector object: its bounds from the geometry, the rest from an isolation
+/// render.
+///
+/// The split is forced and it matters. A render only covers the canvas, so an object that
+/// has drifted entirely off the page paints nothing and is indistinguishable from an
+/// invisible one — which is the single finding "is my logo off the artboard" depends on.
+/// The Béziers know where they are regardless, so bounds come from them. Coverage, mean
+/// colour and contrast are about pixels, so those still come from the render, with the
+/// artboard backgrounds cleared: a board that fills the page would otherwise be counted as
+/// part of every object. A group is rendered *with* its children rather than emptied,
+/// because a group is how a mark is assembled.
+fn vector_geometry(
+    project: &Project,
+    doc_id: &DocId,
+    assets: &AssetStore,
+    opts: &DigestOptions,
+    full: &RgbaImage,
+    out: &mut [NodeDigest],
+) {
+    use dpaint_core::kurbo::Shape;
+
+    let fonts = dpaint_vector::text::Fonts::for_project(project, assets);
+    for node in out.iter_mut() {
+        // An artboard is the page, not paint on it.
+        if node.type_name == "artboard" {
+            continue;
+        }
+
+        if let Ok(doc) = project.vector(doc_id) {
+            let id = dpaint_core::ObjectId::from(node.id.clone());
+            if let Some((object, parent)) = dpaint_vector::geom::locate(doc, &id) {
+                if let Ok(path) = dpaint_vector::geom::object_path_with(doc, object, &fonts) {
+                    let b = (parent * path).bounding_box();
+                    if b.width() > 0.0 || b.height() > 0.0 {
+                        node.bbox = Some([b.x0, b.y0, b.width(), b.height()]);
+                    }
+                }
+            }
+        }
+
+        let mut probe = project.clone();
+        let Ok(doc) = probe.vector_mut(doc_id) else {
+            continue;
+        };
+        for board in doc.artboards.iter_mut() {
+            board.background = None;
+        }
+        if !isolate_object(&mut doc.objects, &node.id) {
+            continue;
+        }
+        let Ok(pm) = dpaint_render::render_document(&probe, doc_id, assets, &opts.render) else {
+            continue;
+        };
+        let img = encode::to_rgba(&pm);
+        // What the object actually put on the page, which is empty for anything off it.
+        let painted_box = opaque_bbox(&img);
+        match painted_box {
+            Some(bb) => {
+                let area = bb[2] * bb[3];
+                let painted = img.pixels().filter(|p| p.0[3] > 0).count() as f64;
+                node.coverage = Some(if area > 0.0 { painted / area } else { 0.0 });
+                node.mean_color = Some(mean_color(&img).to_hex());
+                node.contrast_vs_backdrop = Some(contrast_in_region(full, &img, bb));
+            }
+            None => node.coverage = Some(0.0),
+        }
+    }
+}
+
+/// Leave `target` and everything inside it visible, hide everything else, and keep the
+/// groups above it visible so it still renders. Returns whether the target was found.
+fn isolate_object(objects: &mut [dpaint_core::doc::vector::VObject], target: &str) -> bool {
+    use dpaint_core::doc::vector::VKind;
+
+    let mut found = false;
+    for object in objects.iter_mut() {
+        if object.id.as_str() == target {
+            object.visible = true;
+            if let VKind::Group { objects } = &mut object.kind {
+                show_all(objects);
+            }
+            found = true;
+            continue;
+        }
+        let inside = match &mut object.kind {
+            VKind::Group { objects } => isolate_object(objects, target),
+            _ => false,
+        };
+        object.visible = inside;
+        found |= inside;
+    }
+    found
+}
+
+fn show_all(objects: &mut [dpaint_core::doc::vector::VObject]) {
+    use dpaint_core::doc::vector::VKind;
+    for object in objects.iter_mut() {
+        object.visible = true;
+        if let VKind::Group { objects } = &mut object.kind {
+            show_all(objects);
+        }
+    }
 }
 
 /// Record which face a text layer actually got.
