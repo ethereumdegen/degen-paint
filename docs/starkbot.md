@@ -345,41 +345,83 @@ equivalent for every macOS primitive. Inventory (from the workspace, exact cites
 (`cfg(target_os = "linux")`), both producing the same `ElementTable`, `Guard`, `Freshness` and
 `ActOutcome` types, so `jev-nav`, `neo-agent`, `neo-eval` and the packs do not change. Mapping:
 
-| macOS | AT-SPI2 |
+| macOS | AT-SPI2 — as built and measured |
 |---|---|
-| `AXUIElementCopyMultipleAttributeValues` (role, title, value, position, size, children) | `Accessible.GetRole`/`Name`/`Description`, `Value.CurrentValue`, `Text.GetText`, `Component.GetExtents`, `Accessible.GetChildren`; one D-Bus round trip per node, batched with `zbus` futures — measure against the 250-budget walk. |
-| `AXUIElementCopyActionNames` → `AXPress`/`AXConfirm`/`AXPick`/`AXShowMenu` | `Action.GetActions` → `Action.DoAction(i)` (`click`, `press`, `activate`, `toggle`, `expand`) |
-| `AXUIElementSetAttributeValue(AXValue)` | `EditableText.SetTextContents`, `Value.CurrentValue` (set) |
+| `AXUIElementCopyMultipleAttributeValues` (role, title, value, position, size, children) | named reads only: `Accessible.GetRole`/`Name`/`Description`, `Value.CurrentValue`, `Text.GetText(0, -1)`, `Component.GetExtents`, `Accessible.GetChildren`. Never `Properties.GetAll` — it reads `Locale`, which **aborts LibreOffice** (SIGABRT out of UNO, reproduced four times with core dumps). A bounded `GetText(0, n)` past the end silently returns `""`, which reads a full cell as blank; `-1` is required. |
+| `AXUIElementCopyActionNames` → `AXPress`/`AXConfirm`/`AXPick`/`AXShowMenu` | `Action.NActions` + `GetName(i)` → `DoAction(i)`. **Not `GetActions`**: it never returns on WebKitGTK and comes back empty on Chromium. Observed names: `press` on VCL and WebKitGTK, `click` on Chromium. |
+| `AXUIElementSetAttributeValue(AXValue)` | `EditableText.SetTextContents` / `Value.SetCurrentValue` **where they exist**. WebKitGTK implements no `EditableText` at all, so no `<input>` in the Tauri Studio can be written through AT-SPI — text goes in through `Component.GrabFocus` plus the virtual keyboard. |
 | `AXFocused` | `Component.GrabFocus` |
 | `AXUIElementCopyElementAtPosition` | `Component.GetAccessibleAtPoint` |
-| `AXSheet`/`AXDialog` subroles = modal | `Role::Dialog`/`Alert` + `State::Modal` |
+| `AXSheet`/`AXDialog` subroles = modal | `Role::Dialog`/`Alert`, with `State::Modal` as a **second trigger, not a requirement** — WebKitGTK omits it for `aria-modal=true`, exactly as macOS has no modal state either. |
 | `AXProgressIndicator`/`AXBusyIndicator` = busy | `Role::ProgressBar`, `State::Busy` |
 | `AXMenuBar` → `menuitem` rows with shortcuts | `Role::MenuBar`/`Menu`/`MenuItem`; the accelerator from `Action.GetKeyBinding` |
-| `ax_strategy: manual_accessibility` (Electron) | `force_renderer_accessibility`: Chromium/Electron apps need `--force-renderer-accessibility` or `org.a11y.Status.IsEnabled=true`; Qt needs `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`. Same hint slot, Linux values. |
-| `CGEvent` key/mouse fallback | AT-SPI actions first (same preference order as today). Fallback input on Wayland: `zwp_virtual_keyboard_v1` (keys) and `zwlr_virtual_pointer_v1` (clicks) through `wayland-client`; Hyprland supports both. No `xdotool`/`ydotool` (needs uinput/root; a subprocess is not P3). |
+| `ax_strategy: manual_accessibility` (Electron) | `force_renderer_accessibility`: Chromium/Electron need `--force-renderer-accessibility` or `org.a11y.Status.IsEnabled=true`; Qt needs `QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`. Same hint slot, Linux values. |
+| `CGEvent` key/mouse fallback | AT-SPI actions first, same preference order. Fallback is `zwp_virtual_keyboard_v1` / `zwlr_virtual_pointer_v1` through `wayland-client`, in-process. No `xdotool`/`ydotool` (X11, or a root uinput daemon; a subprocess is not P3). Because of the `EditableText` gap above, this fallback is the **common** path in a Tauri window, not the exception. |
 
-Two apps that matter here publish AT-SPI natively: **GTK 3/4**, and **WebKitGTK** — which is what
-the Tauri Linux build of degen-paint's Studio runs on. So the §3 DOM contract reaches the Linux
-observer through the same role names it uses for the web path (`role=option` → `ListItem`,
-`role=dialog` → `Dialog`+`Modal`, `role=progressbar` → `ProgressBar`), with less mapping doubt
-than WKWebView. The macOS spike of §6 has a Linux twin that is runnable now: record the AT-SPI
-tree of `dpaint-studio-app` with `accerciser` or `busctl`, before L3 starts.
+Do not prune the walk on `State::Showing`: LibreOffice's `DocumentSpreadsheet` and every
+WebKitGTK GTK wrapper omit it while plainly on screen, and a `Showing`-gated walk saw 4 of 150
+nodes in a WebKitGTK window.
+
+**This is measured, not projected.** The Studio's own Tauri window walks in **8.9 ms for 33–61
+nodes**, and the §3 DOM contract does arrive intact: `role=option` → `ListItem` carrying the
+option text as its name, `role=listbox` → `ListBox`, `role=progressbar` → `ProgressBar`, a
+labelled `<input>` → a named `Entry`, and the Tauri menu bar as `menuitem` rows with their
+accelerators (`File › New Project…`, `<Primary>n`). LibreOffice Calc, the worst case at 2029
+nodes, walks in 13.9 ms / 1951 calls after collection-time pruning, against a macOS gate of
+p50 < 150 ms. The **macOS** spike is still outstanding: WKWebView may differ, and nothing here
+predicts it.
 
 ### 11.2 Milestones
 
-| L | Scope | Gate |
+| L | Scope | State |
 |---|---|---|
-| **L0 Builds on Linux** | add the Linux target; cfg-gate `neo-ax`'s backend, `src-tauri`'s panels, `neo-voice`'s Apple STT; XDG `ProjectDirs`; `rustls` → `ring` if `aws-lc-sys` bites | `cargo test --workspace` green on this machine and in a Linux CI job; `neo doctor` runs and reports the Linux facts above |
-| **L1 Web path** | `neo-cdp`: Chrome discovery on `PATH`, `Ctrl` select-all, `--ozone-platform-hint=auto`; Chrome profile under XDG | `neo nav https://example.com "click the More information link"` passes; **S8d-web**: the S8d brief against `dpaint serve` in managed Chromium passes 4 of 5 on this machine |
-| **L2 Keys + TUI** | `neo-keys` Secret Service backend; `neo account … login` and `neo keys set` land in the keyring; `neo tui` end to end | keys round-trip through `secret-tool lookup service com.starkbot.neo`; a full `neo tui` turn with the Claude subscription |
-| **L3 Native path** | §11.1 backend; Hyprland `WindowManager`; desktop-entry launch; Linux deny list; `neo-eval` `App::installed()` via desktop entries, cases for Chromium, LibreOffice Calc and degen-paint | `neo app dev.degenpaint.studio "open the command palette and run raster.layer.add"` passes; `neo eval` for the three apps passes; **S8d-native** on the Tauri Linux build 4 of 5 |
-| **L4 Desktop shell** *(optional)* | Tauri shell on webkit2gtk with plain windows | the Connections shell opens and completes onboarding; no NSPanel features claimed |
+| **L0 Builds on Linux** | Linux target; `neo-ax` split into `backend::{mac,unsupported}`; XDG paths in one `neo-core` helper; `neo-voice` and `src-tauri` cfg-gated; the Linux Doctor rows | **done** — `cargo build --workspace` and `cargo test --workspace` green here (440 tests), clippy `-D warnings` clean, CI's Linux job is the whole workspace. `neo doctor` reports store, credential storage, chrome `/usr/bin/chromium`, a11y bus, `org.a11y.Status.IsEnabled`, compositor `wayland · Hyprland` |
+| **L1 Web path** | `chrome_path()`, the select-all fix, `--ozone-platform-hint=auto` | **done** — `chrome_path()` resolves `/usr/bin/chromium` and correctly rejects this box's `$BROWSER` wrapper; the real defect turned out to be a missing `windowsVirtualKeyCode`, not the `Meta`/`commands` pair (see `starkbot-neo/plans/17-linux.md` §2 for the four-row matrix), and `crates/neo-cdp/tests/replace_text.rs` is the permanent regression. Chromium runs Wayland-native (`xwayland: false`). **S8d-web** still to run |
+| **L2 Keys** | Secret Service backend | **done** — round-tripped through `secret-tool lookup service com.starkbot.neo`, including the upsert and the delete, plus the no-keyring fallback with its warning |
+| **L3 Native path** | §11.1 backend; Hyprland `WindowManager`; desktop-entry launch; Linux deny list; virtual-input fallback | **done** — `cargo test -p neo-ax` 63 pass, clippy clean. Drove LibreOffice Calc (250 rows, 152 ms) and this Studio (33 rows, 8.9 ms) through the public API, including pressing a button and reading the effect back. `neo app` itself is blocked only on a TypeSafe key, not on the backend. **S8d-native** still to run |
+| **L4 Desktop shell** *(optional)* | Tauri shell on webkit2gtk with plain windows | not started; `neo tui` is the acceptance surface (P12), so nothing is blocked on it |
 
-L0 → L1 → L2 are each a day-scale change with no design risk. L3 is the real work and is where
-the `WindowManager` trait and the AT-SPI batching cost need measuring first — the same lesson as
-`01-accessibility.md`'s Numbers/Calc findings: probe, record in `spikes.md`, then build.
+L0–L2 were mechanical, as predicted. L3 was the work, and measuring first paid for itself: four
+of the six load-bearing decisions in §11.1 are corrections to what the documentation implied,
+and one of them (`Properties.GetAll` aborting LibreOffice) would have been a crash in a user's
+editor rather than a bug in ours.
 
-### 11.3 What does not change
+### 11.3 The loop, closed
+
+Measured on this machine, both repos at their current commits, nothing mocked:
+
+```
+$ neo ax table dev.degenpaint.studio
+  window "degen-paint — acme.dpaint"  rows 70
+  roles  button 29 · menuitem 24 · textfield 7 · row 5 · tab 3 · tabgroup 1 · combobox 1
+    3  combobox  "Run op"
+    4  button    "Undo raster.layer.add"
+    9  button    "Import file into project /tmp/main-verify/acme"
+   22  row       "main-verify-layer · fill · visible · 0,0 1080×1350"
+   24  button    "Hide layer main-verify-layer"
+
+$ neo ax press dev.degenpaint.studio 24
+  { "performed": true, "method": "Ax", "summary": "pressed button \"Hide layer main-verify-layer\"" }
+
+$ dpaint --project …/acme.dpaint history --limit 1 --json
+  seq 3  raster.layer.set  actor=human
+$ jq '.documents[].layers[] | {name, visible}' project.json
+  { "name": "main-verify-layer", "visible": false }
+```
+
+starkbot-neo read the Studio over AT-SPI, chose a control by its accessible name, pressed it,
+and the press became a journalled op in the document. No selectors, no CLI, no MCP, no shell.
+That is the whole thesis of this file, running.
+
+One operational note worth keeping: the press first returned
+`Stale(NotFrontmost { pid: -1 })`, and the guard was right — Hyprland's `follow_mouse = 1` was
+pulling focus back to whichever window the cursor sat over. The fix is the compositor's, not
+the app's: move the pointer with the focus. Two Hyprland 0.56 details go with it — `dispatch`
+is Lua now, so `focuswindow class:…` is a syntax error, and the working call is
+`hl.dsp.focus({ window = "address:0x…" })` by address, because `pid:` selectors parse and do
+nothing.
+
+### 11.4 What does not change
 
 P3, P9, P10, the gates, the pack format, `snapshot.js`, Jev, the routines, and every plan that
 says "app" instead of "macOS app". A Linux user gets the same product with `neo tui` as the front
