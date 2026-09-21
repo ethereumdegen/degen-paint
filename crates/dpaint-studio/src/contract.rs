@@ -214,6 +214,12 @@ pub const SHORTCUTS: &[Shortcut] = &[
         keys: "CmdOrCtrl+Alt+5",
         scope: "document",
     },
+    Shortcut {
+        id: "view.pane.script",
+        label: "Script",
+        keys: "CmdOrCtrl+Alt+6",
+        scope: "document",
+    },
 ];
 
 /// Primary buttons whose labels start with one of these spend money, overwrite a file or

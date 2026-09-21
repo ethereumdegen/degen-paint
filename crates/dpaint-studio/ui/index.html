@@ -64,6 +64,11 @@
     </div>
   </section>
 
+  <!-- Draggable, and focusable so a keyboard or a navigator can move them by name: a pane
+       whose width is only reachable with a pointer is a pane an agent cannot uncover. -->
+  <div id="sepLeft" class="splitter v" role="separator" tabindex="0"
+       aria-orientation="vertical" aria-label="Documents width"></div>
+
   <section id="viewport" role="region" aria-label="Viewport">
     <div id="canvasArea">
       <!-- Decoration only: P10 forbids the navigator reading pixels, so everything this
@@ -90,6 +95,9 @@
       <span id="viewRead" class="read">—</span>
     </div>
   </section>
+
+  <div id="sepRight" class="splitter v" role="separator" tabindex="0"
+       aria-orientation="vertical" aria-label="Tree and Inspector width"></div>
 
   <aside id="right">
     <section id="treePane" class="pane" role="region" aria-label="Tree">
@@ -137,6 +145,9 @@
     </div>
   </section>
 
+  <div id="sepDock" class="splitter h" role="separator" tabindex="0"
+       aria-orientation="horizontal" aria-label="History panel height"></div>
+
   <footer id="dock">
     <div class="tabs" role="tablist" aria-label="Panels">
       <button class="tab active" id="tabbtn-history" data-tab="history" role="tab"
@@ -145,7 +156,10 @@
               aria-selected="false" aria-controls="tab-lint">Lint <span id="lintCount" class="pill" hidden>0</span></button>
       <button class="tab" id="tabbtn-console" data-tab="console" role="tab"
               aria-selected="false" aria-controls="tab-console">Console <span id="conCount" class="pill" hidden>0</span></button>
+      <button class="tab" id="tabbtn-script" data-tab="script" role="tab"
+              aria-selected="false" aria-controls="tab-script">Script</button>
       <span class="grow"></span>
+      <button id="btnCopyScript" class="tb sm" aria-label="Copy the script to the clipboard">Copy script</button>
       <button id="btnLint" class="tb sm" aria-label="Re-run lint">Re-lint</button>
       <button id="btnClearConsole" class="tb sm" aria-label="Clear console log">Clear log</button>
     </div>
@@ -153,6 +167,9 @@
       <section id="tab-history" class="tabpane active" role="region" aria-label="History"></section>
       <section id="tab-lint" class="tabpane" role="region" aria-label="Lint"></section>
       <section id="tab-console" class="tabpane" role="region" aria-label="Console"></section>
+      <!-- The document as the program that produced it. Read-only and selectable, so a
+           person can see exactly what an agent did and paste it into a terminal. -->
+      <section id="tab-script" class="tabpane" role="region" aria-label="Script"></section>
     </div>
   </footer>
 

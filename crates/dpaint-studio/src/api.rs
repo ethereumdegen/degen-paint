@@ -345,6 +345,10 @@ impl Studio {
             .map(|e| {
                 json!({
                     "seq": e.seq, "ts": e.ts, "op": e.op, "undone": e.undone,
+                    // The arguments are what make the journal a *program* rather than a
+                    // list of verbs: without them the Studio can name what happened but
+                    // cannot show it back, and neither can a person reading over it.
+                    "args": e.args,
                     "actor": match e.actor { Actor::Human => "human", Actor::Agent => "agent", Actor::Replay => "replay" },
                     "changed": e.effect.as_ref().map(|f| f.changed.iter().map(|d| d.to_string()).collect::<Vec<_>>()).unwrap_or_default(),
                 })

@@ -712,6 +712,9 @@ function renderHistory() {
     list.append(row);
   }
   pane.append(list);
+  // The Script tab is the same journal read forward, so it is refreshed with it rather
+  // than on tab switch — a panel that is stale until you look at it is a panel that lies.
+  renderScript();
   S.maxSeqSeen = Math.max(S.maxSeqSeen, ...S.history.map((e) => e.seq));
 }
 
@@ -2539,6 +2542,7 @@ const MENU = {
   'view.pane.history': () => { showTab('history'); say('showed the History panel'); },
   'view.pane.lint': () => { showTab('lint'); say('showed the Lint panel'); },
   'view.pane.console': () => { showTab('console'); say('showed the Console panel'); },
+  'view.pane.script': () => { showTab('script'); say('showed the Script panel'); },
   'view.pane.tree': () => { $('treeFilter').focus(); say('focused the Tree panel'); },
   'view.pane.inspector': () => {
     const first = $('inspector').querySelector('input, select, textarea, button');
@@ -2656,10 +2660,153 @@ function initKeys() {
 
 // -------------------------------------------------------------------------------- boot
 
+// ------------------------------------------------------------------------------ layout
+
+/** Which custom property each separator drives, and which way the pointer moves it. */
+const SPLITTERS = {
+  sepLeft:  { prop: '--col-left',  axis: 'x', sign:  1, min: 150, max: () => innerWidth * 0.34 },
+  sepRight: { prop: '--col-right', axis: 'x', sign: -1, min: 220, max: () => innerWidth * 0.40 },
+  sepDock:  { prop: '--row-dock',  axis: 'y', sign: -1, min: 90,  max: () => innerHeight * 0.60 },
+};
+const LAYOUT_KEY = 'dpaint.layout';
+
+/** Pane sizes are a preference, not document state, so they live in the browser and the
+ *  journal never hears about them. */
+function initSplitters() {
+  const app = $('app');
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}'); } catch { saved = {}; }
+
+  const set = (id, px) => {
+    const s = SPLITTERS[id];
+    const v = Math.round(Math.max(s.min, Math.min(s.max(), px)));
+    app.style.setProperty(s.prop, v + 'px');
+    const bar = $(id);
+    bar.setAttribute('aria-valuenow', String(v));
+    bar.setAttribute('aria-valuemin', String(s.min));
+    bar.setAttribute('aria-valuemax', String(Math.round(s.max())));
+    saved[id] = v;
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(saved)); } catch { /* private mode */ }
+  };
+
+  for (const [id, s] of Object.entries(SPLITTERS)) {
+    const bar = $(id);
+    const current = () => parseFloat(getComputedStyle(app).getPropertyValue(s.prop)) || s.min;
+    set(id, saved[id] ?? current());
+
+    // Pointer capture rather than document-level listeners: the drag keeps receiving moves
+    // even when the cursor crosses the canvas or leaves the window, and it ends exactly once.
+    bar.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      bar.setPointerCapture(e.pointerId);
+      bar.classList.add('dragging');
+      const from = s.axis === 'x' ? e.clientX : e.clientY;
+      const start = current();
+      const move = (ev) => {
+        const now = s.axis === 'x' ? ev.clientX : ev.clientY;
+        set(id, start + (now - from) * s.sign);
+      };
+      const done = () => {
+        bar.classList.remove('dragging');
+        bar.removeEventListener('pointermove', move);
+        say(`${bar.getAttribute('aria-label')} ${bar.getAttribute('aria-valuenow')} pixels`);
+      };
+      bar.addEventListener('pointermove', move);
+      bar.addEventListener('pointerup', done, { once: true });
+      bar.addEventListener('pointercancel', done, { once: true });
+    });
+
+    // Arrow keys, so the panes are reachable without a pointer — and therefore reachable
+    // by anything driving this window through its accessibility tree.
+    bar.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 48 : 12;
+      const grow = s.axis === 'x' ? ['ArrowRight'] : ['ArrowDown'];
+      const shrink = s.axis === 'x' ? ['ArrowLeft'] : ['ArrowUp'];
+      let next = null;
+      if (grow.includes(e.key)) next = current() + step * s.sign;
+      else if (shrink.includes(e.key)) next = current() - step * s.sign;
+      else if (e.key === 'Home') next = s.min;
+      else if (e.key === 'End') next = s.max();
+      if (next === null) return;
+      e.preventDefault();
+      set(id, next);
+      say(`${bar.getAttribute('aria-label')} ${bar.getAttribute('aria-valuenow')} pixels`);
+    });
+  }
+
+  // The clamps are viewport-relative, so a resized window can leave a stored width outside
+  // them; re-setting each one re-applies the clamp and keeps `aria-valuemax` truthful.
+  addEventListener('resize', () => {
+    for (const id of Object.keys(SPLITTERS)) set(id, saved[id] ?? SPLITTERS[id].min);
+  });
+}
+
+// ------------------------------------------------------------------------------ script
+
+/** One journal entry as the command that would produce it. */
+function opLine(entry) {
+  const flag = (k) => '--' + k.replace(/_/g, '-');
+  // Single quotes, because the point of this panel is that the line can be pasted into a
+  // terminal and run. A JSON argument carries its own double quotes and a colour starts
+  // with `#`; both survive inside single quotes and neither survives bare. A single quote
+  // in the value is closed, escaped and reopened — the one character that ends the quoting.
+  const shell = (s) => (/^[A-Za-z0-9_@%+=:,.\/-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
+  const value = (v) => {
+    if (typeof v === 'string') return shell(v);
+    if (typeof v === 'boolean' || typeof v === 'number') return String(v);
+    return shell(JSON.stringify(v));
+  };
+  const args = Object.entries(entry.args || {})
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(([k, v]) => `${flag(k)} ${value(v)}`)
+    .join(' ');
+  return `dpaint op ${entry.op}${args ? ' ' + args : ''}`;
+}
+
+/** The script the document *is*, oldest first — the journal runs forward even though the
+ *  History panel reads newest first. Undone entries stay, commented, because a reader
+ *  asking "what happened here" is usually asking about the thing that was taken back. */
+function scriptText() {
+  return [...S.history]
+    .sort((a, b) => a.seq - b.seq)
+    .map((e) => (e.undone ? '# undone: ' : '') + opLine(e))
+    .join('\n');
+}
+
+function renderScript() {
+  const pane = $('tab-script');
+  pane.textContent = '';
+  if (!S.history.length) {
+    pane.append(el('p', 'empty-note', 'No ops yet. Everything this document is made of will appear here as the commands that made it.'));
+    return;
+  }
+  const pre = el('pre', 'script');
+  pre.tabIndex = 0;
+  pre.textContent = scriptText();
+  pane.append(pre);
+}
+
+async function copyScript() {
+  const text = scriptText();
+  if (!text) return say('there is no script to copy yet');
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`copied ${S.history.length} ops to the clipboard`);
+  } catch {
+    // A denied clipboard is not a failure to hide: say so, and leave the text selected so
+    // the keyboard can still copy it.
+    const pre = $('tab-script').querySelector('pre');
+    if (pre) { const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); }
+    say('the clipboard was refused; the script is selected, press copy');
+  }
+}
+
 async function boot() {
   initViewport();
   initPalette();
   initKeys();
+  initSplitters();
+  $('btnCopyScript').onclick = copyScript;
   $('btnUndo').onclick = doUndo;
   $('btnRedo').onclick = doRedo;
   $('btnNewProject').onclick = () => fireMenu('project.new');
