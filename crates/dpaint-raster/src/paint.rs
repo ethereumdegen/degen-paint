@@ -10,7 +10,7 @@ use crate::geom;
 use dpaint_core::color::Color;
 use dpaint_core::doc::common::{GradientStop, Paint};
 use dpaint_core::doc::raster::BlendMode;
-use dpaint_core::kurbo::{BezPath, ParamCurve, PathSeg, Point, Shape};
+use dpaint_core::kurbo::{BezPath, ParamCurve, ParamCurveArclen, Point};
 use dpaint_core::{DocId, Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, schemars::JsonSchema)]
@@ -214,6 +214,10 @@ impl Default for Brush {
     }
 }
 
+/// Sub-pixel, which is all a stamp position can resolve, and cheap enough to ask for per
+/// stamp on a long stroke.
+const ARCLEN_TOLERANCE: f64 = 0.05;
+
 /// Accumulate a stroke's coverage along `path`, stamping a soft round tip.
 ///
 /// Coverage composites stamp over stamp (`c + f*(1-c)`) rather than summing, so a slow
@@ -221,6 +225,8 @@ impl Default for Brush {
 ///
 /// `pressure` maps stroke progress (0 at the start, 1 at the end) to a multiplier on both
 /// the tip size and the flow — that is how a tapered stroke is expressed without a tablet.
+/// Progress is measured in *distance along the stroke*, not in stamp count, so the curve
+/// a caller draws is the curve they get regardless of how the path is segmented.
 pub fn stroke_coverage(
     w: u32,
     h: u32,
@@ -232,50 +238,67 @@ pub fn stroke_coverage(
     let base_radius = (brush.size * scale / 2.0).max(0.5);
     let hardness = brush.hardness.clamp(0.0, 1.0);
     let flow = brush.flow.clamp(0.0, 1.0) as f32;
-    let step = (brush.spacing.max(0.01) * brush.size * scale).max(0.5);
+    let spacing = brush.spacing.max(0.01);
+    // Spacing is a fraction of the tip, so it has to follow the tip when pressure shrinks
+    // it: a stroke tapering to a tenth of its width and still stepping a fifth of the
+    // *full* width lands its stamps two diameters apart, and the taper comes out as a
+    // row of dots. The floor keeps a vanishing tip from stalling the walk.
+    let step_for = |press: f64| (spacing * brush.size * scale * press.max(0.05)).max(0.5);
     let mut cov = vec![0.0f32; w as usize * h as usize];
-    let mut stamps: Vec<Point> = Vec::new();
-    let mut carry = 0.0f64;
+    // Each stamp carries the pressure it was placed with; recovering it later from the
+    // stamp's index would assume stamps are evenly spaced, which is exactly what the
+    // line above stops being true.
+    let mut stamps: Vec<(Point, f64)> = Vec::new();
+    let total: f64 = path
+        .segments()
+        .map(|s| s.arclen(ARCLEN_TOLERANCE))
+        .sum::<f64>()
+        * scale;
+    let press_at = |travelled: f64| match pressure {
+        Some(c) if total > 0.0 => c.eval((travelled / total).clamp(0.0, 1.0)).clamp(0.0, 4.0),
+        Some(c) => c.eval(0.0).clamp(0.0, 4.0),
+        None => 1.0,
+    };
+    // Distance from the start of the stroke at which the next stamp falls.
+    let mut travelled = 0.0f64;
+    let mut seg_start = 0.0f64;
     let mut stamped_any = false;
     for seg in path.segments() {
-        let len = match seg {
-            PathSeg::Line(l) => (l.p1 - l.p0).hypot(),
-            _ => seg
-                .to_path(0.05)
-                .segments()
-                .map(|s| s.as_line().map(|l| (l.p1 - l.p0).hypot()).unwrap_or(0.0))
-                .sum(),
-        };
-        let len = len * scale;
+        // Arc length, not a sum over flattened pieces: `PathSeg::to_path` hands back the
+        // curve itself rather than a polyline, so `as_line()` was `None` for every piece
+        // and every curved segment measured zero — a cubic stroke stamped once, at its
+        // start, and nothing else. `arclen` is exact to the tolerance and needs no
+        // flattening at all.
+        let len = seg.arclen(ARCLEN_TOLERANCE) * scale;
         if len <= 0.0 {
             if !stamped_any {
-                stamps.push(seg.eval(0.0));
+                stamps.push((seg.eval(0.0), press_at(0.0)));
                 stamped_any = true;
             }
             continue;
         }
-        let mut t = if stamped_any { carry / len } else { 0.0 };
+        // Walk in *distance*, converting to the curve parameter per stamp. Stepping `t`
+        // uniformly would bunch stamps where a Bézier is slow and space them where it is
+        // fast, which is visible as a stroke that thins through its own bends.
         if !stamped_any {
-            stamps.push(seg.eval(0.0));
+            let press = press_at(0.0);
+            stamps.push((seg.eval(0.0), press));
             stamped_any = true;
-            t = step / len;
+            travelled = step_for(press);
         }
-        while t <= 1.0 {
-            stamps.push(seg.eval(t));
-            t += step / len;
+        while travelled <= seg_start + len {
+            let t = seg.inv_arclen((travelled - seg_start) / scale, ARCLEN_TOLERANCE);
+            let press = press_at(travelled);
+            stamps.push((seg.eval(t), press));
+            travelled += step_for(press);
         }
-        carry = (t - 1.0) * len;
+        seg_start += len;
     }
     if stamps.is_empty() {
         return Err(Error::DegenerateGeometry("brush path has no points".into()));
     }
-    let last = (stamps.len().saturating_sub(1)).max(1) as f64;
-    for (n, p) in stamps.iter().enumerate() {
-        // Pressure taper: 0 at the first stamp, 1 at the last.
-        let press = match pressure {
-            Some(c) => c.eval(n as f64 / last).clamp(0.0, 4.0),
-            None => 1.0,
-        };
+    for (n, (p, press)) in stamps.iter().enumerate() {
+        let press = *press;
         if press <= 0.0 {
             continue;
         }
@@ -400,5 +423,129 @@ mod tests {
         assert!(at(20, 10) > 0.99, "center of the stroke must be solid");
         assert!(at(20, 13) > 0.0 && at(20, 13) < at(20, 10), "soft rim");
         assert_eq!(at(20, 17), 0.0, "nothing outside the brush radius");
+    }
+
+    /// A curve is the normal case for a brush — nobody strokes in straight lines — and
+    /// this is the shape the first implementation got wrong: segment length came from
+    /// summing `as_line()` over `PathSeg::to_path`, which never flattens, so every curve
+    /// measured zero and left a single dab at its start point.
+    #[test]
+    fn a_curved_stroke_paints_its_whole_length_not_just_its_first_dab() {
+        let brush = Brush {
+            size: 8.0,
+            hardness: 1.0,
+            spacing: 0.2,
+            ..Default::default()
+        };
+        let solid = |cov: &[f32], x: usize, y: usize| cov[y * 120 + x] > 0.9;
+
+        // A cubic and a quadratic that both start at (10,30) and end at (110,30),
+        // bulging up through the middle of the canvas.
+        let mut cubic = BezPath::new();
+        cubic.move_to((10.0, 30.0));
+        cubic.curve_to((40.0, 5.0), (80.0, 5.0), (110.0, 30.0));
+        let mut quad = BezPath::new();
+        quad.move_to((10.0, 30.0));
+        quad.quad_to((60.0, -5.0), (110.0, 30.0));
+
+        for (name, path) in [("cubic", cubic), ("quad", quad)] {
+            let cov = stroke_coverage(120, 60, &path, &brush, 1.0, None).unwrap();
+            assert!(solid(&cov, 10, 30), "{name}: start not painted");
+            assert!(solid(&cov, 110, 30), "{name}: end not painted");
+            // The apex of the bulge, which only exists if the walk followed the curve.
+            assert!(
+                solid(&cov, 60, 14),
+                "{name}: middle of the curve not painted"
+            );
+
+            // And the paint is continuous: no gap wider than the stamp spacing anywhere
+            // along the stroke.
+            let painted: Vec<usize> = (10..=110)
+                .filter(|x| (0..60).any(|y| cov[y * 120 + x] > 0.5))
+                .collect();
+            assert_eq!(painted.len(), 101, "{name}: the stroke has holes in it");
+        }
+    }
+
+    /// Stamps are placed by arc length, so a bend does not bunch them up: the same
+    /// distance of stroke gets the same amount of paint wherever it is on the curve.
+    #[test]
+    fn stamp_spacing_follows_distance_rather_than_curve_parameter() {
+        let brush = Brush {
+            size: 6.0,
+            hardness: 1.0,
+            spacing: 1.0,
+            flow: 0.25,
+            ..Default::default()
+        };
+        // A cubic whose parameter runs far faster through the middle than the ends.
+        let mut path = BezPath::new();
+        path.move_to((10.0, 30.0));
+        path.curve_to((58.0, 30.0), (62.0, 30.0), (110.0, 30.0));
+        let cov = stroke_coverage(120, 60, &path, &brush, 1.0, None).unwrap();
+
+        // Sample the accumulated paint in three equal stretches of the stroke. Uniform
+        // parameter stepping piles stamps into the middle and starves the ends; uniform
+        // arc length keeps the three within a few percent of each other.
+        let band = |x0: usize, x1: usize| -> f32 {
+            (x0..x1)
+                .map(|x| (0..60).map(|y| cov[y * 120 + x]).sum::<f32>())
+                .sum()
+        };
+        let (a, b, c) = (band(15, 45), band(45, 75), band(75, 105));
+        let (lo, hi) = (a.min(b).min(c), a.max(b).max(c));
+        assert!(
+            hi / lo < 1.25,
+            "paint is not evenly distributed along the stroke: {a:.1} / {b:.1} / {c:.1}"
+        );
+    }
+
+    /// A taper is a stroke whose tip shrinks, and spacing is a fraction of the tip. Hold
+    /// the step to the *full* width and the thin ends come out as a row of separate dots
+    /// rather than a stroke that narrows.
+    #[test]
+    fn a_tapered_stroke_stays_joined_where_it_is_thin() {
+        let brush = Brush {
+            size: 26.0,
+            hardness: 1.0,
+            spacing: 0.2,
+            ..Default::default()
+        };
+        let mut path = BezPath::new();
+        path.move_to((10.0, 30.0));
+        path.line_to((290.0, 30.0));
+        // Thin at both ends, full width in the middle.
+        let taper = Curve::new(&[[0.0, 0.05], [0.5, 1.0], [1.0, 0.05]]).unwrap();
+        let cov = stroke_coverage(300, 60, &path, &brush, 1.0, Some(&taper)).unwrap();
+
+        // The painted columns form one unbroken run. A dotted taper shows up as holes
+        // inside that run; where the run starts and stops is just where the vanishing
+        // tip stops registering, which is not what this is about.
+        let painted: Vec<usize> = (0..300)
+            .filter(|x| (0..60).any(|y| cov[y * 300 + x] > 0.02))
+            .collect();
+        let holes: Vec<usize> = painted
+            .windows(2)
+            .filter(|w| w[1] != w[0] + 1)
+            .map(|w| w[0])
+            .collect();
+        assert!(
+            holes.is_empty(),
+            "the taper broke into dots after columns {holes:?}"
+        );
+        assert!(
+            painted.len() > 270,
+            "the taper covered only {} columns",
+            painted.len()
+        );
+
+        // And it really is a taper: the middle is far wider than the ends.
+        let width = |x: usize| (0..60).filter(|y| cov[y * 300 + x] > 0.02).count();
+        assert!(
+            width(150) > width(20) * 4,
+            "not tapered: {} at the end, {} in the middle",
+            width(20),
+            width(150)
+        );
     }
 }
