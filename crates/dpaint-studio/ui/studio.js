@@ -1224,7 +1224,12 @@ function drawPalette() {
     if (o.network) flags.push('net');
     body.append(el('span', 'pmode', flags.join(' · ')));
     li.append(body);
-    li.onmousedown = (e) => { e.preventDefault(); chooseOp(o.id); };
+    // `mousedown` only keeps focus in the input; activation is the `click`. An AT-SPI
+    // `DoAction("press")` on the WebKitGTK side arrives as a plain `click` and nothing
+    // else, as does a screen reader, so binding activation there is what makes this row
+    // reachable without a pointer. `preventDefault` does not suppress the click.
+    li.onmousedown = (e) => e.preventDefault();
+    li.onclick = () => chooseOp(o.id);
     list.append(li);
   });
   if (pal.items[pal.idx]) $('paletteInput').setAttribute('aria-activedescendant', 'palopt_' + pal.idx);
@@ -1618,13 +1623,15 @@ function attachSelectorCombobox(input, list, path) {
     for (const o of rows) {
       const label = `#${o.id} · ${o.name || o.id} · ${o.type}`;
       const li = option(label, { id: o.id, selected: input.value.trim() === '#' + o.id });
-      li.onmousedown = (e) => {
-        e.preventDefault();
+      const take = () => {
         input.value = '#' + o.id;
         delete input.dataset.auto;
         open(false);
         input.dispatchEvent(new Event('input', { bubbles: true }));
       };
+      // Both, for the same reason as the command palette's rows.
+      li.onmousedown = (e) => e.preventDefault();
+      li.onclick = take;
       list.append(li);
     }
     open(rows.length > 0);

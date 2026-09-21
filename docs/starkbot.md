@@ -421,7 +421,52 @@ is Lua now, so `focuswindow class:…` is a syntax error, and the working call i
 `hl.dsp.focus({ window = "address:0x…" })` by address, because `pid:` selectors parse and do
 nothing.
 
-### 11.4 What does not change
+### 11.4 S8d, run
+
+The real S8d hands the brief to Sol and lets Jev pick a control per step. That needs a
+TypeSafe key and an inference connection, and this machine has neither — `neo doctor` reports
+`navigator (jev): fail · no typesafe key` and `inference: fail`. So S8d was run with the
+*choosing* removed and everything else kept: `crates/dpaint-studio/tests/a11y/s8d.mjs` performs
+the whole brief through controls resolved by accessible name under the vendored candidate
+rules, honours the modal rule, and asserts only through the read-only grounding API. A pass
+does not say the agent can do it; it says the surface it would have to work through is
+complete, reachable and honest, and a failure here would have failed the real S8d too.
+
+**S8d-web — 5 of 5 runs, 15 of 15 steps** (bar is 4 of 5), against `dpaint serve` in headless
+Chromium. The brief end to end: New project dialog → 1080×1350 → Import a DMS-shaped take with
+its `t0003.json` sidecar → command palette → `raster.text.add` with Inter Bold → lint → Export
+→ Send to Editor. Verified from the grounding API and the filesystem: the PNG is 1080×1350, the
+digest carries `text: "Loud on purpose"` at contrast 11.49 with `fontFallback: null`, and the
+sidecar at `~/Videos/degen-paint/acme-promo/` names the project, the revision and the take's
+prompt and model. On one run lint genuinely fired `low-contrast #lyr_title`, the script acted on
+the selector the finding named, and the re-lint came back clean — the feedback channel doing the
+job it exists for rather than being asserted about.
+
+**S8d-native — the executor half proven, the brief not yet run.** Through `neo ax` against the
+Tauri/WebKitGTK build: `File › New Project…` from the AT-SPI menu bar, text into two fields,
+`Create project acme-promo` pressed, `project.json` on disk, and the window title and status
+region both confirming it. Reading, pressing, typing and menus all work. Two findings stopped
+the full brief:
+
+1. **Fixed in `neo-ax`.** Every WebKitGTK text field except the autofocused one carried **no
+   operation at all** and was unreachable. `operations()` gated `TYPE_TEXT` on
+   `settable_value || focused`, which is a macOS fact — there `AXValue` is settable. WebKitGTK
+   implements no `EditableText`, so `settable_value` is always false. `RawNode` gains
+   `focusable_text`, the AT-SPI walk sets it from `State::Focusable` + `Component`, and a
+   focusable text field now offers `TYPE_TEXT` and `CLICK`. Before: `ops=` on three of four
+   fields. After: `ops=TYPE_TEXT,CLICK` on all four, and the dialog completes.
+2. **Open, in degen-paint.** The element table reports `modal: false` for an open dialog, so a
+   navigator is not told a dialog is up. The Studio marks dialogs with `role="dialog"
+   aria-modal="true"` on a `div`, and WebKitGTK does not carry `aria-modal` through to
+   `State::Modal` (§11.1). The fix belongs here, not in the observer: use the native `<dialog>`
+   element with `showModal()`, which ATK maps to a real modal. Until then the native path works
+   but the dialog's arrival is invisible to the freshness guard.
+
+One operational note for anyone reproducing this: with Hyprland's `follow_mouse = 1`, focusing
+the window without moving the pointer is undone immediately and every act returns
+`Stale(NotFrontmost)` — correctly. Move the cursor with the focus.
+
+### 11.5 What does not change
 
 P3, P9, P10, the gates, the pack format, `snapshot.js`, Jev, the routines, and every plan that
 says "app" instead of "macOS app". A Linux user gets the same product with `neo tui` as the front

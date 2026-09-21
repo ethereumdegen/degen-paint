@@ -43,9 +43,22 @@ pub struct NodeDigest {
     pub mean_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// The family the text was actually laid out in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
+    /// The family that was *asked* for, when it is not the one used — absent when the
+    /// request was honoured. An agent cannot see that its brand face silently became the
+    /// fallback, so the digest is where that gets said (PLAN §4, "fonts that fell back").
+    #[serde(rename = "fontFallback", skip_serializing_if = "Option::is_none")]
+    pub font_fallback: Option<String>,
     /// Contrast ratio of this object's paint against what is behind it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contrast_vs_backdrop: Option<f32>,
+    /// Where this object came from, when it did not come from a human: the provider, model,
+    /// prompt and cost an `ai.*` op recorded, or the sidecar an import read. Without it an
+    /// agent that imports a take cannot verify through the digest *which* take it imported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -171,7 +184,12 @@ fn shallow_tree(document: &Document) -> Vec<NodeDigest> {
                 .get("text")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
+            // Resolved in `object_digests`, which is the only place that knows which face
+            // the request actually landed on.
+            font: None,
+            font_fallback: None,
             contrast_vs_backdrop: None,
+            provenance: c.attrs.get("provenance").cloned(),
         })
         .collect()
 }
@@ -192,7 +210,14 @@ fn object_digests(
         return Ok(out);
     };
 
+    // One font database for the whole document rather than one per text layer: building it
+    // loads every embedded and registered face, and a poster with twenty captions would
+    // otherwise pay for that twenty times.
+    let fonts = dpaint_raster::text::FontSet::new(project, assets);
+    let raster_doc = project.raster(doc_id)?.clone();
+
     for node in out.iter_mut() {
+        resolve_font(node, &raster_doc, &fonts);
         let mut probe = project.clone();
         let Ok(raster) = probe.raster_mut(doc_id) else {
             continue;
@@ -233,6 +258,34 @@ fn object_digests(
         }
     }
     Ok(out)
+}
+
+/// Record which face a text layer actually got.
+///
+/// The engine already decides this — `FontSet::pick` returns the family it resolved and
+/// whether that was a fallback — but nothing used to carry the answer out to a caller who
+/// cannot look at the pixels. A layout failure is left silent here: the render path
+/// reports it as an error, and a digest is not the place to raise it a second time.
+fn resolve_font(
+    node: &mut NodeDigest,
+    doc: &dpaint_core::RasterDoc,
+    fonts: &dpaint_raster::text::FontSet,
+) {
+    use dpaint_core::doc::raster::LayerKind;
+
+    let Some(layer) = doc.layer(&dpaint_core::LayerId::from(node.id.clone())) else {
+        return;
+    };
+    let LayerKind::Text { spec, .. } = &layer.kind else {
+        return;
+    };
+    let Ok(layout) = dpaint_raster::text::layout(spec, fonts) else {
+        return;
+    };
+    node.font = Some(layout.used_family);
+    if layout.fallback {
+        node.font_fallback = Some(spec.family.clone());
+    }
 }
 
 fn is_ancestor_of(doc: &dpaint_core::RasterDoc, candidate: &str, target: &str) -> bool {

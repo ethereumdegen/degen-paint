@@ -107,7 +107,10 @@ mod tests {
                     coverage: Some(1.0),
                     mean_color: None,
                     text: None,
+                    font: None,
+                    font_fallback: None,
                     contrast_vs_backdrop: None,
+                    provenance: None,
                 })
                 .collect(),
             histogram: Histogram {
