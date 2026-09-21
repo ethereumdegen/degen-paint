@@ -686,12 +686,33 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
             "active": w.project.active.as_str(),
         })
     });
+    // Whether the interactive viewport will be GPU-driven is a real question with a real
+    // answer; `docs/gpu-viewport.md` promises it here, so it is answered here.
+    let gpu = match dpaint_gpu::Gpu::block_new() {
+        Some(g) => {
+            let info = g.info();
+            json!({
+                "available": true,
+                "backend": info.backend,
+                "adapter": info.name,
+                "deviceType": info.device_type,
+                "viewport": "gpu",
+            })
+        }
+        None => json!({
+            "available": false,
+            "viewport": "cpu",
+            "detail": "no adapter; the viewport falls back to the CPU renderer, which is what \
+                       `dpaint render` uses anyway",
+        }),
+    };
     let report = json!({
         "ok": true,
         "version": env!("CARGO_PKG_VERSION"),
         "ops": reg.len(),
         "formats": { "raster": ["png", "jpg", "webp", "tiff"], "vector": ["svg"], "model": ["gltf", "glb"] },
         "providers": providers,
+        "gpu": gpu,
         "project": project,
     });
     let summary = match &report["project"] {
@@ -699,6 +720,14 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
         p => format!("  project: {} ({} documents)", p["root"], p["documents"]),
     };
     let provider_line = serde_json::to_string(&providers).unwrap_or_default();
+    let gpu_line = match report["gpu"]["available"].as_bool() {
+        Some(true) => format!(
+            "{} · {}",
+            report["gpu"]["backend"].as_str().unwrap_or("?"),
+            report["gpu"]["adapter"].as_str().unwrap_or("?")
+        ),
+        _ => "none — viewport falls back to the CPU renderer".to_string(),
+    };
     let op_count = reg.len();
     emit(
         ctx,
@@ -706,6 +735,7 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
             println!("dpaint {}", env!("CARGO_PKG_VERSION"));
             println!("  ops registered: {op_count}");
             println!("  providers: {provider_line}");
+            println!("  gpu: {gpu_line}");
             println!("{summary}");
         },
         report,

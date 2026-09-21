@@ -23,6 +23,7 @@ dpaint-raster.workspace = true
 dpaint-vector.workspace = true
 dpaint-model3d.workspace = true
 dpaint-render.workspace = true
+dpaint-gpu.workspace = true
 dpaint-inspect.workspace = true
 dpaint-ai.workspace = true
 dpaint-mcp.workspace = true

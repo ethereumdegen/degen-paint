@@ -126,9 +126,12 @@ jobs:
           key: wasm
 
       # Nothing else in CI compiles for the browser target, and it is easy to break from a
-      # native-only dependency or a stray `std::fs` call in library code. The CLI, the MCP
-      # server, the AI provider layer and the Tauri app are deliberately excluded: they are
-      # native by design. `.cargo/config.toml` supplies the getrandom backend flag.
+      # native-only dependency or a stray `std::fs` call in library code. `dpaint-gpu` is in
+      # the list because the browser viewport is built from it, so a native-only wgpu call
+      # would otherwise only surface when someone ran the bundle build by hand. The CLI, the
+      # MCP server, the AI provider layer, the Tauri app and `dpaint-view` (winit, by
+      # definition native) are deliberately excluded. `.cargo/config.toml` supplies the
+      # getrandom backend flag.
       - name: cargo build --target wasm32-unknown-unknown (engine crates)
         run: |
           cargo build --target wasm32-unknown-unknown \
@@ -137,6 +140,7 @@ jobs:
             -p dpaint-vector \
             -p dpaint-model3d \
             -p dpaint-render \
+            -p dpaint-gpu \
             -p dpaint-inspect \
             -p dpaint-studio
 

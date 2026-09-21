@@ -112,11 +112,14 @@ $ dpaint doctor
 dpaint 0.1.0
   ops registered: 212
   providers: {"fal":{"provider":"fal","configured":false,…},"quiver":{…,"configured":false,…}}
+  gpu: metal · Apple A18 Pro
   project: none found from this directory
 ```
 
 `doctor` is the capability probe: op count, output formats, which AI providers resolved a key
-and from where, and the project it found from the current directory. `configured: false` for
+and from where, whether a GPU adapter was found for the viewport, and the project it found
+from the current directory. With no adapter the `gpu` line reads
+`none — viewport falls back to the CPU renderer`. `configured: false` for
 both providers is the normal, fully functional state — see
 [AI provider keys](#ai-provider-keys-optional).
 
@@ -132,6 +135,34 @@ dpaint inspect --json       # the render digest
 
 `dpaint op --list` prints the whole catalog (212 ops); `dpaint op <id> --help` prints one op's
 flags, generated from its JSON Schema, and `dpaint schema <id>` prints that schema.
+
+## The GPU viewport
+
+`dpaint-view` is a separate binary — a native window on a wgpu surface, for orbiting a model
+or panning a canvas at frame rate.
+
+```bash
+cargo install --path crates/dpaint-view
+dpaint-view --project poster.dpaint --doc badge
+```
+
+Drag to orbit, shift-drag or right-drag to pan, wheel to zoom, `f` to frame, `1` to reset,
+`q` to quit. It polls the project journal twice a second, so an op applied by an agent or the
+Studio shows up within half a second.
+
+Headless, on a machine with no display or for inspecting what the viewport would show:
+
+```bash
+dpaint-view --project poster.dpaint --doc badge --frames 8 --out spin
+```
+
+On **Linux** it needs no extra packages: winit and wgpu reach X11, Wayland, xkbcommon, Vulkan
+and EGL through `dlopen` at runtime, so the binary links only libc, libm and libgcc. See
+[Requirements](#requirements).
+
+`dpaint doctor` reports whether a GPU adapter was found. With none, `dpaint-view` prints the
+`dpaint render` command that does the same job on the CPU and exits 2 rather than opening a
+black window — no part of degen-paint requires a GPU.
 
 ## The Studio
 
