@@ -400,7 +400,10 @@ impl AddText {
         }
         spec.italic = a.italic;
         spec.r#box = a.r#box.map(|b| Rect::new(b[0], b[1], b[2], b[3]));
-        let sub = crate::text::fonts()
+        // The project's registered faces, not just the embedded fallback: otherwise a
+        // family the project deliberately embedded is reported as unavailable the moment
+        // it is used.
+        let sub = crate::text::Fonts::for_project(project, cx.assets)
             .select(&spec.family, spec.weight, spec.italic)
             .substituted;
         let mut style = a.style;

@@ -77,12 +77,27 @@ pub fn ancestors(v: &VectorDoc, id: &ObjectId) -> Vec<ObjectId> {
 
 /// Outline of one object in its parent's coordinate space: local geometry with the
 /// object's own transform applied.
+///
+/// Text is the only kind whose geometry depends on a font, and the project's registered
+/// faces live in the asset store — which this signature cannot reach. So the plain form
+/// shapes with the embedded fallback, and the `_with` forms take the set a render already
+/// built. A document's *appearance* has to honour `font.register`; a boolean or a
+/// measurement against live text does not, and `vector.text.to-outlines` is how text
+/// becomes geometry those ops should be trusted with.
 pub fn object_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
-    Ok(obj.transform.to_kurbo() * local_path(v, obj)?)
+    object_path_with(v, obj, text::fonts())
+}
+
+pub fn object_path_with(v: &VectorDoc, obj: &VObject, fonts: &text::Fonts) -> Result<BezPath> {
+    Ok(obj.transform.to_kurbo() * local_path_with(v, obj, fonts)?)
 }
 
 /// Outline of one object in its own coordinate space, before its own transform.
 pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
+    local_path_with(v, obj, text::fonts())
+}
+
+pub fn local_path_with(v: &VectorDoc, obj: &VObject, fonts: &text::Fonts) -> Result<BezPath> {
     match &obj.kind {
         VKind::Path { d } => parse_d(d),
         VKind::Rect { rect, radius } => {
@@ -147,7 +162,7 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
         VKind::Group { objects } => {
             let mut out = BezPath::new();
             for child in objects {
-                out.extend(object_path(v, child)?);
+                out.extend(object_path_with(v, child, fonts)?);
             }
             Ok(out)
         }
@@ -156,7 +171,7 @@ pub fn local_path(v: &VectorDoc, obj: &VObject) -> Result<BezPath> {
             origin,
             on_path,
         } => {
-            let fonts = text::fonts();
+            // The set the caller resolved, so a registered face reaches the render.
             match on_path {
                 Some(tp) => {
                     let target = path_in_doc(v, &tp.target)?;

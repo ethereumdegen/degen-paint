@@ -82,6 +82,7 @@ fn render_at_depth(
     let cx = Ctx {
         project,
         assets,
+        fonts: crate::text::Fonts::for_project(project, assets),
         device,
         depth,
     };
@@ -106,6 +107,9 @@ pub fn doc_bounds(v: &VectorDoc) -> KRect {
 struct Ctx<'a> {
     project: &'a Project,
     assets: &'a AssetStore,
+    /// Built once per render, not per text object: loading every registered face is the
+    /// expensive part and a document may hold many captions.
+    fonts: crate::text::Fonts,
     device: SkTransform,
     depth: u32,
 }
@@ -176,7 +180,7 @@ fn paint_object(
         draw_image(pm, cx, asset, *rect, world, mask, alpha)?;
         // An image can still carry a stroke around its frame.
     }
-    let local = geom::local_path(v, o)?;
+    let local = geom::local_path_with(v, o, &cx.fonts)?;
     if local.elements().is_empty() {
         return Ok(());
     }

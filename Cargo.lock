@@ -1179,6 +1179,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "chrono",
+ "fontdb",
  "getrandom 0.3.4",
  "indexmap 2.14.2",
  "json-patch 4.2.0",

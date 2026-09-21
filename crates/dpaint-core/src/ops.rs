@@ -23,6 +23,7 @@ pub fn ops() -> Vec<Box<dyn Op>> {
         Box::new(PaletteSet),
         Box::new(PaletteRemove),
         Box::new(FontRegister),
+        Box::new(FontList),
         Box::new(ProjectInfo),
     ]
 }
@@ -397,11 +398,107 @@ impl Op for PaletteRemove {
     }
 }
 
+/// Find an installed font file by family, weight and slant.
+///
+/// Discovery only. The face this locates is copied into the project's asset store and it
+/// is the *copy* that renders, so "Inter Bold" means the same outlines next week and on
+/// another machine. Scanning the system at render time instead would make a document's
+/// appearance depend on what happens to be installed, which is the opposite of the
+/// guarantee the asset store exists to give.
+#[cfg(not(target_arch = "wasm32"))]
+fn find_installed_font(family: &str, weight: u16, italic: bool) -> Option<std::path::PathBuf> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let id = db.query(&fontdb::Query {
+        families: &[fontdb::Family::Name(family)],
+        weight: fontdb::Weight(weight),
+        style: if italic {
+            fontdb::Style::Italic
+        } else {
+            fontdb::Style::Normal
+        },
+        ..Default::default()
+    })?;
+    match &db.face(id)?.source {
+        fontdb::Source::File(path) => Some(path.clone()),
+        // A face the database only holds in memory has no file to embed.
+        _ => None,
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn find_installed_font(_: &str, _: u16, _: bool) -> Option<std::path::PathBuf> {
+    None
+}
+
+/// Every installed family, for a caller choosing one.
+#[cfg(not(target_arch = "wasm32"))]
+fn installed_families() -> Vec<String> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let mut names: Vec<String> = db
+        .faces()
+        .flat_map(|f| f.families.iter().map(|(name, _)| name.clone()))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+#[cfg(target_arch = "wasm32")]
+fn installed_families() -> Vec<String> {
+    Vec::new()
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct FontListArgs {
+    /// Case-insensitive substring to filter families by. Omit to list everything.
+    #[serde(default)]
+    pub query: Option<String>,
+}
+
+pub struct FontList;
+
+impl Op for FontList {
+    fn id(&self) -> &'static str {
+        "font.list"
+    }
+    fn about(&self) -> &'static str {
+        "List font families installed on this machine, ready to register"
+    }
+    fn schema(&self) -> serde_json::Value {
+        schema_for::<FontListArgs>()
+    }
+    fn apply(&self, p: &mut Project, args: serde_json::Value, _cx: &mut OpCx) -> Result<OpEffect> {
+        let a: FontListArgs = parse_args(self.id(), args)?;
+        let needle = a.query.unwrap_or_default().to_ascii_lowercase();
+        let installed: Vec<String> = installed_families()
+            .into_iter()
+            .filter(|f| needle.is_empty() || f.to_ascii_lowercase().contains(&needle))
+            .collect();
+        // What the project already carries matters more than what the machine has: a
+        // registered family renders everywhere, an installed one only renders here.
+        let embedded: Vec<serde_json::Value> = p
+            .fonts
+            .iter()
+            .map(|f| {
+                serde_json::json!({ "family": f.family, "weight": f.weight, "italic": f.italic })
+            })
+            .collect();
+        Ok(OpEffect::default().with_data(serde_json::json!({
+            "embedded": embedded,
+            "installed": installed,
+        })))
+    }
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 pub struct FontRegisterArgs {
-    /// Path to a .ttf or .otf file.
-    pub path: String,
-    /// Family name ops will refer to. Defaults to the file stem.
+    /// Path to a .ttf or .otf file. Omit to look `family` up among the installed fonts.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Family name ops will refer to. Required when `path` is omitted; otherwise defaults
+    /// to the file stem.
     #[serde(default)]
     pub family: Option<String>,
     #[serde(default)]
@@ -424,25 +521,51 @@ impl Op for FontRegister {
     }
     fn apply(&self, p: &mut Project, args: serde_json::Value, cx: &mut OpCx) -> Result<OpEffect> {
         let a: FontRegisterArgs = parse_args(self.id(), args)?;
-        let path = std::path::Path::new(&a.path);
-        let family = a.family.unwrap_or_else(|| {
-            path.file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "embedded".into())
-        });
-        let asset = cx.assets.put_file(path)?;
-        p.fonts.retain(|f| {
-            !(f.family == family && f.weight == a.weight.unwrap_or(400) && f.italic == a.italic)
-        });
+        let weight = a.weight.unwrap_or(400);
+
+        // Either a file, or a family to go and find. Naming the family is what an agent
+        // asked for a logo "in Inter Bold" actually has; a path is what a person dragging
+        // a licensed face into a project has. Both end in the same embedded asset.
+        let (path, family) = match (&a.path, &a.family) {
+            (Some(path), family) => {
+                let path = std::path::PathBuf::from(path);
+                let family = family.clone().unwrap_or_else(|| {
+                    path.file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "embedded".into())
+                });
+                (path, family)
+            }
+            (None, Some(family)) => {
+                let found = find_installed_font(family, weight, a.italic).ok_or_else(|| {
+                    Error::Invalid(format!(
+                        "no installed font matches '{family}' at weight {weight}{}; \
+                         run font.list to see what is available, or pass an explicit path",
+                        if a.italic { " italic" } else { "" }
+                    ))
+                })?;
+                (found, family.clone())
+            }
+            (None, None) => {
+                return Err(Error::Invalid(
+                    "font.register needs either a path to a font file or a family to look up"
+                        .into(),
+                ));
+            }
+        };
+
+        let asset = cx.assets.put_file(&path)?;
+        p.fonts
+            .retain(|f| !(f.family == family && f.weight == weight && f.italic == a.italic));
         p.fonts.push(FontEntry {
             family: family.clone(),
             asset: asset.clone(),
-            weight: a.weight.unwrap_or(400),
+            weight,
             italic: a.italic,
         });
-        Ok(OpEffect::default()
-            .with_created(family)
-            .with_data(serde_json::json!({ "asset": asset.as_str() })))
+        Ok(OpEffect::default().with_created(family).with_data(
+            serde_json::json!({ "asset": asset.as_str(), "source": path.display().to_string() }),
+        ))
     }
 }
 

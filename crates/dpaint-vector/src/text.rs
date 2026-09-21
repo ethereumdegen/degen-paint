@@ -11,6 +11,7 @@ use dpaint_core::doc::common::{TextAlign, TextSpec};
 use dpaint_core::error::{Error, Result};
 use dpaint_core::kurbo::{Affine, BezPath, Line as KLine, ParamCurve, Point, Shape, Vec2};
 use dpaint_core::project::Project;
+use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 /// The fallback face, owned by `dpaint-core` so every mode shapes a `TextSpec` the same
@@ -29,6 +30,12 @@ const GENERIC: &[&str] = &[
 pub struct Fonts {
     db: fontdb::Database,
     fallback: fontdb::ID,
+    /// Declared family (lowercased) -> the family the font file actually reports.
+    ///
+    /// `font.register --family "Brand Sans"` names a face for the project; the file inside
+    /// may call itself anything at all. Without this, the name the document stores is not
+    /// the name the database can be queried for, and every use silently falls back.
+    aliases: BTreeMap<String, String>,
 }
 
 /// The process-wide deterministic font set: the embedded fallback and nothing else.
@@ -53,7 +60,11 @@ impl Fonts {
             .next()
             .expect("embedded fallback font must parse")
             .id;
-        Fonts { db, fallback }
+        Fonts {
+            db,
+            fallback,
+            aliases: BTreeMap::new(),
+        }
     }
 
     /// The embedded fallback plus every font registered into the project by `font.register`.
@@ -61,8 +72,19 @@ impl Fonts {
     pub fn for_project(project: &Project, assets: &AssetStore) -> Fonts {
         let mut f = Fonts::new_embedded();
         for entry in &project.fonts {
-            if let Ok(bytes) = assets.get(&entry.asset) {
-                f.db.load_font_data(bytes);
+            let Ok(bytes) = assets.get(&entry.asset) else {
+                continue;
+            };
+            let before = f.db.len();
+            f.db.load_font_data(bytes);
+            // The faces this file contributed start at `before`; its first family name is
+            // what the database will answer to.
+            if let Some(actual) =
+                f.db.faces()
+                    .nth(before)
+                    .and_then(|face| face.families.first().map(|(n, _)| n.clone()))
+            {
+                f.aliases.insert(entry.family.to_ascii_lowercase(), actual);
             }
         }
         f
@@ -73,7 +95,14 @@ impl Fonts {
     }
 
     pub fn select(&self, family: &str, weight: u16, italic: bool) -> Selection {
-        let wanted = family.trim();
+        let declared = family.trim();
+        // The project's name for the face wins over the file's, so a document that says
+        // "Brand Sans" keeps working whatever the vendor called the file inside.
+        let wanted: &str = self
+            .aliases
+            .get(&declared.to_ascii_lowercase())
+            .map(String::as_str)
+            .unwrap_or(declared);
         let generic = GENERIC.iter().any(|g| g.eq_ignore_ascii_case(wanted));
         if !generic {
             let q = fontdb::Query {

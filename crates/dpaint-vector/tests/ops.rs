@@ -723,6 +723,52 @@ fn an_unavailable_font_family_reports_a_font_fallback_warning() {
     assert_eq!(eff.warnings[0].code, "font-fallback");
 }
 
+/// The whole point of `font.register` is that the face reaches the page. It did not: both
+/// `vector.object.add-text` and the geometry the renderer draws asked a process-wide,
+/// embedded-only font set, so a registered family was reported unavailable and shaped with
+/// the fallback — silently, in every vector document.
+///
+/// The face embedded here is the fallback's own bytes under a different *declared* name,
+/// which is deliberate: it also pins the alias step, since the file inside calls itself
+/// something else entirely.
+#[test]
+fn a_registered_family_is_used_rather_than_substituted() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("brand.ttf");
+    std::fs::write(&path, dpaint_core::FALLBACK_FONT).expect("write face");
+
+    let mut f = Fixture::new(200.0, 80.0);
+    // `font.register` lives in the core registry, which this fixture does not load, so the
+    // entry it would write is written here instead — the same asset, the same declared
+    // family, the same `project.fonts` row.
+    let asset = f.assets.put_file(&path).expect("embed face");
+    f.project.fonts.push(dpaint_core::project::FontEntry {
+        family: "Brand Sans".into(),
+        asset,
+        weight: 400,
+        italic: false,
+    });
+
+    let eff = f.must(
+        "vector.object.add-text",
+        json!({"text": "hi", "family": "Brand Sans", "name": "ok"}),
+    );
+    assert!(
+        eff.warnings.is_empty(),
+        "a registered family must not be reported as a substitution: {:?}",
+        eff.warnings
+    );
+
+    // And the negative control still behaves, so this is not passing because warnings
+    // stopped being raised at all.
+    let missing = f.must(
+        "vector.object.add-text",
+        json!({"text": "hi", "family": "Not Registered", "name": "no"}),
+    );
+    assert_eq!(missing.warnings.len(), 1);
+    assert_eq!(missing.warnings[0].code, "font-fallback");
+}
+
 #[test]
 fn flowing_text_into_a_shape_keeps_it_inside_and_reports_overflow() {
     use dpaint_core::kurbo::Shape;

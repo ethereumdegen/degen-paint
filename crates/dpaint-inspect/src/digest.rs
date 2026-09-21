@@ -206,7 +206,16 @@ fn object_digests(
     let mut out = shallow_tree(project.doc(doc_id)?);
     let Some(_) = project.doc(doc_id)?.as_raster() else {
         // Vector and model objects: isolation rendering is raster-specific, so report the
-        // structural tree and the composite statistics only.
+        // structural tree and the composite statistics only. The font a text object
+        // resolved to is structural, though, and a wordmark is exactly where a silent
+        // substitution matters most — so that much is answered here.
+        if let Ok(v) = project.vector(doc_id) {
+            let fonts = dpaint_vector::text::Fonts::for_project(project, assets);
+            let objects = v.clone();
+            for node in out.iter_mut() {
+                resolve_vector_font(node, &objects, &fonts);
+            }
+        }
         return Ok(out);
     };
 
@@ -286,6 +295,48 @@ fn resolve_font(
     if layout.fallback {
         node.font_fallback = Some(spec.family.clone());
     }
+}
+
+/// The same answer for a vector text object. `select` reports the substitution directly,
+/// so there is no need to lay the glyphs out to learn it.
+fn resolve_vector_font(
+    node: &mut NodeDigest,
+    doc: &dpaint_core::VectorDoc,
+    fonts: &dpaint_vector::text::Fonts,
+) {
+    use dpaint_core::doc::vector::VKind;
+
+    let Some(object) = find_object(&doc.objects, &node.id) else {
+        return;
+    };
+    let VKind::Text { spec, .. } = &object.kind else {
+        return;
+    };
+    let selection = fonts.select(&spec.family, spec.weight, spec.italic);
+    match selection.substituted {
+        Some(actual) => {
+            node.font = Some(actual);
+            node.font_fallback = Some(spec.family.clone());
+        }
+        None => node.font = Some(spec.family.clone()),
+    }
+}
+
+fn find_object<'a>(
+    objects: &'a [dpaint_core::doc::vector::VObject],
+    id: &str,
+) -> Option<&'a dpaint_core::doc::vector::VObject> {
+    for o in objects {
+        if o.id.as_str() == id {
+            return Some(o);
+        }
+        if let dpaint_core::doc::vector::VKind::Group { objects } = &o.kind {
+            if let Some(found) = find_object(objects, id) {
+                return Some(found);
+            }
+        }
+    }
+    None
 }
 
 fn is_ancestor_of(doc: &dpaint_core::RasterDoc, candidate: &str, target: &str) -> bool {
