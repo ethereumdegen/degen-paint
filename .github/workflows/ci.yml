@@ -53,7 +53,6 @@ jobs:
             libsoup-3.0-dev \
             libdbus-1-dev \
             libssl-dev \
-            libxdo-dev \
             pkg-config
 
       - name: cargo build
@@ -104,7 +103,6 @@ jobs:
             libsoup-3.0-dev \
             libdbus-1-dev \
             libssl-dev \
-            libxdo-dev \
             pkg-config
 
       - name: cargo fmt --check

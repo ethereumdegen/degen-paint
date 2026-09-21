@@ -338,6 +338,16 @@ pub fn resolve_project(arg: Option<PathBuf>) -> Result<Studio, String> {
 }
 
 pub fn run() {
+    // WebKitGTK's DMA-BUF renderer dies with "Error 71 (Protocol error) dispatching to
+    // Wayland display" on Wayland compositors driven by the NVIDIA proprietary stack
+    // (observed on Hyprland + webkit2gtk 2.52), taking the window with it before the UI
+    // paints. WebKit's own escape hatch is this variable; set it before GTK initialises,
+    // and only when the user has not already decided for themselves.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     let (studio, notice) = match resolve_project(project_arg(std::env::args().skip(1))) {
         Ok(s) => (Some(s), String::new()),
         Err(msg) => (None, msg),

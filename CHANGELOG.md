@@ -26,6 +26,15 @@ The CPU renderer remains authoritative for `render.image`, `render.turntable`, d
 and goldens, because byte-identical output across machines is what those depend on and a GPU
 cannot promise it.
 
+### Fixed — Linux
+
+- Studio no longer dies at launch on Wayland + NVIDIA (`Gdk-Message: Error 71 (Protocol error)
+  dispatching to Wayland display`, observed on Hyprland with webkit2gtk 2.52). The shell sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` on Linux before GTK initialises unless the variable is
+  already set, so the user's own choice still wins.
+- `cargo clippy -D warnings` on Rust 1.98 (`useless_borrows_in_formatting` in
+  `dpaint-core::ops::remap_ids`), which was failing the `fmt + clippy` CI job on `main`.
+
 First release: the engine, the three surfaces an agent drives it through, and the GUI a human
 drives it through. The date is filled in when the `v0.1.0` tag is pushed.
 

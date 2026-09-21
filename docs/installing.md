@@ -21,16 +21,25 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 and the secret-service keyring backend:
 
 ```bash
-sudo apt-get install -y libdbus-1-dev libssl-dev pkg-config
+sudo apt-get install -y libdbus-1-dev libssl-dev pkg-config        # Debian / Ubuntu
+sudo pacman -S --needed dbus openssl pkgconf                        # Arch
 ```
 
 The desktop app additionally needs the Tauri v2 webview stack:
 
 ```bash
+# Debian / Ubuntu
 sudo apt-get install -y \
   libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libgtk-3-dev \
-  libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libxdo-dev
+  libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
+# Arch
+sudo pacman -S --needed webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg libsoup3
 ```
+
+The desktop app sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` for itself on Linux: WebKitGTK's
+DMA-BUF renderer crashes the window on Wayland with the NVIDIA proprietary driver. Export the
+variable yourself (to `0`) to override that choice. The native `dpaint-view` viewport does not
+go through WebKit and needs no such setting; it picks Vulkan on Linux.
 
 macOS needs the Xcode command line tools (`xcode-select --install`) and nothing else.
 

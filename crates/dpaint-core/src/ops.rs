@@ -211,7 +211,7 @@ impl Op for DocDuplicate {
 fn remap_ids(v: &mut serde_json::Value, old_doc: &DocId, new_doc: &DocId) {
     let suffix = format!(
         "-{}",
-        &ulid::Ulid::new().to_string()[20..].to_ascii_lowercase()
+        ulid::Ulid::new().to_string()[20..].to_ascii_lowercase()
     );
     fn walk(v: &mut serde_json::Value, suffix: &str, old_doc: &str, new_doc: &str) {
         match v {
