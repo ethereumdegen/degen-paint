@@ -68,7 +68,7 @@ Non-fatal problems ride along on a successful result rather than being printed a
 `wrong_document_kind` · `cyclic_link` · `asset_missing` · `asset_decode_failed` ·
 `font_unavailable` · `degenerate_geometry` · `non_manifold` · `unsupported_format` ·
 `project_locked` · `migration_required` · `provider_unconfigured` · `provider_error` ·
-`budget_exceeded` · `io_error`
+`budget_exceeded` · `exists` · `io_error`
 
 Each maps to exactly one exit code and is stable across versions — agents branch on `code`, never
 on message text.

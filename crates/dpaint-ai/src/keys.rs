@@ -6,6 +6,7 @@
 //! here rather than as op arguments (op arguments are journaled verbatim).
 
 use crate::config::ConfigFile;
+use dpaint_core::{Error, Result};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -234,6 +235,95 @@ fn keychain_key(_provider: Provider) -> Option<String> {
     None
 }
 
+/// Store `key` where the resolution chain will find it again: the OS keychain when this build
+/// has one and the platform answers, otherwise `config.toml`. Returns where it landed — never
+/// the key. This is the write half of the read chain above, and the only one: the Studio's
+/// Settings screen and `dpaint doctor` must agree about where a key lives.
+pub fn store(provider: Provider, key: &str) -> Result<KeySource> {
+    let key = key.trim();
+    if key.is_empty() {
+        return Err(Error::Invalid(format!("the {provider} key is empty")));
+    }
+    if store_in_keychain(provider, key) {
+        return Ok(KeySource::Keychain);
+    }
+    let path = crate::config::default_config_path()
+        .ok_or_else(|| Error::Invalid("no configuration directory to store a key in".into()))?;
+    store_in_config(&path, provider, key)?;
+    Ok(KeySource::ConfigFile)
+}
+
+/// A machine with no secret service — a headless box, a locked keyring — is ordinary, and
+/// falling back to the config file is better than refusing the key the user just typed.
+#[cfg(feature = "keychain")]
+fn store_in_keychain(provider: Provider, key: &str) -> bool {
+    keyring::Entry::new(KEYCHAIN_SERVICE, provider.id())
+        .and_then(|e| e.set_password(key))
+        .is_ok()
+}
+
+#[cfg(not(feature = "keychain"))]
+fn store_in_keychain(_provider: Provider, _key: &str) -> bool {
+    false
+}
+
+/// Written through a value round-trip, so hand-written comments in `config.toml` do not
+/// survive a key being stored.
+fn store_in_config(path: &Path, provider: Provider, key: &str) -> Result<()> {
+    let mut doc: toml::Table = match std::fs::read_to_string(path) {
+        Ok(text) => text
+            .parse()
+            .map_err(|e| Error::Invalid(format!("{} is not valid TOML: {e}", path.display())))?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => toml::Table::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let ai = table_at(&mut doc, "ai", path)?;
+    let section = table_at(ai, provider.id(), path)?;
+    section.insert("key".into(), toml::Value::String(key.to_string()));
+
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let text = toml::to_string_pretty(&doc)
+        .map_err(|e| Error::Invalid(format!("cannot serialise {}: {e}", path.display())))?;
+    write_private(path, text.as_bytes())
+}
+
+fn table_at<'a>(
+    parent: &'a mut toml::Table,
+    key: &str,
+    path: &Path,
+) -> Result<&'a mut toml::Table> {
+    parent
+        .entry(key)
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+        .as_table_mut()
+        .ok_or_else(|| Error::Invalid(format!("{} has a non-table '{key}'", path.display())))
+}
+
+/// Owner-only, or the key is unreadable by design: [`config_key`] refuses a file anybody
+/// else can read.
+#[cfg(unix)]
+fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    f.write_all(bytes)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    std::fs::write(path, bytes)?;
+    Ok(())
+}
+
 /// A key from `config.toml`, but only if the file is not readable by anyone else.
 fn config_key(path: &Path, provider: Provider) -> Option<String> {
     if file_is_group_or_world_accessible(path) {
@@ -390,5 +480,42 @@ mod tests {
         assert_eq!(k.source(), KeySource::Env);
         assert_eq!(k.expose(), "env-key");
         std::env::remove_var("FAL_KEY");
+    }
+
+    /// The write half has to land where the read half looks, and owner-only — otherwise
+    /// `config_key` refuses the key the user just typed.
+    #[test]
+    fn a_stored_key_is_read_back_by_the_resolution_chain_and_stays_private() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_config(
+            dir.path(),
+            "[ai]\ntimeout_secs = 42\n\n[ai.quiver]\nkey = \"qv-existing\"\n",
+            0o644,
+        );
+
+        store_in_config(&path, Provider::Fal, "fal-new").unwrap();
+
+        let store = SystemKeys::new()
+            .without_env()
+            .without_keychain()
+            .with_config_path(&path);
+        assert_eq!(store.key(Provider::Fal).unwrap().expose(), "fal-new");
+        assert_eq!(
+            store.key(Provider::Quiver).unwrap().expose(),
+            "qv-existing",
+            "storing one provider's key must not drop another's"
+        );
+        assert_eq!(
+            crate::config::AiConfig::load_from(&path).timeout_secs,
+            42,
+            "the rest of the configuration must survive"
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o077, 0, "a key file anyone can read is a leak");
+        }
     }
 }

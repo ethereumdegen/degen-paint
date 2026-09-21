@@ -511,10 +511,11 @@ mod tests {
         e
     }
 
-    /// The browser catalog must be the desktop catalog. If a new mode crate is registered in
-    /// `dpaint-studio` and not here, the UI silently loses ops in the web build.
+    /// The browser catalog must be the desktop catalog, bar the ops that read a file off
+    /// the host: there is no host. If a new mode crate is registered in `dpaint-studio`
+    /// and not here, the UI silently loses ops in the web build.
     #[test]
-    fn the_catalog_is_exactly_the_desktop_studios_minus_nothing() {
+    fn the_catalog_is_exactly_the_desktop_studios_minus_the_host_file_ops() {
         let ids = |c: &Value| -> Vec<String> {
             c.as_array()
                 .unwrap()
@@ -524,8 +525,19 @@ mod tests {
         };
         assert_eq!(
             ids(&registry().catalog()),
-            ids(&dpaint_studio::api::registry().catalog())
+            ids(&dpaint_studio::api::base_registry().catalog())
         );
+
+        // Named one by one, not matched by prefix: a new desktop-only op has to be added
+        // here deliberately, which is the moment to ask whether the browser wants it too.
+        // Everything on this list needs a path on the machine running the engine, and a
+        // tab has none — `io.import` reads the file the Import dialog names.
+        let browser = ids(&registry().catalog());
+        let desktop_only: Vec<String> = ids(&dpaint_studio::api::registry().catalog())
+            .into_iter()
+            .filter(|id| !browser.contains(id))
+            .collect();
+        assert_eq!(desktop_only, vec!["io.import".to_string()]);
     }
 
     #[test]

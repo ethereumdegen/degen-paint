@@ -243,6 +243,7 @@ pub(crate) fn provenance(
         prompt,
         seed,
         request_id: gen.request_id.clone(),
+        parents: Vec::new(),
         at: now_iso(),
         cost_usd: Some(gen.cost_usd),
     }

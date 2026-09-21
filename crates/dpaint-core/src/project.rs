@@ -428,6 +428,18 @@ mod tests {
     }
 
     #[test]
+    fn discovery_does_not_adopt_a_project_sitting_beside_an_ancestor() {
+        // The convenience of finding `demo.dpaint` from its own parent must not extend up the
+        // tree: a process working in a scratch directory used to silently adopt any unrelated
+        // project left in /tmp, $HOME or /, because the child scan ran at every level.
+        let tmp = tempfile::tempdir().unwrap();
+        Workspace::create(tmp.path().join("unrelated.dpaint"), project_with_link()).unwrap();
+        let scratch = tmp.path().join("sub").join("deeper");
+        std::fs::create_dir_all(&scratch).unwrap();
+        assert!(Workspace::discover(&scratch).is_err());
+    }
+
+    #[test]
     fn a_newer_format_demands_migration_rather_than_guessing() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("p.dpaint");

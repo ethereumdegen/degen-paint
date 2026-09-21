@@ -13,6 +13,13 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+# The generation providers' own prices and key storage, behind `quote`, `providers.*` and
+# Settings › Providers. Off by default: the editor is complete without them, and the wasm
+# build has no business linking an HTTP client.
+ai = ["dep:dpaint-ai"]
+
 [dependencies]
 dpaint-core.workspace = true
 dpaint-raster.workspace = true
@@ -20,6 +27,10 @@ dpaint-vector.workspace = true
 dpaint-model3d.workspace = true
 dpaint-render.workspace = true
 dpaint-inspect.workspace = true
+image.workspace = true
+schemars.workspace = true
+tiny-skia.workspace = true
+dpaint-ai = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 

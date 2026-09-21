@@ -70,6 +70,8 @@ cargo build --release            # binary at target/release/dpaint
 dpaint doctor                    # capabilities: ops, formats, providers
 dpaint op --list                 # the whole catalog, or `--list raster.filter`
 dpaint op raster.filter.gaussian-blur --help   # generated from the op's JSON Schema
+dpaint quote ai.image.generate   # what one paid call costs, and the budget it lands in
+dpaint skill --out pack/         # the media-apps pack contribution starkbot-neo vendors
 ```
 
 [`examples/campaign.sh`](./examples/campaign.sh) is the pipeline below, end to end, verified in

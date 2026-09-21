@@ -5,7 +5,7 @@
 //! which this crate must not depend on — so the caller injects them and there is no cycle.
 
 use crate::tools::loop_tool;
-use dpaint_core::{Engine, Error, Project, Result};
+use dpaint_core::{Engine, Error, Result};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -107,68 +107,14 @@ impl Handlers {
 
 fn overview(engine: &Arc<Mutex<Engine>>, args: Value) -> Result<Value> {
     let mut engine = engine.lock();
-    let only = args.get("doc").and_then(Value::as_str).map(str::to_string);
-    let recent: Vec<Value> = {
-        let entries = engine.workspace.journal.load()?;
-        entries
-            .iter()
-            .rev()
-            .take(5)
-            .map(|e| json!({ "seq": e.seq, "op": e.op, "at": e.ts, "actor": e.actor, "undone": e.undone }))
-            .collect()
-    };
-    let project: &Project = &engine.workspace.project;
-    let documents: Vec<Value> = project
-        .documents
-        .values()
-        .filter(|d| match &only {
-            Some(want) => d.id().as_str() == want || d.name() == want,
-            None => true,
-        })
-        .map(describe_document)
-        .collect();
-
-    Ok(json!({
-        "project": {
-            "id": project.id,
-            "name": project.name,
-            "active": project.active,
-            "modified": project.modified,
-        },
-        "documents": documents,
-        "assets": {
-            "referenced": project.referenced_assets().len(),
-            "onDisk": engine.workspace.assets.list().map(|a| a.len()).unwrap_or(0),
-        },
-        "history": { "entries": engine.workspace.journal.entries().len(), "recent": recent },
-    }))
-}
-
-fn describe_document(doc: &dpaint_core::Document) -> Value {
-    let mut v = json!({
-        "id": doc.id(),
-        "name": doc.name(),
-        "kind": doc.kind().as_str(),
-    });
-    if let Some((w, h)) = doc.size() {
-        v["size"] = json!([w, h]);
-    }
-    match doc {
-        dpaint_core::Document::Raster(d) => {
-            v["layers"] = json!(d.walk().len());
-            v["hasSelection"] = json!(d.selection.is_some());
-        }
-        dpaint_core::Document::Vector(d) => {
-            v["objects"] = json!(d.walk().len());
-            v["artboards"] = json!(d.artboards.len());
-        }
-        dpaint_core::Document::Model(d) => {
-            v["nodes"] = json!(d.nodes.len());
-            v["meshes"] = json!(d.meshes.len());
-            v["materials"] = json!(d.materials.len());
-        }
-    }
-    v
+    let ws = &mut engine.workspace;
+    let entries = ws.journal.load()?;
+    dpaint_core::overview::overview(
+        &ws.project,
+        entries,
+        &ws.assets,
+        args.get("doc").and_then(Value::as_str),
+    )
 }
 
 fn apply_batch(engine: &Arc<Mutex<Engine>>, args: Value) -> Result<Value> {

@@ -1296,15 +1296,19 @@ dependencies = [
 name = "dpaint-studio"
 version = "0.1.0"
 dependencies = [
+ "dpaint-ai",
  "dpaint-core",
  "dpaint-inspect",
  "dpaint-model3d",
  "dpaint-raster",
  "dpaint-render",
  "dpaint-vector",
+ "image",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "tempfile",
+ "tiny-skia 0.12.0",
 ]
 
 [[package]]
@@ -1314,6 +1318,7 @@ dependencies = [
  "base64 0.22.1",
  "dpaint-core",
  "dpaint-studio",
+ "glib",
  "parking_lot",
  "serde",
  "serde_json",

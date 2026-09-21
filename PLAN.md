@@ -17,6 +17,7 @@ Rust engine · JSON documents · Tauri v2 shell · browser-first UI.
 | [`docs/errors.md`](./docs/errors.md) | structured errors, exit codes, transactional guarantees |
 | [`docs/testing.md`](./docs/testing.md) | golden renders, determinism, performance budgets |
 | [`docs/roadmap.md`](./docs/roadmap.md) | P0–P8 with acceptance criteria |
+| [`docs/starkbot.md`](./docs/starkbot.md) | v2: the operator-app contract for being driven by starkbot-neo — accessible Studio, files hand-off, grounding API, jobs/quotes/keys, `dpaint skill`, P10–P14 |
 
 ---
 

@@ -7,7 +7,7 @@ Studio frontend is three plain files (`crates/dpaint-studio/ui/`) served as-is b
 
 | | |
 |---|---|
-| Rust | 1.80 or newer (`rust-version` in the workspace); built and tested on 1.96 |
+| Rust | 1.80 or newer (`rust-version` in the workspace); CI builds on current stable |
 | Platforms | macOS (aarch64, x86_64) and Linux x86_64 are what CI covers |
 | Disk | ~2 GB for a full `target/` directory |
 
@@ -24,6 +24,10 @@ and the secret-service keyring backend:
 sudo apt-get install -y libdbus-1-dev libssl-dev pkg-config        # Debian / Ubuntu
 sudo pacman -S --needed dbus openssl pkgconf                        # Arch
 ```
+
+`dpaint-view`, the native viewport, adds nothing to that list: winit and wgpu open X11,
+Wayland, xkbcommon, Vulkan and EGL with `dlopen` at runtime, so the binary links only libc,
+libm and libgcc and needs no `-dev` package at build time.
 
 The desktop app additionally needs the Tauri v2 webview stack:
 
@@ -51,6 +55,7 @@ macOS needs the Xcode command line tools (`xcode-select --install`) and nothing 
 git clone https://github.com/ethereumdegen/degen-paint
 cd degen-paint
 cargo install --path crates/dpaint-cli
+cargo install --path crates/dpaint-view     # optional: the native GPU viewport
 ```
 
 That puts `dpaint` in `~/.cargo/bin`. Add it to your `PATH` if cargo tells you to, or install
@@ -59,6 +64,25 @@ somewhere else with `--root`:
 ```bash
 cargo install --path crates/dpaint-cli --root /usr/local
 ```
+
+### From a release
+
+Every tag publishes one tarball per platform holding both binaries — `dpaint` and
+`dpaint-view` — next to this file, the readme and the license:
+
+```bash
+version=0.1.0
+target=x86_64-unknown-linux-gnu      # or aarch64-apple-darwin, or x86_64-apple-darwin
+base="https://github.com/ethereumdegen/degen-paint/releases/download/v${version}"
+curl -LO "${base}/dpaint-${version}-${target}.tar.gz"
+curl -LO "${base}/SHA256SUMS"
+sha256sum -c SHA256SUMS --ignore-missing
+tar -xzf "dpaint-${version}-${target}.tar.gz"
+install -m755 "dpaint-${version}-${target}"/dpaint{,-view} ~/.local/bin/
+```
+
+The binaries are unsigned, so macOS quarantines them until you say otherwise
+(`xattr -dr com.apple.quarantine ~/.local/bin/dpaint ~/.local/bin/dpaint-view`).
 
 ### From crates.io
 
@@ -132,6 +156,16 @@ Run it from the checkout:
 cargo run -p dpaint-studio-app -- --project poster.dpaint
 ```
 
+On Linux the window's Wayland `app_id` and X11 `WM_CLASS` are the bundle identifier,
+`dev.degenpaint.studio`. GTK 3 takes both from the process name rather than the GApplication
+id, so the shell sets `prgname` before GTK initialises; it does not depend on the binary being
+called `dev.degenpaint.studio`. Match on that in compositor rules:
+
+```bash
+# ~/.config/hypr/hyprland.conf
+windowrulev2 = float, class:^(dev\.degenpaint\.studio)$
+```
+
 Build distributable bundles (`.app` and `.dmg` on macOS, `.deb`/`.AppImage` on Linux):
 
 ```bash
@@ -140,10 +174,33 @@ cd apps/studio
 cargo tauri build
 ```
 
-The bundles land in `target/<triple>/release/bundle/`. They are **unsigned** — no Developer ID
-is configured in this repository — so macOS will quarantine a downloaded build until you clear
-it (`xattr -dr com.apple.quarantine /Applications/degen-paint.app`). Builds you make yourself
-and run locally are unaffected.
+The bundles land in `target/release/bundle/`, or `target/<triple>/release/bundle/` when you
+pass `--target`. They are **unsigned** — no Developer ID is configured in this repository — so
+macOS will quarantine a downloaded build until you clear it
+(`xattr -dr com.apple.quarantine /Applications/degen-paint.app`). Builds you make yourself and
+run locally are unaffected.
+
+Every tag publishes them too: a `.dmg` and a zipped `.app` per macOS target, and a `.deb` plus
+an `.AppImage` for `x86_64-unknown-linux-gnu`.
+
+```bash
+version=0.1.0
+target=x86_64-unknown-linux-gnu
+base="https://github.com/ethereumdegen/degen-paint/releases/download/v${version}"
+
+# The .deb declares libwebkit2gtk-4.1-0, libgtk-3-0 and libayatana-appindicator3-1, so apt
+# pulls the webview stack in for you.
+curl -LO "${base}/degen-paint-Studio-${version}-${target}.deb"
+sudo apt-get install -y "./degen-paint-Studio-${version}-${target}.deb"
+
+# The .AppImage carries those libraries itself and installs nothing.
+curl -LO "${base}/degen-paint-Studio-${version}-${target}.AppImage"
+chmod +x "degen-paint-Studio-${version}-${target}.AppImage"
+"./degen-paint-Studio-${version}-${target}.AppImage" --project poster.dpaint
+```
+
+Both are built on `ubuntu-latest`, which fixes the oldest glibc they run against; on an older
+distribution build from the checkout instead.
 
 ## MCP server
 
@@ -246,10 +303,28 @@ $ dpaint doctor --json | jq -c '.providers[] | {provider, configured, source}'
 Cost control, provenance, caching and the per-project budget are described in
 [`ai-providers.md`](./ai-providers.md).
 
+## Known warnings
+
+`cargo build` prints one future-incompatibility warning on any target that pulls in
+`dpaint-model3d` — the CLI, the Studio, the viewport and the wasm engine all do:
+
+```
+warning: the following packages contain code that will be rejected by a future version of Rust: nalgebra v0.26.2
+```
+
+`nalgebra 0.26.2` puts a trailing semicolon in macro expression position
+([rust#79813](https://github.com/rust-lang/rust/issues/79813)). Nothing here depends on
+nalgebra directly: `dpaint-model3d` generates tangents with `mikktspace`, and
+`mikktspace 0.3.0` — published February 2022 and still the newest version on crates.io —
+pins `nalgebra ^0.26`. There is no parent release to bump to, so the warning stays until
+mikktspace publishes again. `cargo report future-incompat` lists the reports and
+`cargo report future-incompatibilities --id 1 --package nalgebra@0.26.2` prints the detail.
+
 ## Uninstall
 
 ```bash
 cargo uninstall dpaint-cli     # removes the `dpaint` binary
+cargo uninstall dpaint-view    # removes `dpaint-view`, if you installed it
 ```
 
 Projects are ordinary directories; deleting the `.dpaint` directory removes everything the tool

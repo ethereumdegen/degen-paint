@@ -7,7 +7,7 @@
 use dpaint_core::doc::{Document, RasterDoc};
 use dpaint_core::{DocId, Engine, Project, Workspace};
 use dpaint_studio::Studio;
-use dpaint_studio_app::{bridge, menu_method, project_arg, Shell, MENU_OPEN, MENU_REDO, MENU_UNDO};
+use dpaint_studio_app::{bridge, project_arg, Shell};
 use serde_json::{json, Value};
 
 fn shell() -> (tempfile::TempDir, Shell) {
@@ -19,7 +19,7 @@ fn shell() -> (tempfile::TempDir, Shell) {
     );
     Workspace::create(&root, project).unwrap();
     let studio = Studio::open(&root).unwrap();
-    (tmp, Shell::new(Some(studio), ""))
+    (tmp, Shell::new(studio))
 }
 
 /// The structured error the bridge hands the webview, parsed back the way the init script does.
@@ -131,39 +131,6 @@ fn a_bad_selector_crosses_the_bridge_as_the_http_error_shape() {
 }
 
 #[test]
-fn the_native_edit_menu_drives_the_shared_journal() {
-    // The OS click cannot be simulated headlessly, but everything downstream of it can: the
-    // menu handler looks the id up with `menu_method` and hands the result to `Shell::call`.
-    assert_eq!(menu_method(MENU_UNDO), Some("undo"));
-    assert_eq!(menu_method(MENU_REDO), Some("redo"));
-    assert_eq!(
-        menu_method(MENU_OPEN),
-        None,
-        "Open Project is not a journal method"
-    );
-    assert_eq!(menu_method("Edit"), None);
-
-    let (_t, sh) = shell();
-    sh.call(
-        "op",
-        &json!({ "op": "raster.layer.add",
-                 "args": { "type": "fill", "color": "#264653", "name": "bg" } }),
-    )
-    .unwrap();
-
-    sh.call(menu_method(MENU_UNDO).unwrap(), &json!({}))
-        .unwrap();
-    assert_eq!(sh.call("state", &json!({})).unwrap()["canUndo"], false);
-
-    sh.call(menu_method(MENU_REDO).unwrap(), &json!({}))
-        .unwrap();
-    assert_eq!(
-        sh.call("state", &json!({})).unwrap()["documents"][0]["objects"][0]["name"],
-        "bg"
-    );
-}
-
-#[test]
 fn render_hands_the_webview_a_png_data_uri() {
     let (_t, sh) = shell();
     sh.call(
@@ -197,18 +164,23 @@ fn render_rejects_a_missing_document_with_a_structured_error() {
 }
 
 #[test]
-fn with_no_project_open_both_commands_answer_like_the_engine_does() {
-    let sh = Shell::new(None, "nothing here");
-    for payload in [
-        sh.call("state", &json!({})).unwrap_err(),
-        sh.render(None, 1.0, 1600).unwrap_err(),
-    ] {
-        let d = detail(&payload);
-        assert_eq!(d["code"], "invalid");
-        assert!(d["message"].as_str().unwrap().contains("Open Project"));
-    }
+fn with_no_project_open_the_shell_still_answers_and_says_so() {
+    // The Welcome screen is the UI reading `project: null` off `state`, so a shell with no
+    // project must dispatch normally rather than refuse: refusing is what put a blank window
+    // on screen before.
+    let sh = Shell::new(Studio::empty());
+    let state = sh.call("state", &json!({})).unwrap();
+    assert_eq!(state["project"], Value::Null);
+    assert_eq!(
+        state["documents"].as_array().map(Vec::len),
+        Some(0),
+        "nothing is open, so there is nothing to list"
+    );
     assert!(sh.root().is_none());
-    assert_eq!(sh.notice(), "nothing here");
+
+    // Rendering, though, has nothing to render, and says which kind of nothing.
+    let d = detail(&sh.render(None, 1.0, 1600).unwrap_err());
+    assert_eq!(d["code"], "invalid");
 }
 
 #[test]

@@ -6,7 +6,14 @@
 //! journal with one undo stack, and either can undo the other.
 
 pub mod api;
+pub mod contract;
+pub mod io;
+pub mod jobs;
+pub mod providers;
+pub mod recent;
 pub mod server;
+pub mod skill;
 
-pub use api::{registry, Studio};
+pub use api::{create_project, registry, Studio};
+pub use contract::{Shortcut, CONFIRM_LABEL_PREFIXES, SHORTCUTS};
 pub use server::{serve, ServerConfig};

@@ -4,11 +4,10 @@
 //! `op` subcommands are generated from the op registry rather than hand-maintained.
 
 mod args;
+mod skill;
 
 use dpaint_core::{
-    doc::{Document, ModelDoc, RasterDoc, VectorDoc},
-    journal::Actor,
-    AssetStore, DocId, DocKind, Engine, Error, Project, Registry, Result, Workspace,
+    journal::Actor, AssetStore, DocKind, Engine, Error, Project, Registry, Result, Workspace,
 };
 use serde_json::json;
 use std::io::Write;
@@ -70,6 +69,7 @@ USAGE
 COMMANDS
   new <name>            Create a project (--kind raster|vector|model --size WxH --dpi N)
   op <id> [--flag v]    Apply an op; `dpaint op --list` shows every one
+  quote <op> [--flag v] Estimated price of one op call, and the budget it lands in
   render <path>         Render the active document (png|jpg|webp|tiff|svg|glb|gltf)
   inspect               Measure a render: tree, bounds, colors, contrast
   lint                  Report problems an agent cannot see
@@ -82,6 +82,7 @@ COMMANDS
   doctor                Report capabilities: fonts, providers, formats
   mcp                   Serve the op registry over MCP on stdio
   serve                 Run the Studio UI on localhost (--addr, --ui-dir)
+  skill [--out <dir>]   Emit the starkbot-neo media-apps pack contribution
 
 GLOBAL
   --project <dir>       Project directory (default: discovered from the cwd)
@@ -174,6 +175,7 @@ fn run(argv: &[String]) -> Result<i32> {
         }
         "new" => cmd_new(&ctx, rest),
         "op" => cmd_op(&ctx, rest),
+        "quote" => cmd_quote(&ctx, rest),
         "render" => cmd_render(&ctx, rest),
         "inspect" => cmd_inspect(&ctx, rest),
         "lint" => cmd_lint(&ctx, rest),
@@ -186,6 +188,7 @@ fn run(argv: &[String]) -> Result<i32> {
         "doctor" => cmd_doctor(&ctx),
         "mcp" => cmd_mcp(&ctx),
         "serve" => cmd_serve(&ctx, rest),
+        "skill" => cmd_skill(&ctx, rest),
         other => Err(Error::Invalid(format!(
             "unknown command '{other}'; run `dpaint help`"
         ))),
@@ -236,24 +239,7 @@ fn cmd_new(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         .project_dir
         .clone()
         .unwrap_or_else(|| PathBuf::from(format!("{name}.dpaint")));
-    if dir.join("project.json").exists() {
-        return Err(Error::Invalid(format!(
-            "{} already holds a project",
-            dir.display()
-        )));
-    }
-
-    let doc_id = DocId::from_name(&name);
-    let first = match kind {
-        DocKind::Raster => {
-            let mut d = RasterDoc::new(doc_id, &name, w as u32, h as u32);
-            d.dpi = dpi;
-            Document::Raster(d)
-        }
-        DocKind::Vector => Document::Vector(VectorDoc::new(doc_id, &name, w, h)),
-        DocKind::Model => Document::Model(ModelDoc::new(doc_id, &name)),
-    };
-    let ws = Workspace::create(&dir, Project::new(&name, first))?;
+    let ws = dpaint_studio::create_project(&dir, &name, kind, w, h, dpi)?;
 
     emit(
         ctx,
@@ -342,6 +328,75 @@ fn cmd_op(ctx: &Ctx, argv: &[String]) -> Result<i32> {
     // Warnings are reported on stderr and carried in --json; they do not make the op a
     // failure. `lint` owns the "ran fine, but the document has problems" signal (exit 4).
     Ok(0)
+}
+
+/// `dpaint quote <op>` — what one call of `op` would cost, and where that lands against the
+/// project's ceiling.
+///
+/// The same four numbers under the same names as the Studio's `quote` dispatch and the estimate
+/// written into a paid op's submit button, from the same two sources: a price shown in the GUI
+/// and a price printed here cannot disagree.
+fn cmd_quote(ctx: &Ctx, argv: &[String]) -> Result<i32> {
+    let Some(id) = argv.first().cloned() else {
+        return Err(Error::Invalid(
+            "usage: dpaint quote <op> [--flag value]".into(),
+        ));
+    };
+    let reg = registry();
+    let op = reg.get(&id)?;
+    // The price does not depend on the arguments, but a quote for a call the op would reject is
+    // not a quote, so they are parsed against its schema all the same.
+    args::parse(op.id(), &op.schema(), &argv[1..])?;
+
+    let ws = open(ctx)?;
+    // A local op cannot spend: the price list is keyed by op id and a configured cost for
+    // something that never reaches a provider would be a lie, not an estimate.
+    let estimate = if op.is_network() {
+        dpaint_ai::AiConfig::load().cost_of(op.id())
+    } else {
+        0.0
+    };
+    let budget = dpaint_ai::budget::Budget::load(ws.root());
+    let spent = budget.spent();
+    let would_exceed = budget.check(estimate).is_err();
+
+    emit(
+        ctx,
+        || {
+            println!("{id}  est. ${}", usd(estimate));
+            match budget.ceiling_usd {
+                Some(c) => println!(
+                    "  budget: ${} of ${} spent{}",
+                    usd(spent),
+                    usd(c),
+                    if would_exceed {
+                        " — this call would exceed the ceiling"
+                    } else {
+                        ""
+                    }
+                ),
+                None => println!("  budget: ${} spent, no ceiling set", usd(spent)),
+            }
+        },
+        json!({
+            "ok": true,
+            "op": id,
+            "estimateUsd": usd(estimate),
+            "spentUsd": usd(spent),
+            "ceilingUsd": budget.ceiling_usd,
+            "wouldExceed": would_exceed,
+        }),
+    );
+    Ok(0)
+}
+
+/// Money to four decimals, the same resolution `ai.budget.status` reports, so a sum of
+/// fractions of a cent does not print as `0.09000000000000001`.
+///
+/// The `+ 0.0` is load-bearing: `f64`'s `Sum` identity is `-0.0`, so an empty ledger reports
+/// `$-0` spent without it.
+fn usd(v: f64) -> f64 {
+    (v * 10_000.0).round() / 10_000.0 + 0.0
 }
 
 fn cmd_render(ctx: &Ctx, argv: &[String]) -> Result<i32> {
@@ -659,9 +714,14 @@ fn cmd_doctor(ctx: &Ctx) -> Result<i32> {
 }
 
 fn cmd_serve(ctx: &Ctx, argv: &[String]) -> Result<i32> {
+    // An explicit `--project` that does not open is still an error — the user named it. With
+    // no flag and nothing to discover, the Studio serves its Welcome state and the browser
+    // opens a project itself, so refusing to start here would only hide that screen.
     let studio = match &ctx.project_dir {
         Some(p) => dpaint_studio::Studio::open(p)?,
-        None => dpaint_studio::Studio::discover(".")?,
+        None => {
+            dpaint_studio::Studio::discover(".").unwrap_or_else(|_| dpaint_studio::Studio::empty())
+        }
     };
     let config = dpaint_studio::ServerConfig {
         addr: flag(argv, "--addr")
@@ -670,6 +730,28 @@ fn cmd_serve(ctx: &Ctx, argv: &[String]) -> Result<i32> {
         ui_dir: flag(argv, "--ui-dir").map(PathBuf::from),
     };
     dpaint_studio::serve(studio, config)?;
+    Ok(0)
+}
+
+/// `dpaint skill` — the `media-apps` pack contribution, printed or written out.
+fn cmd_skill(ctx: &Ctx, argv: &[String]) -> Result<i32> {
+    let pack = dpaint_studio::skill::pack();
+    let Some(out) = flag(argv, "--out").cloned() else {
+        println!("{}", serde_json::to_string_pretty(&pack)?);
+        return Ok(0);
+    };
+    let dir = PathBuf::from(out);
+    let written = skill::write(&dir, &pack)?;
+    emit(
+        ctx,
+        || {
+            for p in &written {
+                println!("{p}");
+            }
+            println!("\n{} files under {}", written.len(), dir.display());
+        },
+        json!({ "ok": true, "out": dir.display().to_string(), "files": written }),
+    );
     Ok(0)
 }
 

@@ -167,6 +167,35 @@ layer. The pixels are verified through the browser path, which loads byte-identi
 - golden suite green in CI on macOS and Linux
 - installers: `cargo install dpaint-cli`, Homebrew tap, signed Tauri builds
 
+
+---
+
+## v2 — Driven by Starkbot Neo
+
+degen-paint becomes the fourth media app starkbot-neo operates, the way it operates Diffusion
+Studio: through the Studio's UI over the accessibility tree, with a read-only grounding API and
+file hand-off. Full contract, navigator constraints, and S8d: [`docs/starkbot.md`](./starkbot.md).
+
+| Phase | State | Evidence |
+|---|---|---|
+| P10 Accessible Studio | done | the navigator-rule audit (`crates/dpaint-studio/tests/a11y/`, rules vendored from `snapshot.js` @ ae5f815c) reports **0 errors, 0 warnings**, normally and with `?nohints`; 22 candidates on an empty project, 42 with a populated tree, 44 with the palette open, largest group 11 — against a 120 budget and the navigator's hard cap of 250. Baseline before the rewrite: 8 candidates and three hard failures. Driven for real in Chromium: the palette is a `combobox` whose `aria-controls` listbox produces 6 options in 0 ms, the generated form carries `aria-required`/`aria-describedby` and a submit named `Run raster.layer.add`, and the status region announces `applied raster.layer.add · changed doc_… · created lyr_… · rev 2` |
+| P11 Projects and files | done | `project.new/open/close/recent` and `io.import/export/sendToEditor/exportPreview` on dispatch; `io.import` is one op, so one Import is one journal entry and one undo; a DMS `<take>.json` sidecar lands as provenance (`Provenance.parents` is new and `skip_serializing_if`, so existing `project.json` round-trips byte-identically); export against an existing path is `Error::Exists` with a message naming the flag that unblocks it |
+| P12 Grounding API | done | `GET /api/v1/{status,overview,history,select,skill}`, `/doc/:id/{digest,lint}`, `/jobs/:id`, `/annotate.png`; measured live: `Origin: http://evil.example` → **403** and the op does not run, no `Origin` → 200, own origin → 200. `dpaint_overview` now has one implementation (`dpaint_core::overview`) that MCP and the Studio both call |
+| P13 Jobs, quotes, keys | done | `job.start/status/cancel` on a worker thread, `state.busy`, a cancelled job leaves the journal untouched; `dpaint quote ai.image.generate` and the Studio's `quote` return the same `estimateUsd` 0.025 from one `AiConfig::cost_of`; `providers.set` writes through `dpaint_ai::keys::store` (keychain, else a 0600 config file) and no response ever carries key material |
+| P14 Pack and smoke test | partial | `dpaint skill --out` emits all ten files; every routine validates against [`06-packs`](https://github.com/ethereumdegen/starkbot-neo/blob/main/plans/06-packs.md) §4 — required fields, ≤ 12 steps, the closed tool list, every param typed, no selector-shaped key. S8d itself waits on starkbot-neo L3 |
+
+The desktop shell runs on this Wayland session: `hyprctl clients` reports
+`class: dev.degenpaint.studio`, `xwayland: false`, which is the `app_id` the pack hints and
+`AppSel::BundleId` are keyed on, and the window publishes an AT-SPI tree — so the same DOM
+contract reaches the native path.
+
+Still open: the **macOS** AX spike (§6 of `docs/starkbot.md`) cannot run here, and **S8d**
+needs starkbot-neo's Linux port. L0–L2 of that port are done and green
+([`docs/starkbot.md` §11](./starkbot.md#11-starkbot-neo-on-linux)): the workspace builds and
+tests on Linux, `chrome_path()` finds `/usr/bin/chromium`, and secrets live in the Secret
+Service. L3 — the AT-SPI `neo-ax` backend with Hyprland window management — is what S8d-native
+waits on; S8d-web needs nothing further.
+
 ---
 
 ## Explicitly out of scope for v1

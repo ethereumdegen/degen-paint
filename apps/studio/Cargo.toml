@@ -23,7 +23,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 dpaint-core.workspace = true
-dpaint-studio.workspace = true
+dpaint-studio = { workspace = true, features = ["ai"] }
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true
@@ -32,6 +32,11 @@ parking_lot = "0.12"
 # the UI it ships, and a webview you cannot inspect is a webview you cannot debug.
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
+
+# Only for `g_set_prgname`, which is what a GTK 3 window's Wayland `app_id` comes from.
+# Same version GTK itself pulls in, so no second glib enters the tree.
+[target.'cfg(target_os = "linux")'.dependencies]
+glib = "0.18"
 
 [dev-dependencies]
 tempfile = "3"

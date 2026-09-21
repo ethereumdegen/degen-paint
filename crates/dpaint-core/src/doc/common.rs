@@ -471,6 +471,10 @@ pub struct Provenance {
     pub seed: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+    /// What this was derived from: upstream take or object ids, as the producing tool
+    /// named them. Free-form because every tool's lineage vocabulary differs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parents: Vec<String>,
     pub at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,

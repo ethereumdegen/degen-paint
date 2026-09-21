@@ -35,6 +35,13 @@ Rules that make this usable by a machine:
 - **Errors carry fixes.** `selector '#sky' matched 0 objects; did you mean '#sky-grad'?
   (layers: #bg, #sky-grad, #title)` — an error that lists the actual candidates saves a round trip.
 
+Two verbs answer questions about the app rather than about a document:
+
+| Verb | Answers |
+|---|---|
+| `dpaint quote <op> [--flag v]` | `{op, estimateUsd, spentUsd, ceilingUsd, wouldExceed}` for one call — the same four numbers the Studio's `quote` dispatch returns and a paid op's submit button is named with. Ops that reach no provider quote `0`. |
+| `dpaint skill [--out <dir>]` | The [starkbot-neo](https://github.com/ethereumdegen/starkbot-neo) `media-apps` pack contribution: vocabulary, native-app hints, the `dp-*` routines, Sol goal templates, grounding probes and the app skill. Written to `<dir>`, or printed as one JSON object. `GET /api/v1/skill` serves the same files under its `files` key, from the same generator. |
+
 ## 2. MCP server
 
 ```bash

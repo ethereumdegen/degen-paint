@@ -38,6 +38,9 @@ jobs:
 
       # The CLI links dpaint-ai, whose default features are the reqwest TLS stack and the
       # secret-service keyring backend. No webkit here: the CLI does not depend on Tauri.
+      # dpaint-view needs nothing beyond this list either: winit and wgpu reach X11, Wayland,
+      # xkbcommon, Vulkan and EGL through dlopen, so the binary links only libc, libm and
+      # libgcc and no build script probes pkg-config for them.
       - name: Install dpaint-ai system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -45,7 +48,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y libdbus-1-dev libssl-dev pkg-config
 
       - name: Build
-        run: cargo build --release --locked -p dpaint-cli --target ${{ matrix.target }}
+        run: cargo build --release --locked -p dpaint-cli -p dpaint-view --target ${{ matrix.target }}
 
       - name: Strip, package and checksum
         shell: bash
@@ -54,16 +57,18 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           stage="dpaint-${version}-${{ matrix.target }}"
           mkdir -p "dist/${stage}"
-          cp "target/${{ matrix.target }}/release/dpaint" "dist/${stage}/dpaint"
           cp README.md LICENSE docs/installing.md "dist/${stage}/"
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            strip -x "dist/${stage}/dpaint"
-            # Stripping invalidates the ad-hoc signature linkers give arm64 binaries, and an
-            # unsigned arm64 Mach-O is killed on launch. Re-sign ad hoc after stripping.
-            codesign --force --sign - "dist/${stage}/dpaint"
-          else
-            strip "dist/${stage}/dpaint"
-          fi
+          for bin in dpaint dpaint-view; do
+            cp "target/${{ matrix.target }}/release/${bin}" "dist/${stage}/${bin}"
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              strip -x "dist/${stage}/${bin}"
+              # Stripping invalidates the ad-hoc signature linkers give arm64 binaries, and an
+              # unsigned arm64 Mach-O is killed on launch. Re-sign ad hoc after stripping.
+              codesign --force --sign - "dist/${stage}/${bin}"
+            else
+              strip "dist/${stage}/${bin}"
+            fi
+          done
           tar -czf "dist/${stage}.tar.gz" -C dist "${stage}"
           rm -rf "dist/${stage}"
           cd dist
@@ -74,7 +79,7 @@ jobs:
           fi
           cat "${stage}.tar.gz.sha256"
 
-      - name: Smoke-test the packaged binary
+      - name: Smoke-test the packaged binaries
         # A tarball nobody ran is a rumour. Skipped for the cross-built x86_64 macOS
         # artifact, which cannot execute on an arm64 runner.
         if: matrix.target != 'x86_64-apple-darwin'
@@ -86,6 +91,9 @@ jobs:
           tar -xzf "dist/${stage}.tar.gz" -C "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/${stage}/dpaint" --version
           "${RUNNER_TEMP}/${stage}/dpaint" doctor
+          # dpaint-view opens a GPU window, so `--help` is as far as a runner can take it; it
+          # still proves the binary's dynamic links resolve without a display.
+          "${RUNNER_TEMP}/${stage}/dpaint-view" --help
 
       - uses: actions/upload-artifact@v4
         with:
@@ -147,6 +155,74 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  bundle-linux:
+    name: Studio bundle (x86_64-unknown-linux-gnu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bundle-linux
+
+      # `tauri build` compiles apps/studio, so this job needs the same libraries the CI Linux
+      # job installs:
+      #   webkit2gtk/gtk/soup/javascriptcoregtk : Tauri v2 webview
+      #   ayatana-appindicator / librsvg        : tray and icon handling
+      #   libdbus-1-dev                         : keyring's secret-service backend (dpaint-ai)
+      #   libssl-dev / pkg-config               : reqwest's default TLS (dpaint-ai)
+      - name: Install Tauri and dpaint-ai system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            pkg-config
+
+      - name: Install the Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      # No --target, so the bundles land in target/release/bundle. linuxdeploy cannot
+      # cross-compile an AppImage anyway, and the runner is the only Linux target CI covers.
+      - name: Build the bundles
+        working-directory: apps/studio
+        run: cargo tauri build --bundles deb,appimage
+
+      # Unsigned, like the macOS bundles. The .deb names its runtime libraries through
+      # bundle.linux.deb.depends in tauri.conf.json; the AppImage carries them instead, which
+      # is why it is an order of magnitude larger.
+      - name: Collect the bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          target="x86_64-unknown-linux-gnu"
+          out="target/release/bundle"
+          mkdir -p dist
+          for deb in "${out}"/deb/*.deb; do
+            cp "$deb" "dist/degen-paint-Studio-${version}-${target}.deb"
+          done
+          for img in "${out}"/appimage/*.AppImage; do
+            cp "$img" "dist/degen-paint-Studio-${version}-${target}.AppImage"
+          done
+          cd dist
+          for f in *; do sha256sum "$f" > "$f.sha256"; done
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-x86_64-unknown-linux-gnu
+          path: dist/*
+          if-no-files-found: error
+
   publish-check:
     name: cargo publish --dry-run
     runs-on: ubuntu-latest
@@ -178,7 +254,7 @@ jobs:
 
   release:
     name: Publish the GitHub release
-    needs: [cli, bundle-macos, publish-check]
+    needs: [cli, bundle-macos, bundle-linux, publish-check]
     runs-on: ubuntu-latest
     permissions:
       contents: write

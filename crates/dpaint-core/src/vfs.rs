@@ -53,27 +53,24 @@ impl FsVfs {
     /// Walk upwards from `start` looking for a project. Directory traversal is a filesystem
     /// concept, so it lives with the filesystem backend rather than in `project.rs`.
     ///
-    /// A directory containing `project.json` is the project; otherwise the lexicographically
-    /// first `*.dpaint` child that contains one counts.
+    /// A directory containing `project.json` is the project, at `start` or at any ancestor.
+    /// Additionally, and **only at `start`**, the lexicographically first `*.dpaint` child
+    /// that contains one counts, so `dpaint render` works from the directory a project was
+    /// created in.
+    ///
+    /// That convenience is deliberately not applied to ancestors. It used to be, and it
+    /// meant any process whose cwd was under a directory holding an unrelated `*.dpaint`
+    /// sibling silently adopted it: a `cargo test` in a tempdir under `/tmp` picked up a
+    /// project someone had left at `/tmp/other.dpaint`, with no diagnostic, because the scan
+    /// also ran at `/tmp`, at `$HOME` and at `/`.
     pub fn discover_project_root(start: &Path) -> Result<PathBuf> {
         let mut cur = std::fs::canonicalize(start)?;
+        if let Some(p) = first_project_child(&cur) {
+            return Ok(p);
+        }
         loop {
             if cur.join("project.json").exists() {
                 return Ok(cur);
-            }
-            if let Ok(entries) = std::fs::read_dir(&cur) {
-                let mut candidates: Vec<PathBuf> = entries
-                    .flatten()
-                    .map(|e| e.path())
-                    .filter(|p| {
-                        p.extension().and_then(|e| e.to_str()) == Some("dpaint")
-                            && p.join("project.json").exists()
-                    })
-                    .collect();
-                candidates.sort();
-                if let Some(p) = candidates.into_iter().next() {
-                    return Ok(p);
-                }
             }
             if !cur.pop() {
                 return Err(crate::error::Error::Invalid(
@@ -82,6 +79,20 @@ impl FsVfs {
             }
         }
     }
+}
+
+fn first_project_child(dir: &Path) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension().and_then(|e| e.to_str()) == Some("dpaint")
+                && p.join("project.json").exists()
+        })
+        .collect();
+    candidates.sort();
+    candidates.into_iter().next()
 }
 
 fn tmp_sibling(path: &Path) -> PathBuf {

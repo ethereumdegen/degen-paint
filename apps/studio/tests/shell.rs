@@ -1,6 +1,4 @@
-//! The shell's own surfaces: the bundled frontend and the no-project window.
-
-use dpaint_studio_app::welcome_html;
+//! The shell's own surface: the bundled frontend.
 
 #[test]
 fn the_shared_frontend_is_bundled_into_the_app_not_read_from_a_developers_disk() {
@@ -28,23 +26,4 @@ fn the_shared_frontend_is_bundled_into_the_app_not_read_from_a_developers_disk()
             "the embedded {f} is not the shared UI file"
         );
     }
-}
-
-#[test]
-fn the_no_project_window_explains_itself_and_offers_the_picker() {
-    let html = welcome_html("--project /nope: no degen-paint project found");
-
-    assert!(html.contains("No project open"));
-    assert!(html.contains("--project /nope: no degen-paint project found"));
-    // The button is the only way out of this window, so it has to be there and wired.
-    assert!(html.contains(r#"id="pick""#));
-    assert!(html.contains("dpaintwelcome://localhost/pick"));
-}
-
-#[test]
-fn a_notice_carrying_markup_cannot_break_the_welcome_page() {
-    // The notice is an error string built from a path the user typed.
-    let html = welcome_html("<script>boom()</script> & <b>");
-    assert!(!html.contains("<script>boom()"));
-    assert!(html.contains("&lt;script&gt;boom()&lt;/script&gt; &amp; &lt;b&gt;"));
 }

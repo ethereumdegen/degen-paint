@@ -28,14 +28,6 @@ pub fn error_payload(e: &Error) -> String {
     })
 }
 
-/// No project open yet. Shaped exactly like an engine error so the UI needs no special case.
-pub fn no_project_payload() -> String {
-    error_payload(&Error::Invalid(
-        "no project is open — use File > Open Project, or start degen-paint with --project <dir>"
-            .into(),
-    ))
-}
-
 /// `state`, `op`, `undo`, … — the whole GUI surface, unwrapped result on success.
 pub fn call(studio: &Studio, method: &str, params: &Value) -> Result<Value, String> {
     studio

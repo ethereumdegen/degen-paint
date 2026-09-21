@@ -7,97 +7,158 @@
 <link rel="stylesheet" href="./studio.css">
 </head>
 <body>
-<div id="app">
 
-  <header id="toolbar">
+<!-- Every control in this page names the project or document it acts on, so none of them
+     exist until the first `state` has arrived. Until then there is only this line. -->
+<p id="bootNote">Loading the Studio…</p>
+
+<!-- Shown instead of the editor when no project is open. -->
+<section id="welcome" role="region" aria-label="Welcome" hidden>
+  <div class="welcome-card">
+    <h1 class="brand">degen<span>-paint</span></h1>
+    <p id="welcomeNote">No project is open.</p>
+    <div class="welcome-actions">
+      <button id="wNew" class="tb accent" aria-label="New project">New project…</button>
+      <button id="wOpen" class="tb" aria-label="Open project">Open project…</button>
+    </div>
+    <h2 class="welcome-sub">Recent projects</h2>
+    <div id="welcomeRecent" class="welcome-recent"></div>
+  </div>
+</section>
+
+<div id="app" hidden>
+
+  <header id="toolbar" role="toolbar" aria-label="Toolbar">
     <div class="brand">degen<span>-paint</span></div>
     <div class="project" id="projectName" title="">—</div>
     <div class="sep"></div>
-    <button id="btnUndo" class="tb" disabled title="Undo (Cmd/Ctrl-Z)">↶ Undo</button>
-    <button id="btnRedo" class="tb" disabled title="Redo (Shift-Cmd/Ctrl-Z)">↷ Redo</button>
+    <section id="paletteRegion" role="region" aria-label="Command palette">
+      <input id="paletteInput" type="text" role="combobox" aria-label="Run op"
+             aria-controls="paletteList" aria-expanded="false" aria-autocomplete="list"
+             placeholder="Search ops by id or description…" autocomplete="off" spellcheck="false">
+      <ul id="paletteList" class="listbox" role="listbox" aria-label="Matching ops" hidden></ul>
+    </section>
+    <button id="btnUndo" class="tb" disabled aria-label="Undo">↶ Undo</button>
+    <button id="btnRedo" class="tb" disabled aria-label="Redo">↷ Redo</button>
     <div class="sep"></div>
-    <button id="btnPalette" class="tb accent" title="Command palette (/ or Ctrl-K)">▶ Run op…</button>
+    <button id="btnNewProject" class="tb sm" aria-label="New project">New</button>
+    <button id="btnOpenProject" class="tb sm" aria-label="Open project">Open</button>
+    <button id="btnCloseProject" class="tb sm" aria-label="Close project">Close</button>
+    <div class="sep"></div>
+    <button id="btnImport" class="tb sm" aria-label="Import file">Import</button>
+    <button id="btnExport" class="tb sm" aria-label="Export document">Export</button>
+    <button id="btnSendToEditor" class="tb sm" aria-label="Send documents to editor">Send</button>
+    <button id="btnExportPreview" class="tb sm" aria-label="Export preview">Preview</button>
+    <div class="sep"></div>
+    <button id="btnProviders" class="tb sm" aria-label="Provider keys and settings">Keys</button>
+    <button id="btnShortcuts" class="tb sm" aria-label="Keyboard shortcuts">Shortcuts</button>
     <div class="spacer"></div>
     <div id="agentFlash" class="flash" hidden>updated by agent</div>
     <div id="revBadge" class="rev" title="Journal revision">rev —</div>
   </header>
 
-  <aside id="docs" class="pane">
-    <div class="pane-head">Documents</div>
-    <div id="docList" class="pane-body"></div>
-  </aside>
+  <section id="docsPane" class="pane" role="region" aria-label="Documents">
+    <div class="pane-head">Documents<span class="head-note" id="docsCount"></span></div>
+    <div class="pane-body">
+      <ul id="docList" class="listbox" role="listbox" aria-label="Documents"></ul>
+    </div>
+  </section>
 
-  <section id="viewport">
+  <section id="viewport" role="region" aria-label="Viewport">
     <div id="canvasArea">
-      <!-- The CPU path. `#canvasPan` carries pan/zoom as a CSS transform. -->
-      <div id="canvasPan" class="checker">
-        <img id="canvasImg" alt="document render" draggable="false">
+      <!-- Decoration only: P10 forbids the navigator reading pixels, so everything this
+           area shows is mirrored as text in the Status region. -->
+      <div id="canvasPan" class="checker" aria-hidden="true">
+        <img id="canvasImg" alt="" draggable="false" aria-hidden="true">
       </div>
-      <!-- The GPU path, used only when a WebGPU viewport attaches; pan, zoom and orbit
-           are then GPU state and this canvas fills the area. -->
-      <canvas id="canvasGl" hidden></canvas>
-      <div id="canvasEmpty" class="empty" hidden>no render</div>
+      <canvas id="canvasGl" hidden aria-hidden="true"></canvas>
+      <div id="canvasEmpty" class="empty" hidden aria-hidden="true">no render</div>
     </div>
     <div id="viewBar">
-      <button id="btnFit" class="tb sm" title="Fit (f)">Fit</button>
-      <button id="btnOneToOne" class="tb sm" title="100% (1)">100%</button>
-      <span id="zoomRead" class="read">100%</span>
-      <span class="dot">·</span>
-      <span id="sizeRead" class="read">— × —</span>
-      <span class="dot">·</span>
-      <span id="docRead" class="read">—</span>
-      <span class="dot">·</span>
-      <span id="gpuRead" class="read" title="Which renderer is drawing this viewport">CPU</span>
+      <button id="btnFit" class="tb sm" aria-label="Fit document in viewport">Fit</button>
+      <button id="btnOneToOne" class="tb sm" aria-label="Zoom to 100 percent">100%</button>
+      <button id="btnZoomIn" class="tb sm" aria-label="Zoom in">+</button>
+      <button id="btnZoomOut" class="tb sm" aria-label="Zoom out">−</button>
+      <button id="btnResetView" class="tb sm" aria-label="Reset view">Reset view</button>
+      <span id="orbitGroup" class="orbit-group" hidden>
+        <button id="btnOrbitLeft" class="tb sm" aria-label="Orbit left">◀</button>
+        <button id="btnOrbitRight" class="tb sm" aria-label="Orbit right">▶</button>
+        <button id="btnOrbitUp" class="tb sm" aria-label="Orbit up">▲</button>
+        <button id="btnOrbitDown" class="tb sm" aria-label="Orbit down">▼</button>
+      </span>
       <span class="grow"></span>
-      <span id="busy" class="busy" hidden>rendering…</span>
+      <span id="viewRead" class="read">—</span>
     </div>
   </section>
 
   <aside id="right">
-    <div class="pane" id="treePane">
+    <section id="treePane" class="pane" role="region" aria-label="Tree">
       <div class="pane-head">
-        Objects
+        <span id="treeTitle">Tree</span>
         <span class="head-note" id="treeCount"></span>
       </div>
-      <div id="treeList" class="pane-body"></div>
-    </div>
-    <div class="pane" id="inspectorPane">
+      <div class="pane-tools">
+        <input id="treeFilter" type="text" autocomplete="off" spellcheck="false"
+               aria-label="Filter layers" placeholder="filter">
+        <button id="treeMore" class="tb sm" hidden>Show more</button>
+      </div>
+      <div class="pane-body">
+        <ul id="treeList" class="listbox" role="listbox" aria-label="Layers"></ul>
+      </div>
+    </section>
+
+    <section id="selPane" class="pane" role="region" aria-label="Selection">
+      <div class="pane-head">Selection</div>
+      <div class="pane-body">
+        <p id="selText" class="sel-text">No selection. Choose a row in the Tree list.</p>
+        <div id="selActions" class="sel-actions"></div>
+        <div id="selGeometry" class="sel-geometry"></div>
+      </div>
+    </section>
+
+    <section id="inspectorPane" class="pane" role="region" aria-label="Inspector">
       <div class="pane-head">
         Inspector
         <span class="head-note" id="inspectTarget"></span>
       </div>
-      <div id="inspector" class="pane-body">
-        <div class="hint">Pick an op with <kbd>/</kbd> or <kbd>Ctrl-K</kbd> to build its form from the engine schema.</div>
-      </div>
-    </div>
+      <div id="inspector" class="pane-body"></div>
+    </section>
   </aside>
 
+  <section id="statusPane" role="region" aria-label="Status">
+    <div id="status" role="status" aria-live="polite">
+      <p id="statusLine" class="st-line">ready</p>
+      <p id="statusSummary" class="st-sub">no document</p>
+      <p id="statusView" class="st-sub">viewport idle</p>
+    </div>
+    <div id="jobBar" hidden>
+      <div id="jobProgress" role="progressbar" aria-label="Working"><i></i></div>
+      <button id="btnCancelJob" class="tb sm" aria-label="Cancel job">Cancel job</button>
+    </div>
+  </section>
+
   <footer id="dock">
-    <div class="tabs" role="tablist">
-      <button class="tab active" data-tab="history" role="tab">History</button>
-      <button class="tab" data-tab="lint" role="tab">Lint <span id="lintCount" class="pill" hidden>0</span></button>
-      <button class="tab" data-tab="console" role="tab">Console <span id="conCount" class="pill" hidden>0</span></button>
+    <div class="tabs" role="tablist" aria-label="Panels">
+      <button class="tab active" id="tabbtn-history" data-tab="history" role="tab"
+              aria-selected="true" aria-controls="tab-history">History</button>
+      <button class="tab" id="tabbtn-lint" data-tab="lint" role="tab"
+              aria-selected="false" aria-controls="tab-lint">Lint <span id="lintCount" class="pill" hidden>0</span></button>
+      <button class="tab" id="tabbtn-console" data-tab="console" role="tab"
+              aria-selected="false" aria-controls="tab-console">Console <span id="conCount" class="pill" hidden>0</span></button>
       <span class="grow"></span>
-      <button id="btnLint" class="tb sm">Re-lint</button>
-      <button id="btnClearConsole" class="tb sm">Clear log</button>
+      <button id="btnLint" class="tb sm" aria-label="Re-run lint">Re-lint</button>
+      <button id="btnClearConsole" class="tb sm" aria-label="Clear console log">Clear log</button>
     </div>
     <div class="dock-body">
-      <div id="tab-history" class="tabpane active"></div>
-      <div id="tab-lint" class="tabpane"></div>
-      <div id="tab-console" class="tabpane"></div>
+      <section id="tab-history" class="tabpane active" role="region" aria-label="History"></section>
+      <section id="tab-lint" class="tabpane" role="region" aria-label="Lint"></section>
+      <section id="tab-console" class="tabpane" role="region" aria-label="Console"></section>
     </div>
   </footer>
 
 </div>
 
-<div id="paletteWrap" hidden>
-  <div id="paletteBackdrop"></div>
-  <div id="palette" role="dialog" aria-label="Command palette">
-    <input id="paletteInput" type="text" placeholder="Search 200+ ops by id or description…" autocomplete="off" spellcheck="false">
-    <div id="paletteList"></div>
-    <div id="paletteFoot"><kbd>↑</kbd><kbd>↓</kbd> move <kbd>↵</kbd> choose <kbd>esc</kbd> close</div>
-  </div>
-</div>
+<div id="modalRoot"></div>
 
 <script type="module" src="./studio.js"></script>
 </body>

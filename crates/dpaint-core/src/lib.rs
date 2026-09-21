@@ -20,6 +20,7 @@ pub mod ids;
 pub mod journal;
 pub mod op;
 pub mod ops;
+pub mod overview;
 pub mod project;
 pub mod selector;
 pub mod text;

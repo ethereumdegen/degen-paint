@@ -50,6 +50,8 @@ pub enum Error {
     #[error("budget exceeded: {spent:.4} USD spent of {ceiling:.4} USD ceiling")]
     BudgetExceeded { spent: f64, ceiling: f64 },
     #[error("{0}")]
+    Exists(String),
+    #[error("{0}")]
     Invalid(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
@@ -82,6 +84,7 @@ impl Error {
             ProviderUnconfigured(_) => "provider_unconfigured",
             ProviderError { .. } => "provider_error",
             BudgetExceeded { .. } => "budget_exceeded",
+            Exists(_) => "exists",
             Invalid(_) => "invalid",
             Io(_) => "io_error",
             Json(_) => "json_error",
