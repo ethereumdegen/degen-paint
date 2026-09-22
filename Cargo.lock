@@ -1306,6 +1306,7 @@ dependencies = [
  "dpaint-render",
  "dpaint-vector",
  "image",
+ "reqwest 0.12.28",
  "schemars 1.2.2",
  "serde",
  "serde_json",

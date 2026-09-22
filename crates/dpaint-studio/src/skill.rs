@@ -11,6 +11,7 @@
 
 use crate::contract::{CONFIRM_LABEL_PREFIXES, SHORTCUTS};
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 
 /// The pack these files are vendored into.
 pub const PACK: &str = "media-apps";
@@ -32,7 +33,10 @@ const BASE_URL_DEFAULT: &str = "http://127.0.0.1:4317";
 pub fn pack() -> Value {
     let mut files = Map::new();
     files.insert("vocabulary.md".into(), json!(VOCABULARY));
-    files.insert("skills/degen-paint.md".into(), json!(SKILL));
+    files.insert(
+        "skills/degen-paint.md".into(),
+        json!(format!("{SKILL}\n\n{}", op_catalogue())),
+    );
     files.insert(format!("desktop/apps/{APP_ID}.json"), app_hints());
     for (name, routine) in routines() {
         files.insert(format!("desktop/routines/{name}.json"), routine);
@@ -40,6 +44,37 @@ pub fn pack() -> Value {
     files.insert("goals/degen-paint.json".into(), goals());
     files.insert("grounding.json".into(), grounding());
     json!({ "pack": PACK, "app": APP_ID, "files": Value::Object(files) })
+}
+
+/// Every op id, grouped by domain.
+///
+/// The prose above says *how* the command palette works. It does not say what
+/// to type into it, and an operator that cannot name an op cannot use the
+/// app: measured against Starkbot Neo, the agent reached the palette and then
+/// searched for `vector.shape.circle`, `add.circle` and `path.add.rect` —
+/// none of which exist — until its step budget was gone. The real id is
+/// `vector.object.add-ellipse`, and no amount of describing the mechanism
+/// produces it.
+///
+/// Ids only, not the descriptions: this rides in an agent's system prompt on
+/// every turn, the palette matches on the id, and the form that follows is
+/// built from the op's own schema and describes its own fields.
+fn op_catalogue() -> String {
+    let mut by_domain: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for id in crate::api::registry().ids() {
+        let domain = id.split('.').next().unwrap_or("other");
+        by_domain.entry(domain).or_default().push(id);
+    }
+    let mut out = String::from(
+        "## Every op\n\nType any of these into the command palette, choose it, \
+         fill the form it opens and press its Run button. An id that is not \
+         here does not exist.\n",
+    );
+    for (domain, mut ids) in by_domain {
+        ids.sort_unstable();
+        out.push_str(&format!("\n**{domain}** — {}\n", ids.join(", ")));
+    }
+    out
 }
 
 /// `desktop/apps/<id>.json`: the technical facts the accessibility tree cannot state.
@@ -72,6 +107,18 @@ fn app_hints() -> Value {
             "collapse_roles": ["AXGroup"],
             "max_rows": 60,
             "max_depth": 18
+        },
+        // The Studio's own GUI dispatch — the same `POST /api` the browser
+        // build of this UI posts to, Host/Origin-guarded on loopback
+        // (server.rs). Declared so an operator can apply an op without the
+        // seat: no pointer warped out from under the person at the machine,
+        // no window dragged to the front, no keystrokes taken from whatever
+        // they are typing into. The read-only grounding family beside it
+        // still verifies the result.
+        "control": {
+            "kind": "http",
+            "base": { "env": BASE_URL_ENV, "default": BASE_URL_DEFAULT },
+            "path": "/api"
         },
         "skills": ["degen-paint"]
     })
@@ -111,6 +158,49 @@ fn neo_keys(accelerator: &str) -> String {
 fn routines() -> Vec<(&'static str, Value)> {
     vec![
         (
+            "dp-run-op",
+            json!({
+                "name": "dp-run-op",
+                "description": "Run one named op on the open degen-paint project, with its arguments as a JSON object",
+                "examples": [
+                    "add a white circle in the middle of the logo",
+                    "in degen-paint, run vector.object.add-ellipse at 512,512 with radius 360",
+                    "put the title across the top of the poster"
+                ],
+                "params": { "type": "object", "required": ["op", "args"], "properties": {
+                    "op": { "type": "string", "ask": "Which op should I run?" },
+                    "args": { "type": "object", "ask": "What arguments should the op take?" }
+                }},
+                // Through the Studio's own dispatch rather than its command
+                // palette. Driving the palette worked, but only by taking the
+                // seat: the window had to be raised, the palette focused and
+                // the form typed into, which means the person at the machine
+                // loses their focus and — because the compositor warps on
+                // focus — their cursor. An op is a validated, journalled call
+                // the front end itself makes; making it directly leaves the
+                // machine to its owner. It is the same engine, the same
+                // journal and the same undo stack either way.
+                // The op, then what the canvas looks like now. An operator
+                // that cannot see the render has nothing else to go on:
+                // measured, one that only heard "created obj_head" drew a
+                // white mark on a transparent ground, called it finished,
+                // and described a dark badge it had never made. The digest is
+                // the app's own answer to "what does it look like" — coverage,
+                // dominant colours, the object tree — and reading it back
+                // after every op is the difference between an operator that
+                // notices and one that narrates.
+                "steps": [
+                    { "tool": "call_pack_tool", "args": { "method": "op", "params": { "op": "{op}", "args": "{args}" } } },
+                    { "tool": "call_pack_tool", "args": { "method": "digest", "params": { "fast": true } } }
+                ],
+                // Written against what this routine actually observes — the
+                // digest — rather than against a Status region it never reads.
+                "verify": "The digest reports the document with the object the op added or changed.",
+                "on_fail": "handoff",
+                "max_secs": 180
+            }),
+        ),
+        (
             "dp-open-project",
             json!({
                 "name": "dp-open-project",
@@ -138,27 +228,29 @@ fn routines() -> Vec<(&'static str, Value)> {
             "dp-import-file",
             json!({
                 "name": "dp-import-file",
-                "description": "Import an image, SVG or glTF file into the open degen-paint project as a new layer or a new document",
+                "description": "Import an image, SVG or glTF into the open degen-paint project as a new layer or a new document — from a file path or from a URL, so a reference on the web can be brought in as editable objects",
                 "examples": [
                     "bring the microphone take into degen-paint as a layer",
                     "import ~/Movies/Degen Media Studio/acme/t0003.png into degen-paint",
+                    "import https://www.starkbot.ai/favicon.svg as a layer so I can work from the real mark",
                     "add that SVG to the poster as a new document"
                 ],
                 "params": { "type": "object", "required": ["path"], "properties": {
-                    "path": { "type": "string", "ask": "Which file should I import?" },
-                    "destination": { "type": "string", "enum": ["layer", "document"] }
+                    "path": { "type": "string", "ask": "Which file or URL should I import?" },
+                    "mode": { "type": "string", "enum": ["layer", "document"] },
+                    "name": { "type": ["string", "null"] }
                 }},
+                // Through the Studio's own dispatch (A38), not its Import
+                // dialog — the dialog is a file chooser, which is the desktop's
+                // surface and needs the seat. A URL is fetched into the project
+                // first, so the journal names a file the project owns.
                 "steps": [
-                    { "tool": "focus_app", "args": { "name": "degen-paint Studio" } },
-                    { "tool": "select_menu", "args": { "path": ["File", "Import…"] } },
-                    { "tool": "wait_for", "args": { "text": "Import", "max_secs": 10 } },
-                    { "tool": "type_text", "args": { "text": "{path}" } },
-                    { "tool": "navigate", "args": { "goal": "In the degen-paint Import dialog, make sure the file path field holds {path}, choose to import it as a new {destination}, and press the import button. Done when the Status region reports the import and a new row is in the tree." } },
-                    { "tool": "extract", "args": { "what": "the Status region line naming what was imported" } }
+                    { "tool": "call_pack_tool", "args": { "method": "io.import", "params": { "path": "{path}", "mode": "{mode}", "name": "{name}" } } },
+                    { "tool": "call_pack_tool", "args": { "method": "digest", "params": { "fast": true } } }
                 ],
-                "verify": "The imported file has a row in the Layers or Documents list and the Status region names it.",
+                "verify": "The digest's tree holds the objects the import created.",
                 "on_fail": "handoff",
-                "max_secs": 180
+                "max_secs": 120
             }),
         ),
         (
@@ -252,7 +344,11 @@ fn goals() -> Value {
             "One goal per finished artifact, not one per control: the navigator reads the Status region after every step and knows when an op landed.",
             "Name the document, never the canvas position: every object has a selector-free name in the tree and a bounding box in the Status region.",
             "Ask for lint before export. The Lint pane names the fix, and an export of a document with findings is work thrown away.",
-            "Paid ops state their price in the button; leave the confirm card to the user and say in the goal what it is for."
+            "Paid ops state their price in the button; leave the confirm card to the user and say in the goal what it is for.",
+            "Work in the document that is open. A project already has an active document sized for the job; adding another or switching between them is a step spent for nothing and a place for the work to go missing.",
+            "A mark is a ground plus a few shapes, not many. Fill the ground first — a bare canvas is transparent, and a logo on transparency has no ground at all — then add what the brief actually names. Five to eight well-placed objects is a finished logo; twenty is a run that ran out of budget mid-embellishment.",
+            "Reference once. Import the mark you are matching a single time, read the digest that comes back, and work from what it says; importing three variants is three steps that answer the same question.",
+            "Stop when the digest says what the brief said. Then describe the document as the digest reports it — which objects, which colours, what coverage — and nothing the digest does not show."
         ],
         "templates": [
             {
@@ -454,7 +550,9 @@ Long work becomes a **job**: the Status region goes busy, a progress bar names i
 
 ## Files in and out
 
-- **Import** takes PNG, JPG, WebP, TIFF, SVG, glTF and GLB, as a new layer or a new document. A
+- **Import** takes PNG, JPG, WebP, TIFF, SVG, glTF and GLB, as a new layer or a new document,
+  **from a file path or a URL**. An SVG arrives as editable objects, so a mark that already
+  exists on the web can be brought in and worked from rather than redrawn from memory. A
   `<name>.json` sidecar beside the file (Degen Media Studio's hand-off format) is read, and its
   prompt, model and lineage become provenance on what gets created.
 - **Export** writes PNG, JPG, WebP, TIFF, SVG, glTF, GLB, or a turntable frame sequence. An
@@ -486,7 +584,6 @@ mod tests {
     /// its rules is not noticed here, it is noticed when `neo pack install` refuses the whole
     /// `media-apps` pack. The closed tool list and the 12-step cap are the two that a plausible
     /// edit to `routines()` gets wrong.
-    #[test]
     fn routines_obey_the_pack_format() {
         const TOOLS: &[&str] = &[
             "navigate",
@@ -498,6 +595,11 @@ mod tests {
             "select_menu",
             "wait_for",
             "extract",
+            // 06 §4.2 names this in the closed list — "tools of the routine's
+            // *own* pack only". It is how a routine reaches the control
+            // channel this pack declares, which is what lets an op run
+            // without taking the seat from the person at the machine.
+            "call_pack_tool",
         ];
         for (name, r) in routines() {
             assert_eq!(r["name"], name, "{name}: name must match its file stem");

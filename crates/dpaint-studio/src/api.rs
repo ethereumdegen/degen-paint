@@ -124,6 +124,61 @@ impl Studio {
             .ok_or_else(|| Error::Invalid("no project is open".into()))
     }
 
+    /// Download `url` into the project's `assets/imports/`, and say where.
+    ///
+    /// Bounded and plain: one GET, a size ceiling, the file named after the
+    /// URL's last segment so a journal entry reads as what it was. Nothing is
+    /// cached across projects — a reference belongs to the project that asked
+    /// for it.
+    #[cfg(feature = "net")]
+    fn fetch_into_project(&self, url: &str) -> Result<PathBuf> {
+        use std::io::Read;
+        const CEILING: usize = 32 * 1024 * 1024;
+
+        let dir = self.root_required()?.join("assets").join("imports");
+        std::fs::create_dir_all(&dir)?;
+        let name = url
+            .rsplit('/')
+            .next()
+            .filter(|s| !s.is_empty())
+            .unwrap_or("import")
+            .split(['?', '#'])
+            .next()
+            .unwrap_or("import")
+            .to_string();
+        let response = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .and_then(|c| c.get(url).send())
+            .map_err(|e| Error::Invalid(format!("could not fetch {url}: {e}")))?;
+        if !response.status().is_success() {
+            return Err(Error::Invalid(format!(
+                "could not fetch {url}: HTTP {}",
+                response.status()
+            )));
+        }
+        let mut bytes = Vec::new();
+        response
+            .take(CEILING as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| Error::Invalid(format!("could not read {url}: {e}")))?;
+        if bytes.len() > CEILING {
+            return Err(Error::Invalid(format!(
+                "{url} is larger than {CEILING} bytes"
+            )));
+        }
+        let path = dir.join(name);
+        std::fs::write(&path, &bytes)?;
+        Ok(path)
+    }
+
+    #[cfg(not(feature = "net"))]
+    fn fetch_into_project(&self, url: &str) -> Result<PathBuf> {
+        Err(Error::Invalid(format!(
+            "{url}: importing from a URL needs the `net` feature; give a file path instead"
+        )))
+    }
+
     /// Reload from disk on every call: an agent may have written since the last one, and the
     /// GUI must never show a stale document.
     fn engine(&self) -> Result<Engine> {
@@ -250,7 +305,22 @@ impl Studio {
             .get("mode")
             .and_then(|m| m.as_str())
             .unwrap_or("layer");
-        let mut args = json!({ "path": str_param(params, "path")?, "mode": mode });
+        let given = str_param(params, "path")?;
+        // A URL is fetched into the project first and imported from there,
+        // so the journal names a file the project owns — a later replay does
+        // not depend on a site still serving it — and the operator never
+        // needs a file system of its own. That operator is the point: an
+        // agent told "make it like the one on the site" could read the
+        // site's colours as text and not its marks, and drew an S where the
+        // reference is a robot's head.
+        let path = if given.starts_with("http://") || given.starts_with("https://") {
+            self.fetch_into_project(&given)?
+                .to_string_lossy()
+                .into_owned()
+        } else {
+            given
+        };
+        let mut args = json!({ "path": path, "mode": mode });
         if let Some(name) = params.get("name").and_then(|n| n.as_str()) {
             args["name"] = json!(name);
         }
@@ -278,8 +348,26 @@ impl Studio {
             .and_then(|d| d.as_bool())
             .unwrap_or(false);
         let mut e = self.engine()?;
-        let applied = e.apply(&id, args, doc, dry)?;
-        Ok(serde_json::to_value(applied)?)
+        match e.apply(&id, args, doc, dry) {
+            Ok(applied) => Ok(serde_json::to_value(applied)?),
+            // Say what the op *does* take, not just which field was wrong.
+            // An operator that cannot see the form has no other way to find
+            // out, and guessing costs it a call each time: measured against
+            // Starkbot, six of one run's steps went on re-guessing the
+            // argument names of a single two-field op.
+            Err(Error::SchemaViolation { op, detail }) => {
+                let schema = self
+                    .registry
+                    .get(&id)
+                    .map(|found| found.schema())
+                    .unwrap_or(Value::Null);
+                Err(Error::SchemaViolation {
+                    op,
+                    detail: format!("{detail}. This op takes: {schema}"),
+                })
+            }
+            Err(other) => Err(other),
+        }
     }
 
     fn digest(&self, params: &Value) -> Result<Value> {

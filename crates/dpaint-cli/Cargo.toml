@@ -27,7 +27,7 @@ dpaint-gpu.workspace = true
 dpaint-inspect.workspace = true
 dpaint-ai.workspace = true
 dpaint-mcp.workspace = true
-dpaint-studio = { workspace = true, features = ["ai"] }
+dpaint-studio = { workspace = true, features = ["ai", "net"] }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

@@ -5,7 +5,16 @@ use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("selector '{selector}' matched 0 objects in {doc}")]
+    // The candidates are carried *and shown*. An operator that cannot see
+    // the canvas has no other way to learn what the document actually calls
+    // its objects, and the names it guesses come from the brief rather than
+    // from the tree: measured against Starkbot, ten of one run's sixteen ops
+    // were styling calls aimed at selectors that matched nothing, each one
+    // costing a step to discover.
+    #[error(
+        "selector '{selector}' matched 0 objects in {doc}. This document has: {}",
+        if candidates.is_empty() { "nothing yet".to_owned() } else { candidates.join(", ") }
+    )]
     SelectorNoMatch {
         selector: String,
         doc: String,
@@ -143,16 +152,19 @@ pub struct ErrorDetail {
 
 /// Cheap edit-distance suggestion so a typo costs zero extra turns.
 fn nearest(needle: &str, hay: &[String]) -> Option<String> {
-    let n = needle.trim_start_matches(['#', '@']);
+    // Case folds because ids are slugged from names: `#headR` should still find `@headR`.
+    let n = needle.trim_start_matches(['#', '@']).to_lowercase();
     if n.is_empty() {
         return None;
     }
+    let n = n.as_str();
     // A candidate that contains what was asked for is a better guess than one a few
     // edits away: '#sky' means '#sky-grad', not '#bg'.
     let limit = (n.chars().count() / 2).max(2);
     hay.iter()
         .filter_map(|c| {
-            let bare = c.trim_start_matches(['#', '@']);
+            let bare = c.trim_start_matches(['#', '@']).to_lowercase();
+            let bare = bare.as_str();
             let score = if bare == n {
                 0
             } else if bare.contains(n) || n.contains(bare) {
@@ -200,6 +212,18 @@ mod tests {
         assert_eq!(d.code, "selector_no_match");
         assert_eq!(d.suggestion.as_deref(), Some("#sky-grad"));
         assert_eq!(e.exit_code(), 3);
+    }
+
+    #[test]
+    fn a_camel_case_name_finds_its_slugged_id() {
+        // Ids lowercase the name they were derived from, so `#headR` matches nothing;
+        // the candidate list carries `@headR` and the suggestion has to survive the case.
+        let e = Error::SelectorNoMatch {
+            selector: "#headR".into(),
+            doc: "doc_mark".into(),
+            candidates: vec!["#obj_headr".into(), "@headR".into(), "#ab_1".into()],
+        };
+        assert_eq!(e.detail().suggestion.as_deref(), Some("@headR"));
     }
 
     #[test]
